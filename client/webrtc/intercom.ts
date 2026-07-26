@@ -430,6 +430,9 @@ function disconnectStereoNodes(stereoId: string) {
     try { nodes.src.disconnect() } catch {}
     stereoNodes.delete(stereoId)
   }
+  // Clean up the silent driver element added by consumeStereo
+  const el = outputAudios.get(stereoId)
+  if (el) { el.pause(); el.srcObject = null; outputAudios.delete(stereoId) }
 }
 
 // Sets up the Web Audio graph for a consumed track.
@@ -907,10 +910,23 @@ async function consumeStereo(chL: number, chR: number) {
       }
     }
 
+    // Resume AudioContext if suspended — required for audio to flow on first load
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {})
+
     // Route via ChannelSplitter → individual per-channel panners
     // This preserves phase coherence (single jitter buffer) while keeping independent pan per channel
     disconnectStereoNodes(stereoId)
     const stream = new MediaStream([consumer.track])
+
+    // Silent driver element keeps the WebRTC RTP decoder active in Chrome.
+    // Without this, the decoder may not run even if an AudioContext node reads the track.
+    const driverEl = document.createElement('audio')
+    driverEl.srcObject = stream
+    driverEl.volume = 0
+    driverEl.autoplay = true
+    driverEl.play().catch(() => {})
+    outputAudios.set(stereoId, driverEl)
+
     const src = audioCtx.createMediaStreamSource(stream)
     const splitter = audioCtx.createChannelSplitter(2)
     src.connect(splitter)
