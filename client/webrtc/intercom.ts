@@ -127,6 +127,20 @@ socket.on("bridge:stereo:available", ({ chL, chR }: { chL: number; chR: number; 
   // interface channels to play through HOST speakers before any routing was configured.
 })
 
+// bridge:channels:available fires once after ALL bridge producers are registered (bridge:producers:done).
+// Re-request routing at this point so consumeStereo runs with the new, valid producer IDs.
+// Without this, consumeStereo may have already run with stale (closed) producer IDs from
+// the previous page load, causing a silent consume failure and no audio from the audio interface.
+let _bridgeReadyTimer: ReturnType<typeof setTimeout> | null = null
+socket.on("bridge:channels:available", () => {
+  if (_bridgeReadyTimer) clearTimeout(_bridgeReadyTimer)
+  _bridgeReadyTimer = setTimeout(() => {
+    _bridgeReadyTimer = null
+    socket.emit("routing:request:all")
+    console.log("[BRIDGE] bridge:channels:available — re-requesting routing with fresh producer IDs")
+  }, 200)
+})
+
 /* ── AUDIO LEVELS ── */
 
 let audioLevels: Record<string, number> = {}
