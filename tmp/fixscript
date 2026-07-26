@@ -1,0 +1,4 @@
+lines = open('/Users/petersandager/EASYCOM/easycom-host/server/src/signaling.ts').readlines()
+lines[422] = '      if (hostSocket) io.to(hostSocket).emit("client:gain", { clientId: socket.id, channel, gain })\n'
+open('/Users/petersandager/EASYCOM/easycom-host/server/src/signaling.ts', 'w').writelines(lines)
+print('Done')

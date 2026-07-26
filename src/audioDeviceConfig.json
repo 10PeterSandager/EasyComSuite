@@ -1,0 +1,44 @@
+{
+  "Universal Audio Thunderbolt": {
+    "channels": {
+      "1":  { "name": "Mic 1",       "type": "input" },
+      "2":  { "name": "Mic 2",       "type": "input" },
+      "3":  { "name": "Line 3",      "type": "input" },
+      "4":  { "name": "Line 4",      "type": "input" },
+      "5":  { "name": "Line 5",      "type": "input" },
+      "6":  { "name": "Line 6",      "type": "input" },
+      "7":  { "name": "Line 7",      "type": "input" },
+      "8":  { "name": "Line 8",      "type": "input" },
+      "9":  { "name": "ADAT 1",      "type": "input" },
+      "10": { "name": "ADAT 2",      "type": "input" },
+      "11": { "name": "ADAT 3",      "type": "input" },
+      "12": { "name": "ADAT 4",      "type": "input" },
+      "13": { "name": "ADAT 5",      "type": "input" },
+      "14": { "name": "ADAT 6",      "type": "input" },
+      "15": { "name": "ADAT 7",      "type": "input" },
+      "16": { "name": "ADAT 8",      "type": "input" },
+      "17": { "name": "SP/DIF L",    "type": "input" },
+      "18": { "name": "SP/DIF R",    "type": "input" },
+      "19": { "name": "Mon L",       "type": "output" },
+      "20": { "name": "Mon R",       "type": "output" },
+      "21": { "name": "HP 1 L",      "type": "output" },
+      "22": { "name": "HP 1 R",      "type": "output" },
+      "23": { "name": "HP 2 L",      "type": "output" },
+      "24": { "name": "HP 2 R",      "type": "output" },
+      "25": { "name": "Loopback L",  "type": "input" },
+      "26": { "name": "Loopback R",  "type": "input" },
+      "27": { "name": "Loopback 2 L","type": "input" },
+      "28": { "name": "Loopback 2 R","type": "input" }
+    }
+  },
+  "MacBook Pro Microphone": {
+    "channels": {
+      "1": { "name": "Built-in Mic", "type": "input" }
+    }
+  },
+  "MacBook Air Microphone": {
+    "channels": {
+      "1": { "name": "Built-in Mic", "type": "input" }
+    }
+  }
+}

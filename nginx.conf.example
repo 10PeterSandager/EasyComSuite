@@ -1,0 +1,50 @@
+# nginx reverse proxy for EasyCom Server
+# Handles TLS termination so the Node.js server can stay on plain HTTP port 3000.
+#
+# Setup:
+#   1. Install nginx:  sudo apt install nginx  (Linux) or  brew install nginx  (Mac)
+#   2. Get a TLS cert: sudo certbot --nginx -d your-domain.com
+#   3. Copy this file to /etc/nginx/sites-available/easycom and symlink to sites-enabled
+#   4. sudo systemctl reload nginx
+#
+# Port forwarding required on your router:
+#   TCP 80   → server (for Let's Encrypt HTTP challenge)
+#   TCP 443  → server (HTTPS — clients connect here)
+#   UDP 40000-49999 → server (WebRTC media — must be open for audio to flow)
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    # Redirect all HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Proxy all traffic to the Node.js server
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        # Required for Socket.IO WebSocket upgrade
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Long timeouts for persistent WebSocket connections
+        proxy_read_timeout  86400s;
+        proxy_send_timeout  86400s;
+        proxy_connect_timeout 10s;
+    }
+}

@@ -1,0 +1,154 @@
+{
+  "connections": [
+    {
+      "from": "bridge-ch1",
+      "to": "client-1783878534737-0",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-1783879784543-0",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-1783982938515",
+      "channel": 1
+    }
+  ],
+  "groups": [
+    {
+      "id": "3e3419a7-b49c-4bfd-b025-0125dba8b2ac",
+      "name": "alle",
+      "members": [
+        "client-0",
+        "client-1784582819448-0",
+        "client-1784582819448-1",
+        "client-1784582819448-2",
+        "client-1784582819448-3"
+      ],
+      "channel": 1,
+      "color": "#3b82f6"
+    }
+  ],
+  "clients": [
+    {
+      "id": "client-1780583175886-0",
+      "data": {
+        "id": "client-1780583175886-0",
+        "name": "CL 04",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1780604415502-0",
+      "data": {
+        "id": "client-1780604415502-0",
+        "name": "CL 02",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-0",
+      "data": {
+        "id": "client-1783979016805-0",
+        "name": "CL 02",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-1",
+      "data": {
+        "id": "client-1783979016805-1",
+        "name": "CL 03",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-2",
+      "data": {
+        "id": "client-1783979016805-2",
+        "name": "CL 04",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-3",
+      "data": {
+        "id": "client-1783979016805-3",
+        "name": "CL 05",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-4",
+      "data": {
+        "id": "client-1783979016805-4",
+        "name": "CL 06",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-5",
+      "data": {
+        "id": "client-1783979016805-5",
+        "name": "CL 07",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-6",
+      "data": {
+        "id": "client-1783979016805-6",
+        "name": "CL 08",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-7",
+      "data": {
+        "id": "client-1783979016805-7",
+        "name": "CL 09",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1783979016805-8",
+      "data": {
+        "id": "client-1783979016805-8",
+        "name": "CL 10",
+        "type": "",
+        "code": "0000"
+      }
+    }
+  ],
+  "audioRoutes": [],
+  "bridgeChannelInfo": [
+    {
+      "channel": 1,
+      "name": "Input 1",
+      "type": "input",
+      "autoDetected": true
+    }
+  ],
+  "outputBridgeChannels": [],
+  "streamDeckLayout": [],
+  "terminals": [
+    {
+      "id": "terminal-1783978358543",
+      "name": "peters terminal",
+      "code": "0000",
+      "pairedClientId": "client-1784061593815-4"
+    }
+  ]
+}
