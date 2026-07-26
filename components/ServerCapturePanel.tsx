@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Server, RefreshCw, AlertCircle, Loader, Settings, Check, X, Save, Volume2 } from "lucide-react"
+import { Server, RefreshCw, AlertCircle, Loader, Settings, Check, X, Save, Volume2, Terminal, Trash2 } from "lucide-react"
 import { socket, setAudioOutputDevice } from "../client/webrtc/intercom"
 import { subscribeBridge, startBridgeCapture } from "../client/audio/audioBridgeStore"
 
@@ -37,6 +37,33 @@ export default function ServerCapturePanel({ onStreamReady }: Props) {
 
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedOutputId, setSelectedOutputId] = useState<string>("default")
+
+  // Debug log panel
+  const [logLines, setLogLines] = useState<{ t: string; msg: string; level: "log" | "warn" | "error" }[]>([])
+  const [showLog, setShowLog] = useState(true)
+  const logRef = useRef<HTMLDivElement>(null)
+  const logLinesRef = useRef(logLines)
+  logLinesRef.current = logLines
+
+  useEffect(() => {
+    const KEEP = 120
+    const fmt = (...args: any[]) => args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ")
+    const now = () => new Date().toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    const push = (level: "log" | "warn" | "error", msg: string) => {
+      setLogLines(prev => [...prev.slice(-(KEEP - 1)), { t: now(), msg, level }])
+    }
+    const origLog = console.log
+    const origWarn = console.warn
+    const origError = console.error
+    console.log = (...a) => { origLog(...a); push("log", fmt(...a)) }
+    console.warn = (...a) => { origWarn(...a); push("warn", fmt(...a)) }
+    console.error = (...a) => { origError(...a); push("error", fmt(...a)) }
+    return () => { console.log = origLog; console.warn = origWarn; console.error = origError }
+  }, [])
+
+  useEffect(() => {
+    if (showLog && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [logLines, showLog])
 
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -253,6 +280,45 @@ export default function ServerCapturePanel({ onStreamReady }: Props) {
             <RefreshCw size={12} />
           </button>
         </div>
+      </div>
+
+      {/* Debug log panel */}
+      <div className="shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center justify-between px-3 py-1.5"
+          style={{ background: "rgba(0,0,0,0.4)" }}>
+          <button onClick={() => setShowLog(p => !p)}
+            className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white/60">
+            <Terminal size={10} />
+            Debug log {logLines.length > 0 && <span className="text-white/20">({logLines.length})</span>}
+          </button>
+          <div className="flex gap-1">
+            <button onClick={() => setLogLines([])} title="Ryd log"
+              className="p-1 rounded text-white/20 hover:text-white/50">
+              <Trash2 size={9} />
+            </button>
+          </div>
+        </div>
+        {showLog && (
+          <div ref={logRef}
+            className="font-mono overflow-y-auto"
+            style={{ height: 160, background: "rgba(0,0,0,0.6)", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+            {logLines.length === 0 && (
+              <div className="flex items-center justify-center h-full text-[9px] text-white/15 italic">
+                Afventer log…
+              </div>
+            )}
+            {logLines.map((l, i) => (
+              <div key={i} className="flex gap-1.5 px-2 py-0.5 hover:bg-white/5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                <span className="text-[8px] text-white/20 shrink-0 pt-px">{l.t}</span>
+                <span className="text-[9px] break-all leading-relaxed"
+                  style={{ color: l.level === "error" ? "#f87171" : l.level === "warn" ? "#fbbf24" : "rgba(255,255,255,0.65)" }}>
+                  {l.msg}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
