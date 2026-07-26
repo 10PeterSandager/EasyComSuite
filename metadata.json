@@ -1,0 +1,8 @@
+{
+  "name": "EasyCom Broadcast Intercom MASTER",
+  "description": "A professional-grade broadcast intercom host and client system with audio routing, IFB capabilities, and high-density client management.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
