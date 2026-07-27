@@ -396,8 +396,12 @@ const sslKey = process.env.SSL_KEY_PATH;
 const server = (sslCert && sslKey)
     ? https_1.default.createServer({ cert: fs_1.default.readFileSync(sslCert), key: fs_1.default.readFileSync(sslKey) }, app)
     : http_1.default.createServer(app);
+// Local HTTP server for LAN clients (phones/tablets) that can't trust the SSL cert.
+// Shares the same Express app and Socket.IO instance — no SSL issues on local network.
+const localHttpServer = (sslCert && sslKey) ? http_1.default.createServer(app) : null;
 const isHttps = sslCert && sslKey;
 /* ---------- SOCKET ---------- */
+const ioServers = localHttpServer ? [server, localHttpServer] : [server];
 const io = new socket_io_1.Server(server, {
     path: '/io',
     cors: {
@@ -405,6 +409,8 @@ const io = new socket_io_1.Server(server, {
         methods: ["GET", "POST"]
     }
 });
+if (localHttpServer)
+    io.attach(localHttpServer);
 // Session password middleware — checked on every connection before any events.
 // If SESSION_PASSWORD is set in .env, clients must supply it in socket auth.
 // An empty / unset password means the server is open (backwards compatible).
@@ -439,10 +445,6 @@ async function start() {
         const protocol = isHttps ? "https" : "http";
         server.listen(PORT, "0.0.0.0", () => {
             console.log(`🔥 Server running on ${protocol}://0.0.0.0:${PORT}`);
-            if (!isHttps) {
-                console.log("⚠️  Running HTTP only — internet clients require HTTPS or a reverse proxy (nginx/Caddy)");
-                console.log("   Set SSL_CERT_PATH and SSL_KEY_PATH in .env to enable HTTPS");
-            }
             // Broadcast tunnel status changes to all connected HOST UIs
             tunnel_1.tunnelEvents.on("status", (state) => {
                 io.emit("tunnel:status", state);
@@ -454,6 +456,13 @@ async function start() {
                     .catch(err => console.error("❌ Tunnel failed:", err.message));
             }
         });
+        // LAN HTTP server — phones/tablets on local network connect here (no SSL cert needed)
+        if (localHttpServer) {
+            const LOCAL_PORT = 3001;
+            localHttpServer.listen(LOCAL_PORT, "0.0.0.0", () => {
+                console.log(`📱 LAN HTTP on http://0.0.0.0:${LOCAL_PORT} (lokalt netværk, ingen SSL)`);
+            });
+        }
         // 🎛️ Stream Deck – start connection attempt (non-blocking)
         signaling_1.streamDeckManager.setCallbacks((clientId, val) => { io.emit('client:talk', { clientId, isTalking: val }); }, (memberIds, val) => { io.emit('streamdeck:group:talk', { memberIds, val }); }, io);
         signaling_1.streamDeckManager.connect().catch(() => { });
