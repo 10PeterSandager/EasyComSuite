@@ -1,45 +1,171 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+// App.tsx – React Native root
+console.log("[APP] App.tsx loading...")
+import React, { useState, useEffect } from 'react'
+import { StatusBar, LogBox } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import LoginScreen from './screens/LoginScreen'
+import IntercomScreen from './screens/IntercomScreen'
 import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+  fetchClients,
+  validatePin,
+  disconnectSocket,
+  getSocket,
+  initMediasoup,
+  getLocalAudioStream,
+  startMicProducer,
+  initRouting,
+  onChannelNames,
+  startAudioSession,
+} from './webrtc/intercom'
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+LogBox.ignoreLogs(['new NativeEventEmitter'])
+
+export type ClientInfo = { id: string; name: string; code: string }
+
+export default function App() {
+  const [screen,          setScreen]          = useState<'login' | 'intercom'>('login')
+  const [connectedClient, setConnectedClient] = useState<ClientInfo | null>(null)
+  const [clients,         setClients]         = useState<ClientInfo[]>([])
+  const [error,           setError]           = useState('')
+  const [loading,         setLoading]         = useState(false)
+  const [channelNames,    setChannelNames]    = useState<Record<number, string>>({})
+
+  useEffect(() => {
+    onChannelNames(names => setChannelNames({ ...names }))
+  }, [])
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const handleSearch = async (ip: string, sessionPassword = '', ssl = false, port?: string) => {
+    console.log('[App] handleSearch called with ip:', ip, 'port:', port)
+    setLoading(true); setError('')
+    // Merge port into host so buildServerUrl picks it up (e.g. "192.168.1.24:3001")
+    const target = port ? `${ip}:${port}` : ip
+
+    try {
+      console.log('[App] fetching clients...')
+      const list = await fetchClients(target, sessionPassword, ssl)
+      console.log('[App] clients found:', list.length)
+      // Deduplicate by name – if the same name appears multiple times (stale
+      // registrations from previous sessions), keep the online one, or the last seen.
+      const seen = new Map<string, any>()
+      for (const c of list) {
+        const existing = seen.get(c.name)
+        if (!existing || c.status === 'online') seen.set(c.name, c)
+      }
+      const deduped = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
+      console.log('[App] clients after dedup:', deduped.length)
+      setClients(deduped.map(c => ({ id: c.id, name: c.name, code: c.code || '0000' })))
+    } catch (e: any) {
+      console.error('[App] search error:', e.message)
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Connect ───────────────────────────────────────────────────────────────
+  const handleConnect = async (client: ClientInfo, pin: string) => {
+    setLoading(true); setError('')
+    try {
+      console.log('[App] Step 1: validatePin...')
+      const ok = await validatePin(client.id, pin)
+      if (!ok) throw new Error('Invalid PIN code')
+      console.log('[App] Step 2: PIN valid ✅')
+
+      // Register with server
+      const s = getSocket()
+      if (!s) throw new Error('Socket not connected')
+      await new Promise<void>(resolve => {
+        s.emit('client:register',
+          { id: client.id, name: client.name, type: 'mobile', code: client.code },
+          () => resolve()
+        )
+        setTimeout(resolve, 2000)
+      })
+      console.log('[App] Step 3: registered ✅')
+
+      // ✅ Start audio session BEFORE mediasoup creates any RTCPeerConnections
+      // media:'video' = speaker by default on iOS
+      startAudioSession()
+      console.log('[App] Step 4: audio session started ✅')
+
+      // ✅ Init mediasoup AFTER audio session is active
+      console.log('[App] Step 5: initMediasoup...')
+      await initMediasoup(client.id, client.name, client.code)
+      console.log('[App] Step 6: mediasoup ready ✅')
+
+      // ✅ Get mic AFTER mediasoup – then re-assert speaker because
+      // getUserMedia() resets iOS AVAudioSession routing
+      try {
+        console.log('[App] Step 7: getting mic...')
+        const micStream = await getLocalAudioStream()
+        await startMicProducer(micStream as any)
+        // Re-assert speaker – getUserMedia resets iOS audio routing
+        startAudioSession()
+        console.log('[App] Step 8: mic producing + speaker re-asserted ✅')
+      } catch (micErr) {
+        console.warn('[App] mic failed (receive-only):', micErr)
+        // Still re-assert speaker even if mic fails
+        startAudioSession()
+      }
+
+      // ✅ Start routing LAST – now audio session is fully configured
+      console.log('[App] Step 9: initRouting...')
+      initRouting(client.id)
+      console.log('[App] Step 10: routing init ✅')
+
+      setConnectedClient(client)
+      setScreen('intercom')
+    } catch (e: any) {
+      console.error('[App] connect failed:', e.message)
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Disconnect ────────────────────────────────────────────────────────────
+  const handleDisconnect = () => {
+    disconnectSocket()
+    setScreen('login')
+    setConnectedClient(null)
+    setChannelNames({})
+  }
+
+  // ── Offline mode ──────────────────────────────────────────────────────────
+  const handleOpenWithoutConnection = () => {
+    setConnectedClient({ id: 'offline', name: 'OFFLINE MODE', code: '' })
+    setScreen('intercom')
+  }
+
+  // ── Socket emit helper ────────────────────────────────────────────────────
+  const socketEmit = (event: string, data: any) => {
+    getSocket()?.emit(event, data)
+  }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        {screen === 'login' ? (
+          <LoginScreen
+            clients={clients}
+            loading={loading}
+            error={error}
+            onSearch={handleSearch}
+            onConnect={handleConnect}
+            onOpenWithoutConnection={handleOpenWithoutConnection}
+          />
+        ) : (
+          <IntercomScreen
+            stationName={connectedClient?.name ?? ''}
+            onDisconnect={handleDisconnect}
+            socketEmit={socketEmit}
+            channelNamesFromServer={channelNames}
+          />
+        )}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  )
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;
