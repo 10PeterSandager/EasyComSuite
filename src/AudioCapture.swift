@@ -114,16 +114,25 @@ guard err == noErr, let q = queue else {
     exit(1)
 }
 
-// Set the device
-var deviceID = targetDevice.id
-var propAddr = AudioObjectPropertyAddress(
-    mSelector: kAudioQueueProperty_CurrentDevice,
+// Set the device — kAudioQueueProperty_CurrentDevice expects a CFString UID, not an AudioDeviceID
+var uidAddr = AudioObjectPropertyAddress(
+    mSelector: kAudioDevicePropertyDeviceUID,
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMain
 )
-err = AudioQueueSetProperty(q, kAudioQueueProperty_CurrentDevice, &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size))
-if err != noErr {
-    fputs("WARN: Could not set device, using default: \(err)\n", stderr)
+var uid: CFString = "" as CFString
+var uidSize = UInt32(MemoryLayout<CFString>.size)
+let uidErr = AudioObjectGetPropertyData(targetDevice.id, &uidAddr, 0, nil, &uidSize, &uid)
+if uidErr == noErr {
+    var uidRef: CFString = uid
+    err = AudioQueueSetProperty(q, kAudioQueueProperty_CurrentDevice, &uidRef, UInt32(MemoryLayout<CFString>.size))
+    if err != noErr {
+        fputs("WARN: Could not set device via UID, using default: \(err)\n", stderr)
+    } else {
+        fputs("OK: Capture device set to \(uid)\n", stderr)
+    }
+} else {
+    fputs("WARN: Could not get device UID (\(uidErr)), using default\n", stderr)
 }
 
 // Allocate and enqueue buffers (3 rotating buffers)

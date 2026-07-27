@@ -291,7 +291,7 @@ export function setupAudioCapture(io: Server) {
         let buffer = Buffer.alloc(0)
 
         proc.stderr.on("data", (data: Buffer) => {
-          const text = data.toString()
+          const text = data.toString().trim()
           // ✅ Parse Swift output: CAPTURE_START:deviceName:channels
           const swiftMatch = text.match(/CAPTURE_START:[^:]+:(\d+)/)
           if (swiftMatch && !headerParsed) {

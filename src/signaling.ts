@@ -455,6 +455,22 @@ export function setupSignaling(io: Server) {
       producers.set(stereoId, producerId)
       console.log(`[signaling] stereo bridge registered: ${stereoId} → ${producerId}`)
       io.emit("bridge:stereo:available", { chL, chR, stereoId })
+
+      // Fulfill any consume:requests that arrived before this stereo producer was ready
+      const pending = pendingConsumeQueue.get(stereoId)
+      if (pending?.length) {
+        pendingConsumeQueue.delete(stereoId)
+        console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${stereoId}"`)
+        for (const req of pending) {
+          clearTimeout(req.timer)
+          consume(req.transportId, producerId, req.rtpCapabilities)
+            .then(async consumer => {
+              if (consumer.kind === 'audio') await consumer.resume()
+              req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters })
+            })
+            .catch(e => req.cb?.({ error: String(e) }))
+        }
+      }
     })
 
     socket.on("bridge:producers:done", () => {

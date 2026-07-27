@@ -135,8 +135,7 @@ app.get("/api/ice-config", (_, res) => {
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
     ];
-    const rawTurn = process.env.TURN_URL ?? "";
-    const turnUrl = rawTurn && !rawTurn.match(/^(turn:|turns:|stun:)/) ? `turn:${rawTurn}` : rawTurn;
+    const turnUrl = process.env.TURN_URL;
     if (turnUrl) {
         iceServers.push({
             urls: turnUrl,
@@ -162,6 +161,16 @@ function writeEnv(envPath, map) {
     fs_1.default.writeFileSync(envPath, Object.entries(map).map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
 }
 const envPath = path_1.default.join(__dirname, "../.env");
+app.get("/api/remote-url", (_, res) => {
+    const tunnelUrl = (0, tunnel_1.getTunnelUrl)();
+    if (tunnelUrl)
+        return res.json({ url: `${tunnelUrl}/remote` });
+    const e = readEnv(envPath);
+    const domain = e.HOST_DOMAIN ?? "";
+    const port = process.env.PORT ?? "3000";
+    const url = domain ? `https://${domain}:${port}/remote` : "";
+    res.json({ url });
+});
 // Returns config status + non-secret field values
 app.get("/api/config", (_, res) => {
     const e = readEnv(envPath);
