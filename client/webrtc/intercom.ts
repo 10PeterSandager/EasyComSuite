@@ -911,7 +911,10 @@ async function consumeStereo(chL: number, chR: number) {
     }
 
     // Resume AudioContext if suspended — required for audio to flow on first load
-    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {})
+    if (audioCtx.state !== 'running') {
+      console.warn(`[STEREO] audioCtx is "${audioCtx.state}" — calling resume()`)
+      await audioCtx.resume().catch((e: any) => console.error('[STEREO] resume() failed:', e))
+    }
 
     // Route via ChannelSplitter → individual per-channel panners
     // This preserves phase coherence (single jitter buffer) while keeping independent pan per channel
@@ -924,7 +927,7 @@ async function consumeStereo(chL: number, chR: number) {
     driverEl.srcObject = stream
     driverEl.volume = 0
     driverEl.autoplay = true
-    driverEl.play().catch(() => {})
+    driverEl.play().then(() => console.log('[STEREO] driverEl playing')).catch((e: any) => console.warn('[STEREO] driverEl.play() failed:', e))
     outputAudios.set(stereoId, driverEl)
 
     const src = audioCtx.createMediaStreamSource(stream)
@@ -941,7 +944,7 @@ async function consumeStereo(chL: number, chR: number) {
 
     stereoNodes.set(stereoId, { src, splitter, gainL, gainR, chL, chR })
 
-    console.log(`[STEREO] ✅ "${stereoId}" → ch${chL}(pan=${getPanner(chL).pan.value.toFixed(2)}) + ch${chR}(pan=${getPanner(chR).pan.value.toFixed(2)})`)
+    console.log(`[STEREO] ✅ "${stereoId}" → ch${chL} + ch${chR}`)
   } catch (e) {
     console.error(`[STEREO] ❌ exception "${stereoId}":`, e)
   } finally {
