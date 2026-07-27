@@ -1,0 +1,13 @@
+node_modules/
+.env
+crash.log
+data.json
+easycom.log
+easycom.error.log
+
+# Windows EXE installers — too large for GitHub
+*.exe
+installers/build-exe/
+
+# Runtime data
+.DS_Store
