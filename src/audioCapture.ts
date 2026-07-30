@@ -59,16 +59,11 @@ const KNOWN_DEVICES: Array<{
         else if (i <= 8) { name = `Line ${i}`; type = "input" }
         else if (i <= 16) { name = `ADAT ${i - 8}`; type = "input" }
         else if (i <= 18) { name = `SP/DIF ${i === 17 ? "L" : "R"}`; type = "input" }
-        else if (i === 19) { name = "Mon L"; type = "output" }
-        else if (i === 20) { name = "Mon R"; type = "output" }
-        else if (i === 21) { name = "HP 1 L"; type = "output" }
-        else if (i === 22) { name = "HP 1 R"; type = "output" }
-        else if (i === 23) { name = "HP 2 L"; type = "output" }
-        else if (i === 24) { name = "HP 2 R"; type = "output" }
-        else if (i === 25) { name = "Loopback L"; type = "input" }
-        else if (i === 26) { name = "Loopback R"; type = "input" }
-        else if (i === 27) { name = "Loopback 2 L"; type = "input" }
-        else if (i === 28) { name = "Loopback 2 R"; type = "input" }
+        else if (i <= 26) { name = `Line Out ${i - 18}`; type = "output" }
+        else if (i === 27) { name = "Loopback L"; type = "input" }
+        else if (i === 28) { name = "Loopback R"; type = "input" }
+        else if (i === 29) { name = "Loopback 2 L"; type = "input" }
+        else if (i === 30) { name = "Loopback 2 R"; type = "input" }
         ch.push({ channel: i, name, type, autoDetected: true })
       }
       return ch

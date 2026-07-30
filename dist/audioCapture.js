@@ -85,43 +85,23 @@ const KNOWN_DEVICES = [
                     name = `SP/DIF ${i === 17 ? "L" : "R"}`;
                     type = "input";
                 }
-                else if (i === 19) {
-                    name = "Mon L";
+                else if (i <= 26) {
+                    name = `Line Out ${i - 18}`;
                     type = "output";
                 }
-                else if (i === 20) {
-                    name = "Mon R";
-                    type = "output";
-                }
-                else if (i === 21) {
-                    name = "HP 1 L";
-                    type = "output";
-                }
-                else if (i === 22) {
-                    name = "HP 1 R";
-                    type = "output";
-                }
-                else if (i === 23) {
-                    name = "HP 2 L";
-                    type = "output";
-                }
-                else if (i === 24) {
-                    name = "HP 2 R";
-                    type = "output";
-                }
-                else if (i === 25) {
+                else if (i === 27) {
                     name = "Loopback L";
                     type = "input";
                 }
-                else if (i === 26) {
+                else if (i === 28) {
                     name = "Loopback R";
                     type = "input";
                 }
-                else if (i === 27) {
+                else if (i === 29) {
                     name = "Loopback 2 L";
                     type = "input";
                 }
-                else if (i === 28) {
+                else if (i === 30) {
                     name = "Loopback 2 R";
                     type = "input";
                 }
