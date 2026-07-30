@@ -67,7 +67,8 @@ export default function ServerCapturePanel({ onStreamReady }: Props) {
 
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
-      setOutputDevices(devices.filter(d => d.kind === "audiooutput"))
+      const outs = devices.filter(d => d.kind === "audiooutput")
+      setOutputDevices(outs)
     })
   }, [])
 

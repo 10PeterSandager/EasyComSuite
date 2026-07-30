@@ -49,10 +49,17 @@ function handlePcmPacket({ channel, data }: { channel: number; data: ArrayBuffer
   if (!bridge || !sharedCtx) return
 
   const int16 = new Int16Array(
-    data instanceof ArrayBuffer ? data : (data as any).buffer
+    data instanceof ArrayBuffer ? data : (data as any).buffer.slice((data as any).byteOffset, (data as any).byteOffset + (data as any).byteLength)
   )
   const float32 = new Float32Array(int16.length)
   for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0
+
+  // DEBUG: track signal on key channels every 500 packets
+  if ((channel === 25 || channel === 17) && _pcmPacketCount % 500 === 0) {
+    const mx = float32.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+    const byteOff = (data as any).byteOffset ?? 'n/a'
+    console.log(`[PCM-DBG] ch${channel}: max=${(mx*100).toFixed(2)}% samples=${int16.length} type=${data.constructor.name} byteOffset=${byteOff}`)
+  }
 
   const buffer = sharedCtx.createBuffer(1, float32.length, sharedCtx.sampleRate)
   buffer.copyToChannel(float32, 0)
@@ -74,9 +81,30 @@ function handleVisibility() {
 }
 
 let pcmListenerActive = false
+let _pcmPacketCount = 0
+
+;(window as any).__audioBridgeDebug = {
+  get sharedCtxState() { return sharedCtx?.state },
+  get sharedCtxTime() { return sharedCtx?.currentTime?.toFixed(2) },
+  get bridgeChannels() { return [...bridges.keys()] },
+  resumeSharedCtx() { return sharedCtx?.resume() }
+}
 
 function handleMultiPcmPacket(packets: Array<{ channel: number; data: ArrayBuffer | Buffer }>) {
   if (!sharedCtx) return
+  _pcmPacketCount++
+  if (_pcmPacketCount % 1000 === 0) {
+    const buf = new Float32Array(1024)
+    const active: string[] = []
+    for (const [ch, b] of bridges.entries()) {
+      b.analyser.getFloatTimeDomainData(buf)
+      let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]
+      const lvl = Math.sqrt(s / buf.length) * 400
+      if (lvl > 0.5) active.push(`ch${ch}:${lvl.toFixed(0)}%`)
+    }
+    const summary = active.length ? active.join(' ') : 'ALL SILENT'
+    console.log(`[AudioBridge] PCM rx: ${_pcmPacketCount} pkts | bridges=${bridges.size} (${[...bridges.keys()].slice(0,5).join(',')}...) | sharedCtx=${sharedCtx.state} t=${sharedCtx.currentTime.toFixed(1)}s | LEVELS: ${summary}`)
+  }
   const now = sharedCtx.currentTime
   const MAX_AHEAD = 0.2
   // Only reset on meaningful underrun (>20ms behind playback clock).
@@ -97,6 +125,24 @@ function handleMultiPcmPacket(packets: Array<{ channel: number; data: ArrayBuffe
     : now + 0.040                                       // fresh start — reduced from 100ms
   for (const pkt of packets) handlePcmPacket(pkt, batchStart)
 }
+
+// Resume sharedCtx on any user gesture — AudioContext starts suspended on page load and
+// getSharedCtx's resume() only runs during startChannelBridge. If both bridge setup runs
+// finish before the user's first click, sharedCtx stays suspended and the stereo producer
+// sends silence. This listener catches gestures that occur after setup is complete.
+;(() => {
+  const resumeShared = () => {
+    if (sharedCtx) {
+      const before = sharedCtx.state
+      sharedCtx.resume().then(() => {
+        if (before !== 'running')
+          console.log(`[AudioBridge] sharedCtx resumed on gesture: ${before} → ${sharedCtx!.state}`)
+      }).catch(() => {})
+    }
+  }
+  document.addEventListener('click', resumeShared, { capture: true })
+  document.addEventListener('keydown', resumeShared, { capture: true })
+})()
 
 function ensurePcmListener() {
   if (pcmListenerActive) return
@@ -274,6 +320,13 @@ export async function getStereoStream(chL: number, chR: number): Promise<MediaSt
   const gainL = gainNodes.get(chL)
   const gainR = gainNodes.get(chR)
   if (!gainL || !gainR || !sharedCtx) return null
+
+  // Log context state — if suspended, audio path will be silent until user gesture
+  console.log(`[AudioBridge] getStereoStream ch${chL}+${chR}: sharedCtx.state=${sharedCtx.state} currentTime=${sharedCtx.currentTime.toFixed(2)}`)
+  if (sharedCtx.state !== 'running') {
+    await sharedCtx.resume().catch(e => console.warn('[AudioBridge] sharedCtx.resume() failed in getStereoStream:', e))
+    console.log(`[AudioBridge] sharedCtx state after resume attempt: ${sharedCtx.state}`)
+  }
 
   const merger = sharedCtx.createChannelMerger(2)
   gainL.connect(merger, 0, 0)

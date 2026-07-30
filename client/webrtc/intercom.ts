@@ -136,8 +136,21 @@ socket.on("bridge:channels:available", () => {
   if (_bridgeReadyTimer) clearTimeout(_bridgeReadyTimer)
   _bridgeReadyTimer = setTimeout(() => {
     _bridgeReadyTimer = null
+    // Close stale stereo consumers — producers changed after double-init, so old consumers
+    // point to now-silent producers. consumeStereo skips if consumer exists, so we must
+    // evict them here before requesting new routing.
+    for (const [chL, chR] of currentStereoPairs.entries()) {
+      const stereoId = `bridge-stereo-${chL}-${chR}`
+      const c = stereoConsumers.get(stereoId)
+      if (c) {
+        try { c.close() } catch {}
+        disconnectStereoNodes(stereoId)
+        stereoConsumers.delete(stereoId)
+      }
+      pendingStereo.delete(stereoId)
+    }
     socket.emit("routing:request:all")
-    console.log("[BRIDGE] bridge:channels:available — re-requesting routing with fresh producer IDs")
+    console.log("[BRIDGE] bridge:channels:available — closed stale stereo consumers, re-requesting routing")
   }, 200)
 })
 
@@ -266,6 +279,17 @@ audioCtx.onstatechange = () => {
     audioCtx.resume().catch(() => {})
   }
 }
+
+// Chrome suspends AudioContext until user gesture. Bridge setup auto-starts on mount (no gesture),
+// so audioCtx.resume() in consumeStereo may fail silently. This listener ensures it resumes
+// on the first click/keydown — critical for audio to reach speakers after auto-setup.
+;(() => {
+  const resumeOnGesture = () => {
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {})
+  }
+  document.addEventListener('click', resumeOnGesture, { capture: true })
+  document.addEventListener('keydown', resumeOnGesture, { capture: true })
+})()
 const mixers: Record<number, GainNode> = {}
 const panners = new Map<number, StereoPannerNode>()
 let muted = false
@@ -614,6 +638,7 @@ function attachOutputAudio(sourceId: string, track: MediaStreamTrack) {
   // which starves the buffer and causes sawtooth artifacts when the gate opens.
   if (!sourceId.startsWith("bridge-")) el.muted = true
   el.autoplay = true
+  if (currentOutputDeviceId) (el as any).setSinkId(currentOutputDeviceId).catch(() => {})
   el.play().catch(() => {})
   outputAudios.set(sourceId, el)
 }
@@ -896,6 +921,29 @@ async function consumeStereo(chL: number, chR: number) {
     const consumer = await recvTransport.consume({ id, producerId, kind, rtpParameters })
     if (consumer.resume) await consumer.resume()
 
+    console.log(`[STEREO] consumer track: readyState=${consumer.track.readyState} muted=${consumer.track.muted} enabled=${consumer.track.enabled}`)
+    console.log(`[STEREO] audioCtx.state=${audioCtx.state} sinkId=${(audioCtx as any).sinkId ?? 'default'}`)
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      const outs = devices.filter(d => d.kind === 'audiooutput')
+      const sid = (audioCtx as any).sinkId ?? ''
+      const label = sid === '' ? `system default (${outs.find(d => d.deviceId === 'default')?.label ?? 'unknown'})` : (outs.find(d => d.deviceId === sid)?.label ?? sid)
+      console.log(`[STEREO] audioCtx → "${label}"`)
+      console.log('[STEREO] All outputs:', outs.map(d => `"${d.label}"`).join(' | '))
+    })
+
+    // Monitor how long the track stays muted — in Chrome, muted=true means no RTP has arrived yet.
+    // It should unmute within ~50ms once the server-side consumer starts forwarding packets.
+    const _muteT0 = Date.now()
+    consumer.track.addEventListener('unmute', () => {
+      console.log(`[STEREO] track UNMUTED after ${Date.now() - _muteT0}ms ✓ RTP flowing`)
+    }, { once: true })
+    consumer.track.addEventListener('mute', () => {
+      console.log(`[STEREO] track re-muted ← RTP stopped`)
+    })
+    setTimeout(() => {
+      console.log(`[STEREO] 1s check: track.muted=${consumer.track.muted} readyState=${consumer.track.readyState}`)
+    }, 1000)
+
     stereoConsumers.set(stereoId, consumer)
 
     // Disconnect mono nodes FIRST — no overlap window where both play simultaneously
@@ -921,12 +969,11 @@ async function consumeStereo(chL: number, chR: number) {
     disconnectStereoNodes(stereoId)
     const stream = new MediaStream([consumer.track])
 
-    // Silent driver element keeps the WebRTC RTP decoder active in Chrome.
-    // Without this, the decoder may not run even if an AudioContext node reads the track.
     const driverEl = document.createElement('audio')
     driverEl.srcObject = stream
     driverEl.volume = 0
     driverEl.autoplay = true
+    if (currentOutputDeviceId) (driverEl as any).setSinkId(currentOutputDeviceId).catch(() => {})
     driverEl.play().then(() => console.log('[STEREO] driverEl playing')).catch((e: any) => console.warn('[STEREO] driverEl.play() failed:', e))
     outputAudios.set(stereoId, driverEl)
 
