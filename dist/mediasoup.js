@@ -48,7 +48,7 @@ const os = __importStar(require("os"));
 function getLocalIp() {
     for (const ifaces of Object.values(os.networkInterfaces())) {
         for (const iface of ifaces ?? []) {
-            if (iface.family === "IPv4" && !iface.internal)
+            if (iface.family === "IPv4" && !iface.internal && !iface.address.startsWith("169.254."))
                 return iface.address;
         }
     }
@@ -102,14 +102,14 @@ async function initMediasoup() {
 }
 /* ---------- CREATE TRANSPORT ---------- */
 async function createTransport(direction) {
-    const announcedIp = _runtimeAnnouncedIp ?? process.env.MEDIASOUP_ANNOUNCED_IP ?? getLocalIp();
+    const localIp = getLocalIp();
+    // Announce local LAN IP so phones on the same network get a reachable ICE candidate.
+    // The external IP (MEDIASOUP_ANNOUNCED_IP) only matters for internet clients, which
+    // currently use Cloudflare tunnel (no UDP relay) so WebRTC to external IPs doesn't
+    // work anyway. Local-only is correct for all current use cases.
+    const announcedIp = localIp;
     const transport = await exports.router.createWebRtcTransport({
-        listenIps: [
-            {
-                ip: "0.0.0.0",
-                announcedIp // 🔥 Was undefined – that breaks WebRTC
-            }
-        ],
+        listenIps: [{ ip: "0.0.0.0", announcedIp }],
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,

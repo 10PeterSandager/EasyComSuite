@@ -460,6 +460,22 @@ function setupSignaling(io) {
             const clientId = `bridge-ch${channel}`;
             producers.set(clientId, producerId);
             console.log(`[signaling] bridge producer registered: ${clientId} → ${producerId}`);
+            // Flush any consume:requests that arrived before this producer was ready
+            const pending = pendingConsumeQueue.get(clientId);
+            if (pending?.length) {
+                pendingConsumeQueue.delete(clientId);
+                console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${clientId}"`);
+                for (const req of pending) {
+                    clearTimeout(req.timer);
+                    (0, mediasoup_1.consume)(req.transportId, producerId, req.rtpCapabilities)
+                        .then(async (consumer) => {
+                        if (consumer.kind === 'audio')
+                            await consumer.resume();
+                        req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters });
+                    })
+                        .catch(e => req.cb?.({ error: String(e) }));
+                }
+            }
         });
         socket.on("bridge:stereo:register", ({ chL, chR, producerId }) => {
             const stereoId = `bridge-stereo-${chL}-${chR}`;
