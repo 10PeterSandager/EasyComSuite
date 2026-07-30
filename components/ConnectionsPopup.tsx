@@ -66,7 +66,7 @@ export default function ConnectionsPopup({
   const [scSrcName, setScSrcName] = useState("")
   const [scRecvCh, setScRecvCh] = useState<number | null>(null)
   // output flow
-  const [selectedMyOutputCh, setSelectedMyOutputCh] = useState<number | null>(null)
+  const [selectedMyOutputChs, setSelectedMyOutputChs] = useState<number[]>([])
   const [selectedSoundcardCh, setSelectedSoundcardCh] = useState<number | null>(null)
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>("")
@@ -152,7 +152,7 @@ export default function ConnectionsPopup({
     setTalkSrcCh(null); setTalkDestCh(null)
     setRecvMyCh(null); setRecvDestCh(null)
     setScSrcId(null); setScSrcName(""); setScRecvCh(null)
-    setSelectedMyOutputCh(null); setSelectedSoundcardCh(null)
+    setSelectedMyOutputChs([]); setSelectedSoundcardCh(null)
     setSelectedServerDevice(-1); setSelectedDeviceChannels(2)
   }
 
@@ -211,17 +211,18 @@ export default function ConnectionsPopup({
   }
 
   const confirmConnectOutput = () => {
-    if (selectedMyOutputCh === null || selectedSoundcardCh === null) return
-    socket.emit("connection:create", {
-      from: sourceClient.id, to: `bridge-ch${selectedSoundcardCh}`,
-      channel: 1, toChannel: selectedMyOutputCh, bidirectional: false,
-    })
-    // Configure the server-side PortAudio device for this hardware channel
+    if (selectedMyOutputChs.length === 0 || selectedSoundcardCh === null) return
     socket.emit("output:channel:config", {
       hwChannel: selectedSoundcardCh,
       deviceId: selectedServerDevice,
       deviceChannels: selectedDeviceChannels,
     })
+    for (const tbCh of selectedMyOutputChs) {
+      socket.emit("connection:create", {
+        from: sourceClient.id, to: `bridge-ch${selectedSoundcardCh}`,
+        channel: 1, toChannel: tbCh, bidirectional: false,
+      })
+    }
     resetFlow()
   }
 
@@ -659,7 +660,7 @@ export default function ConnectionsPopup({
         SELECT RECEIVE CHANNEL
       </p>
       <div className="grid grid-cols-4 gap-1.5">
-        {Array.from({ length: RECV_CH }, (_, i) => {
+        {Array.from({ length: clientRecvChCount(sourceClient.id) }, (_, i) => {
           const ch = i + 1
           const sel = scRecvCh === ch
           return (
@@ -694,13 +695,17 @@ export default function ConnectionsPopup({
         <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
           SELECT TB CHANNEL TO SEND
         </p>
+        <p className="text-[9px] text-white/35">Tap to toggle — multiple channels can be selected</p>
         <div className="grid grid-cols-4 gap-1.5">
           {Array.from({ length: myTalkCh }, (_, i) => {
             const ch = i + 1
             const label = clientTalkNames[`talk${ch}`]
-            const sel = selectedMyOutputCh === ch
+            const sel = selectedMyOutputChs.includes(ch)
             return (
-              <button key={ch} onClick={() => setSelectedMyOutputCh(ch)}
+              <button key={ch}
+                onClick={() => setSelectedMyOutputChs(prev =>
+                  prev.includes(ch) ? prev.filter(x => x !== ch) : [...prev, ch]
+                )}
                 className="rounded-lg p-2.5 transition-all"
                 style={sel
                   ? { background: chColor(ch) + "40", border: `2px solid ${chColor(ch)}`, color: chColor(ch) }
@@ -716,91 +721,97 @@ export default function ConnectionsPopup({
             )
           })}
         </div>
-        {selectedMyOutputCh !== null && (
-          <button onClick={() => setStep("output-pick-soundcard")}
+        {selectedMyOutputChs.length > 0 && (
+          <button onClick={() => { fetchServerOutputDevices(); setStep("output-pick-device") }}
             className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
             style={{ background: "rgba(34,197,94,0.8)", color: "white" }}>
-            Next – select audio interface output <ChevronRight size={14} />
+            {selectedMyOutputChs.length > 1 ? `${selectedMyOutputChs.length} channels selected` : `TB${selectedMyOutputChs[0]} selected`} – choose device <ChevronRight size={14} />
           </button>
         )}
       </div>
     )
   }
 
-  // ── OUTPUT: PICK SOUNDCARD ──
-  const renderOutputPickSoundcard = () => (
-    <div className="space-y-3">
-      <BackBtn to="output-pick-my-ch" />
-      <div className="px-3 py-2 rounded-lg"
-        style={{ background: chColor(selectedMyOutputCh!) + "20", border: `1px solid ${chColor(selectedMyOutputCh!)}40` }}>
-        <p className="text-[9px] text-white/50 uppercase tracking-widest">My TB channel</p>
-        <p className="text-sm font-bold" style={{ color: chColor(selectedMyOutputCh!) }}>TB{selectedMyOutputCh}</p>
-      </div>
-      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SELECT AUDIO INTERFACE OUTPUT</p>
-      {outputBridgeChs.length === 0 && (
-        <p className="text-[11px] text-white/50 italic text-center py-4">
-          No audio interface outputs – start Audio Bridge
-        </p>
-      )}
-      <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
-        {outputBridgeChs.map(ch => (
-          <button key={ch.channel}
-            onClick={() => setSelectedSoundcardCh(selectedSoundcardCh === ch.channel ? null : ch.channel)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all"
-            style={selectedSoundcardCh === ch.channel
-              ? { background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.5)", color: "white" }
-              : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}>
-            <span className="text-[9px] font-mono text-white/40 w-5 text-right shrink-0">{ch.channel}</span>
-            <span className="text-[8px] font-black px-1.5 py-0.5 rounded shrink-0"
-              style={{ background: "rgba(59,130,246,0.2)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}>
-              OUT
-            </span>
-            <span className="text-sm font-bold flex-1 text-left">{ch.name}</span>
-            {selectedSoundcardCh === ch.channel && <Check size={12} className="text-green-400" />}
-          </button>
-        ))}
-      </div>
-      {selectedSoundcardCh !== null && (
-        <button
-          onClick={() => { fetchServerOutputDevices(); setStep("output-pick-device") }}
-          className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-          style={{ background: "rgba(34,197,94,0.8)", color: "white" }}>
-          Next – configure output device <ChevronRight size={14} />
-        </button>
-      )}
-    </div>
-  )
-
-  // ── OUTPUT: PICK SERVER DEVICE ──
-  const renderOutputPickDevice = () => {
-    const scName = outputBridgeChs.find(c => c.channel === selectedSoundcardCh)?.name ?? `CH${selectedSoundcardCh}`
+  // ── OUTPUT: PICK SOUNDCARD CHANNEL ──
+  const renderOutputPickSoundcard = () => {
+    const tbLabel = selectedMyOutputChs.map(ch => `TB${ch}`).join("+")
+    const devName = serverOutputDevices.find(d => d.id === selectedServerDevice)?.name ?? "default"
+    const scName = outputBridgeChs.find(c => c.channel === selectedSoundcardCh)?.name ?? (selectedSoundcardCh ? `CH${selectedSoundcardCh}` : "")
     const canConfirm = selectedSoundcardCh !== null && socketOk
     return (
       <div className="space-y-3">
-        <BackBtn to="output-pick-soundcard" />
+        <BackBtn to="output-pick-device" />
         <div className="grid grid-cols-2 gap-2">
           <div className="px-3 py-2 rounded-lg"
-            style={{ background: chColor(selectedMyOutputCh!) + "20", border: `1px solid ${chColor(selectedMyOutputCh!)}40` }}>
-            <p className="text-[9px] text-white/50 uppercase tracking-widest">TB channel</p>
-            <p className="text-sm font-bold" style={{ color: chColor(selectedMyOutputCh!) }}>TB{selectedMyOutputCh}</p>
+            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+            <p className="text-[9px] text-white/50 uppercase tracking-widest">Sending</p>
+            <p className="text-sm font-bold text-green-400">{tbLabel}</p>
           </div>
           <div className="px-3 py-2 rounded-lg"
-            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
-            <p className="text-[9px] text-white/50 uppercase tracking-widest">Interface output</p>
-            <p className="text-sm font-bold text-green-400">{scName}</p>
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <p className="text-[9px] text-white/50 uppercase tracking-widest">Device</p>
+            <p className="text-xs font-bold text-white/70 truncate">{devName}</p>
           </div>
         </div>
+        <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SELECT OUTPUT CHANNEL</p>
+        {outputBridgeChs.length === 0 && (
+          <p className="text-[11px] text-white/50 italic text-center py-4">
+            No audio interface outputs – start Audio Bridge
+          </p>
+        )}
+        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+          {outputBridgeChs.map(ch => (
+            <button key={ch.channel}
+              onClick={() => setSelectedSoundcardCh(selectedSoundcardCh === ch.channel ? null : ch.channel)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all"
+              style={selectedSoundcardCh === ch.channel
+                ? { background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.5)", color: "white" }
+                : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}>
+              <span className="text-[9px] font-mono text-white/40 w-5 text-right shrink-0">{ch.channel}</span>
+              <span className="text-[8px] font-black px-1.5 py-0.5 rounded shrink-0"
+                style={{ background: "rgba(59,130,246,0.2)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}>
+                OUT
+              </span>
+              <span className="text-sm font-bold flex-1 text-left">{ch.name}</span>
+              {selectedSoundcardCh === ch.channel && <Check size={12} className="text-green-400" />}
+            </button>
+          ))}
+        </div>
+        {canConfirm && (
+          <button onClick={confirmConnectOutput}
+            className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+            style={{ background: "#22c55e", color: "white" }}>
+            <Check size={14} />
+            Confirm — {tbLabel} → {scName}
+          </button>
+        )}
+      </div>
+    )
+  }
 
-        <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SERVER OUTPUT DEVICE</p>
-        <p className="text-[9px] text-white/35">Which PortAudio device the server plays this TB audio through</p>
+  // ── OUTPUT: PICK SERVER DEVICE ──
+  const renderOutputPickDevice = () => {
+    const tbLabel = selectedMyOutputChs.map(ch => `TB${ch}`).join("+")
+    const canNext = selectedServerDevice >= 0 || serverOutputDevices.length === 0
+    return (
+      <div className="space-y-3">
+        <BackBtn to="output-pick-my-ch" />
+        <div className="px-3 py-2 rounded-lg"
+          style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+          <p className="text-[9px] text-white/50 uppercase tracking-widest">Sending</p>
+          <p className="text-sm font-bold text-green-400">{tbLabel}</p>
+        </div>
+
+        <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SELECT OUTPUT DEVICE</p>
+        <p className="text-[9px] text-white/35">Which audio interface the server should output to</p>
 
         {serverOutputDevices.length === 0 ? (
           <div className="text-center py-4 space-y-1">
             <p className="text-[11px] text-white/40 italic">No server output devices found</p>
-            <p className="text-[10px] text-white/25">Using system default (device –1)</p>
+            <p className="text-[10px] text-white/25">Will use system default</p>
           </div>
         ) : (
-          <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-[180px] overflow-y-auto pr-1">
             {serverOutputDevices.map(d => (
               <button key={d.id}
                 onClick={() => { setSelectedServerDevice(d.id); setSelectedDeviceChannels(Math.min(d.maxOutputChannels, 32)) }}
@@ -817,7 +828,7 @@ export default function ConnectionsPopup({
           </div>
         )}
 
-        {serverOutputDevices.length > 0 && selectedServerDevice >= 0 && (
+        {selectedServerDevice >= 0 && (
           <div className="space-y-1">
             <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">TOTAL DEVICE CHANNELS</p>
             <p className="text-[9px] text-white/30">Must match the device's actual channel count for correct interleaving</p>
@@ -835,14 +846,13 @@ export default function ConnectionsPopup({
           </div>
         )}
 
-        <button onClick={confirmConnectOutput} disabled={!canConfirm}
-          className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-          style={canConfirm
-            ? { background: "#22c55e", color: "white" }
-            : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
-          <Check size={14} />
-          Confirm — TB{selectedMyOutputCh} → {scName}
-        </button>
+        {canNext && (
+          <button onClick={() => setStep("output-pick-soundcard")}
+            className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+            style={{ background: "rgba(34,197,94,0.8)", color: "white" }}>
+            Next – select output channel <ChevronRight size={14} />
+          </button>
+        )}
       </div>
     )
   }
