@@ -5,12 +5,14 @@
  * Routes a mobile client's TB audio (mediasoup producer) to a specific
  * hardware output channel on the soundcard.
  *
+ * naudiodon/PortAudio is run in an isolated child process (audioOutputWorker.js)
+ * so a SIGSEGV there cannot kill the main server.
+ *
  * Flow:
  *   mediasoup producer
  *     → PlainTransport (server-side consumer)
- *     → UDP socket (raw RTP on localhost)
- *     → opusscript decoder (Opus → Int16 PCM)
- *     → naudiodon AudioIO (PCM → specific hardware channel)
+ *     → UDP socket (raw RTP on localhost → worker process)
+ *     → audioOutputWorker: opusscript decoder + naudiodon AudioIO
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -54,47 +56,23 @@ exports.startOutputRoute = startOutputRoute;
 exports.stopOutputRoute = stopOutputRoute;
 exports.stopAllForClient = stopAllForClient;
 exports.getActiveRouteKeys = getActiveRouteKeys;
-const dgram = __importStar(require("dgram"));
+const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
+const child_process_2 = require("child_process");
 const mediasoup_1 = require("./mediasoup");
-// Dynamic requires — naudiodon is a native addon, opusscript is pure JS
-let OpusScript = null;
-let naudiodon = null;
-try {
-    OpusScript = require("opusscript");
-    console.log("[audioOutput] opusscript loaded");
-}
-catch (e) {
-    console.warn("[audioOutput] opusscript not available:", e.message);
-}
-try {
-    naudiodon = require("naudiodon");
-    // NOTE: do NOT call naudiodon.getDevices() — it segfaults on some macOS systems
-    // due to a PortAudio initialization bug. AudioIO construction is fine.
-    console.log("[audioOutput] naudiodon loaded");
-}
-catch (e) {
-    console.warn("[audioOutput] naudiodon not available:", e.message);
-}
 /* ---- STATE ---- */
 // Active routes: key = "${clientId}:ch${hwChannel}"
 const activeRoutes = new Map();
 // Per hw-channel device config (set by host via socket event)
 const channelConfigs = new Map();
 // Known device max output channels — populated by registerOutputDevice() and listOutputDevices().
-// Used to guard against naudiodon SIGSEGV from invalid channel count.
 const deviceMaxOutputChannels = new Map();
 /* ---- PUBLIC API ---- */
-// Register a device's max output channel count — called by audioCapture when a device
-// session starts, so we know valid limits before AudioIO construction.
 function registerOutputDevice(deviceId, maxOutputChannels) {
     deviceMaxOutputChannels.set(deviceId, maxOutputChannels);
     console.log(`[audioOutput] registered device ${deviceId}: max ${maxOutputChannels} output channels`);
 }
-// List audio output devices via FFmpeg AVFoundation (safe — no PortAudio crash risk).
-// Calls back with an array of { id, name, maxOutputChannels, defaultSampleRate }.
-// id here is the AVFoundation device index, which is also the naudiodon deviceId
-// (PortAudio on macOS enumerates AVFoundation devices in the same order).
+// List audio output devices via FFmpeg AVFoundation.
 function listOutputDevices(cb) {
     const ffmpegBin = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
         .find(p => { try {
@@ -104,7 +82,7 @@ function listOutputDevices(cb) {
     catch {
         return false;
     } }) ?? "ffmpeg";
-    (0, child_process_1.execFile)(ffmpegBin, ["-f", "avfoundation", "-list_devices", "true", "-i", ""], (_, __, stderr) => {
+    (0, child_process_2.execFile)(ffmpegBin, ["-f", "avfoundation", "-list_devices", "true", "-i", ""], (_, __, stderr) => {
         const devices = [];
         let inAudio = false;
         for (const line of stderr.split("\n")) {
@@ -117,11 +95,10 @@ function listOutputDevices(cb) {
                 if (m) {
                     const id = parseInt(m[1]);
                     const name = m[2].trim();
-                    // Use registered max if available; fall back to name-based heuristic
                     let maxCh = deviceMaxOutputChannels.get(id);
                     if (maxCh === undefined) {
                         if (/universal audio|apollo/i.test(name))
-                            maxCh = 6;
+                            maxCh = 8;
                         else if (/focusrite|scarlett|clarett/i.test(name))
                             maxCh = 8;
                         else
@@ -148,22 +125,13 @@ function getChannelConfig(hwChannel) {
 async function startOutputRoute(clientId, producerId, hwChannel) {
     const key = `${clientId}:ch${hwChannel}`;
     await stopOutputRoute(clientId, hwChannel);
-    if (!OpusScript) {
-        console.warn("[audioOutput] opusscript missing — cannot start output route");
-        return;
-    }
-    if (!naudiodon) {
-        console.warn("[audioOutput] naudiodon missing — cannot start output route");
-        return;
-    }
     const { deviceId, deviceChannels } = getChannelConfig(hwChannel);
-    // Guard: validate deviceChannels against known device limits BEFORE creating AudioIO.
-    // naudiodon will SIGSEGV (kills the entire process) if channelCount > device's actual channels.
+    // Guard: validate deviceChannels against known device limits before spawning worker.
     if (deviceId >= 0) {
         const maxCh = deviceMaxOutputChannels.get(deviceId);
         if (maxCh !== undefined && deviceChannels > maxCh) {
-            console.error(`[audioOutput] ❌ ch${hwChannel}: deviceChannels=${deviceChannels} exceeds device ${deviceId} max=${maxCh}` +
-                ` — refusing AudioIO creation (would SIGSEGV). Reconfigure via output routing UI.`);
+            console.error(`[audioOutput] ❌ ch${hwChannel}: deviceChannels=${deviceChannels} exceeds ` +
+                `device ${deviceId} max=${maxCh} — refusing (would crash). Reconfigure via output routing UI.`);
             return;
         }
         if (deviceChannels < 1) {
@@ -171,21 +139,49 @@ async function startOutputRoute(clientId, producerId, hwChannel) {
             return;
         }
     }
-    const chIdx = (hwChannel - 1) % deviceChannels; // 0-based index within device
     try {
-        // 1. UDP socket — receives RTP from mediasoup PlainTransport
-        const rtpSocket = dgram.createSocket("udp4");
-        await new Promise((res, rej) => rtpSocket.bind(0, "127.0.0.1", (err) => (err ? rej(err) : res())));
-        const rtpPort = rtpSocket.address().port;
-        // 2. PlainTransport: mediasoup sends consumer RTP to our UDP socket
+        // 1. Spawn worker — naudiodon runs in isolated child process, SIGSEGV cannot kill us
+        const workerPath = path.join(__dirname, "audioOutputWorker.js");
+        const worker = (0, child_process_1.spawn)(process.execPath, [
+            workerPath,
+            String(deviceId),
+            String(deviceChannels),
+            String(hwChannel),
+        ], { stdio: ["pipe", "pipe", "pipe"] });
+        worker.stderr.on("data", (d) => console.warn(`[audioOutputWorker pid=${worker.pid}] ${d.toString().trim()}`));
+        // 2. Wait for READY:<port> or ERROR:<msg>
+        const rtpPort = await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { worker.kill(); reject(new Error("audioOutputWorker start timeout")); }, 6000);
+            let buf = "";
+            worker.stdout.on("data", (d) => {
+                buf += d.toString();
+                const lines = buf.split("\n");
+                for (const line of lines.slice(0, -1)) {
+                    if (line.startsWith("READY:")) {
+                        clearTimeout(timer);
+                        resolve(parseInt(line.slice(6)));
+                    }
+                    else if (line.startsWith("ERROR:")) {
+                        clearTimeout(timer);
+                        worker.kill();
+                        reject(new Error(line.slice(6)));
+                    }
+                }
+                buf = lines[lines.length - 1];
+            });
+            worker.on("exit", (code) => {
+                clearTimeout(timer);
+                reject(new Error(`worker exited prematurely (code ${code})`));
+            });
+        });
+        // 3. PlainTransport: mediasoup sends consumer RTP to worker's UDP socket
         const plainTransport = await mediasoup_1.router.createPlainTransport({
             listenIp: { ip: "127.0.0.1", announcedIp: "127.0.0.1" },
             rtcpMux: true,
             comedia: false,
         });
-        // Tell the transport to deliver RTP to our bound socket
         await plainTransport.connect({ ip: "127.0.0.1", port: rtpPort });
-        // 3. Server-side consumer taps the producer's audio
+        // 4. Server-side consumer taps the producer's audio
         const consumer = await plainTransport.consume({
             producerId,
             rtpCapabilities: mediasoup_1.router.rtpCapabilities,
@@ -193,57 +189,13 @@ async function startOutputRoute(clientId, producerId, hwChannel) {
         });
         if (consumer.paused)
             await consumer.resume();
-        // 4. naudiodon output stream on target device
-        const audioStream = new naudiodon.AudioIO({
-            outOptions: {
-                channelCount: deviceChannels,
-                sampleFormat: naudiodon.SampleFormat16Bit,
-                sampleRate: 48000,
-                deviceId,
-                closeOnError: false,
-            },
+        worker.on("exit", (code) => {
+            console.log(`[audioOutput] worker for ${key} exited (code ${code})`);
+            activeRoutes.delete(key);
         });
-        audioStream.start();
-        // 5. Opus decoder — 48 kHz mono (mobile mic is always mono)
-        const decoder = new OpusScript(48000, 1);
-        const FRAME_SIZE = 960; // 20 ms at 48 kHz
-        rtpSocket.on("message", (msg) => {
-            try {
-                if (msg.length < 12)
-                    return;
-                // Parse RTP header
-                const cc = msg[0] & 0x0f;
-                const hasExt = (msg[0] & 0x10) !== 0;
-                let hdrLen = 12 + cc * 4;
-                if (hasExt && msg.length > hdrLen + 4) {
-                    const extWords = msg.readUInt16BE(hdrLen + 2);
-                    hdrLen += 4 + extWords * 4;
-                }
-                const hasPad = (msg[0] & 0x20) !== 0;
-                let end = msg.length;
-                if (hasPad && end > hdrLen)
-                    end -= msg[end - 1];
-                const payload = msg.slice(hdrLen, end);
-                if (!payload.length)
-                    return;
-                // Decode Opus → Int16 PCM
-                const pcm = decoder.decode(payload, FRAME_SIZE);
-                // Interleave: write audio only at target channel, silence everywhere else
-                const outBuf = Buffer.allocUnsafe(pcm.length * deviceChannels * 2);
-                for (let i = 0; i < pcm.length; i++) {
-                    for (let c = 0; c < deviceChannels; c++) {
-                        outBuf.writeInt16LE(c === chIdx ? pcm[i] : 0, (i * deviceChannels + c) * 2);
-                    }
-                }
-                audioStream.write(outBuf);
-            }
-            catch {
-                // absorb decode errors
-            }
-        });
-        activeRoutes.set(key, { plainTransport, consumer, rtpSocket, audioStream });
+        activeRoutes.set(key, { plainTransport, consumer, worker });
         console.log(`[audioOutput] ✅ ${clientId} → hw ch${hwChannel}` +
-            ` (device ${deviceId}, ch idx ${chIdx}/${deviceChannels})`);
+            ` (device ${deviceId}, ${deviceChannels}ch, chIdx=${(hwChannel - 1) % deviceChannels}) pid=${worker.pid}`);
     }
     catch (e) {
         console.error("[audioOutput] startOutputRoute failed:", e);
@@ -263,13 +215,14 @@ async function stopOutputRoute(clientId, hwChannel) {
     }
     catch { }
     try {
-        route.rtpSocket.close();
+        route.worker.stdin.write("stop\n");
     }
     catch { }
-    try {
-        route.audioStream.quit();
+    // Give worker 2 s to clean up, then force-kill
+    setTimeout(() => { try {
+        route.worker.kill("SIGTERM");
     }
-    catch { }
+    catch { } }, 2000);
     activeRoutes.delete(key);
     console.log(`[audioOutput] stopped: ${clientId} → hw ch${hwChannel}`);
 }
