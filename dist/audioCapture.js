@@ -81,8 +81,12 @@ const KNOWN_DEVICES = [
                     name = `ADAT ${i - 8}`;
                     type = "input";
                 }
-                else if (i <= 18) {
-                    name = `SP/DIF ${i === 17 ? "L" : "R"}`;
+                else if (i === 17) {
+                    name = "Loopback L";
+                    type = "input";
+                }
+                else if (i === 18) {
+                    name = "Loopback R";
                     type = "input";
                 }
                 else if (i <= 26) {
@@ -90,19 +94,19 @@ const KNOWN_DEVICES = [
                     type = "output";
                 }
                 else if (i === 27) {
-                    name = "Loopback L";
-                    type = "input";
-                }
-                else if (i === 28) {
-                    name = "Loopback R";
-                    type = "input";
-                }
-                else if (i === 29) {
                     name = "Loopback 2 L";
                     type = "input";
                 }
-                else if (i === 30) {
+                else if (i === 28) {
                     name = "Loopback 2 R";
+                    type = "input";
+                }
+                else if (i === 29) {
+                    name = "Loopback 3 L";
+                    type = "input";
+                }
+                else if (i === 30) {
+                    name = "Loopback 3 R";
                     type = "input";
                 }
                 ch.push({ channel: i, name, type, autoDetected: true });
@@ -334,7 +338,7 @@ function setupAudioCapture(io) {
                 let callbackSent = false;
                 let buffer = Buffer.alloc(0);
                 proc.stderr.on("data", (data) => {
-                    const text = data.toString().trim();
+                    const text = data.toString();
                     // ✅ Parse Swift output: CAPTURE_START:deviceName:channels
                     const swiftMatch = text.match(/CAPTURE_START:[^:]+:(\d+)/);
                     if (swiftMatch && !headerParsed) {

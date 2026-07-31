@@ -5,6 +5,7 @@
 import Foundation
 import CoreAudio
 import AudioToolbox
+import AVFoundation
 
 // ─── Arguments ────────────────────────────────────────────────────────────────
 let args = CommandLine.arguments
@@ -61,6 +62,20 @@ func getAudioDevices() -> [(id: AudioDeviceID, name: String, inputs: Int)] {
     }
 }
 
+// Request mic permission if not yet determined (needed when running without an app bundle)
+let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+if authStatus == .notDetermined {
+    let micSem = DispatchSemaphore(value: 0)
+    AVCaptureDevice.requestAccess(for: .audio) { granted in
+        fputs(granted ? "MIC_GRANTED\n" : "MIC_DENIED\n", stderr)
+        micSem.signal()
+    }
+    _ = micSem.wait(timeout: .now() + 8)
+} else if authStatus == .denied || authStatus == .restricted {
+    fputs("ERROR: Microphone access denied by TCC\n", stderr)
+    exit(1)
+}
+
 let devices = getAudioDevices()
 
 // Print device list to stderr so server can parse it
@@ -114,25 +129,16 @@ guard err == noErr, let q = queue else {
     exit(1)
 }
 
-// Set the device — kAudioQueueProperty_CurrentDevice expects a CFString UID, not an AudioDeviceID
-var uidAddr = AudioObjectPropertyAddress(
-    mSelector: kAudioDevicePropertyDeviceUID,
+// Set the device
+var deviceID = targetDevice.id
+var propAddr = AudioObjectPropertyAddress(
+    mSelector: kAudioQueueProperty_CurrentDevice,
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMain
 )
-var uid: CFString = "" as CFString
-var uidSize = UInt32(MemoryLayout<CFString>.size)
-let uidErr = AudioObjectGetPropertyData(targetDevice.id, &uidAddr, 0, nil, &uidSize, &uid)
-if uidErr == noErr {
-    var uidRef: CFString = uid
-    err = AudioQueueSetProperty(q, kAudioQueueProperty_CurrentDevice, &uidRef, UInt32(MemoryLayout<CFString>.size))
-    if err != noErr {
-        fputs("WARN: Could not set device via UID, using default: \(err)\n", stderr)
-    } else {
-        fputs("OK: Capture device set to \(uid)\n", stderr)
-    }
-} else {
-    fputs("WARN: Could not get device UID (\(uidErr)), using default\n", stderr)
+err = AudioQueueSetProperty(q, kAudioQueueProperty_CurrentDevice, &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size))
+if err != noErr {
+    fputs("WARN: Could not set device, using default: \(err)\n", stderr)
 }
 
 // Allocate and enqueue buffers (3 rotating buffers)

@@ -58,12 +58,13 @@ const KNOWN_DEVICES: Array<{
         if (i <= 2) { name = `Mic ${i}`; type = "input" }
         else if (i <= 8) { name = `Line ${i}`; type = "input" }
         else if (i <= 16) { name = `ADAT ${i - 8}`; type = "input" }
-        else if (i <= 18) { name = `SP/DIF ${i === 17 ? "L" : "R"}`; type = "input" }
+        else if (i === 17) { name = "Loopback L"; type = "input" }
+        else if (i === 18) { name = "Loopback R"; type = "input" }
         else if (i <= 26) { name = `Line Out ${i - 18}`; type = "output" }
-        else if (i === 27) { name = "Loopback L"; type = "input" }
-        else if (i === 28) { name = "Loopback R"; type = "input" }
-        else if (i === 29) { name = "Loopback 2 L"; type = "input" }
-        else if (i === 30) { name = "Loopback 2 R"; type = "input" }
+        else if (i === 27) { name = "Loopback 2 L"; type = "input" }
+        else if (i === 28) { name = "Loopback 2 R"; type = "input" }
+        else if (i === 29) { name = "Loopback 3 L"; type = "input" }
+        else if (i === 30) { name = "Loopback 3 R"; type = "input" }
         ch.push({ channel: i, name, type, autoDetected: true })
       }
       return ch
@@ -286,7 +287,7 @@ export function setupAudioCapture(io: Server) {
         let buffer = Buffer.alloc(0)
 
         proc.stderr.on("data", (data: Buffer) => {
-          const text = data.toString().trim()
+          const text = data.toString()
           // ✅ Parse Swift output: CAPTURE_START:deviceName:channels
           const swiftMatch = text.match(/CAPTURE_START:[^:]+:(\d+)/)
           if (swiftMatch && !headerParsed) {
