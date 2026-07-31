@@ -62,6 +62,13 @@ export async function initMediasoup() {
         ({ id }: { id: string }) => cb({ id }))
     })
 
+    sendTransport.on("connectionstatechange", (state: string) => {
+      console.warn(`[mediasoup] sendTransport connectionstatechange: ${state}`)
+      if (state === "failed" || state === "disconnected") {
+        console.error("[mediasoup] ⚠️  sendTransport dropped — genbrug bridge eller reload siden")
+      }
+    })
+
     /* RECV TRANSPORT */
     const recvParams = await new Promise<any>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("createRecvTransport timeout")), 8000)
@@ -75,6 +82,10 @@ export async function initMediasoup() {
 
     recvTransport.on("connect", ({ dtlsParameters }: any, cb: () => void) => {
       socket.emit("mediasoup:connectTransport", { transportId: recvTransport.id, dtlsParameters }, cb)
+    })
+
+    recvTransport.on("connectionstatechange", (state: string) => {
+      console.warn(`[mediasoup] recvTransport connectionstatechange: ${state}`)
     })
 
     _initialized = true

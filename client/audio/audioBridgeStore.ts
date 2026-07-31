@@ -124,57 +124,62 @@ export async function startBridgeCapture(deviceIndex: number, deviceName: string
       }))
       notify()
 
-      // Start én bridge pr. kanal
-      for (let ch = 1; ch <= totalChannels; ch++) {
-        try {
-          setChannelLevelCallback(ch, (level) => {
-            setChannelState(ch, { level })
-            // Niveauer batches og sendes samlet – se batchBridgeLevels nedenfor
-          })
-          const stream = await startChannelBridge(ch, sampleRate)
-          setChannelState(ch, { status: "active", stream })
-          console.log(`✅ Bridge ch${ch} aktiv`)
-
-          // 🔥 Producér bridge-stream via WebRTC – vent på mediasoup er klar
+      // Fase 1: Start alle AudioBridge-instanser parallelt (kun Web Audio-noder, hurtigt)
+      const streams = await Promise.all(
+        Array.from({ length: totalChannels }, async (_, i) => {
+          const ch = i + 1
           try {
-            // Poll indtil mediasoup er initialiseret (max 30 sekunder)
-            let waited = 0
-            while (!isMediasoupReady() && waited < 30000) {
-              await new Promise(r => setTimeout(r, 500))
-              waited += 500
-            }
-            if (!isMediasoupReady()) {
-              await initMediasoup()
-            }
+            setChannelLevelCallback(ch, (level) => setChannelState(ch, { level }))
+            const stream = await startChannelBridge(ch, sampleRate)
+            setChannelState(ch, { status: "active", stream })
+            return { ch, stream }
+          } catch (e: any) {
+            setChannelState(ch, { status: "error", error: e.message })
+            console.error(`❌ Bridge ch${ch} fejlede:`, e)
+            return null
+          }
+        })
+      )
+      const activeStreams = streams.filter(Boolean) as { ch: number; stream: MediaStream }[]
+      console.log(`✅ ${activeStreams.length}/${totalChannels} bridge-kanaler aktive`)
+
+      // Fase 2: Vent på mediasoup én gang (ikke 30 gange)
+      let waited = 0
+      while (!isMediasoupReady() && waited < 30000) {
+        await new Promise(r => setTimeout(r, 200))
+        waited += 200
+      }
+      if (!isMediasoupReady()) await initMediasoup()
+
+      // Fase 3: Producér alle kanaler parallelt – 30x ICE+DTLS på én gang → ~1-2s i stedet for 30s
+      await Promise.all(
+        activeStreams.map(async ({ ch, stream }) => {
+          try {
             const producerId = await produceBridgeStream(stream, ch)
-            // Registrér via batch-event (undgår 30x broadcastRouting)
             socket.emit("bridge:producer:register", { channel: ch, producerId })
-            console.log(`✅ Bridge ch${ch} WebRTC producer: ${producerId}`)
           } catch (e) {
             console.error(`❌ Bridge ch${ch} WebRTC produce fejlede:`, e)
           }
-        } catch (e: any) {
-          setChannelState(ch, { status: "error", error: e.message })
-          console.error(`❌ Bridge ch${ch} fejlede:`, e)
-        }
-      }
+        })
+      )
 
-      // 🔥 Produce stereo pairs for consecutive channel pairs (1+2, 3+4, …)
+      // Fase 4: Stereo-par parallelt
       const activeChs = getActiveBridgeChannels()
-      for (let i = 0; i < activeChs.length - 1; i += 2) {
-        const chL = activeChs[i]
-        const chR = activeChs[i + 1]
-        try {
-          const stereoStream = await getStereoStream(chL, chR)
-          if (stereoStream) {
-            const producerId = await produceStereoStream(stereoStream, chL, chR)
-            socket.emit("bridge:stereo:register", { chL, chR, producerId })
-            console.log(`✅ Stereo bridge ch${chL}+${chR}: ${producerId}`)
+      await Promise.all(
+        Array.from({ length: Math.floor(activeChs.length / 2) }, async (_, i) => {
+          const chL = activeChs[i * 2]
+          const chR = activeChs[i * 2 + 1]
+          try {
+            const stereoStream = await getStereoStream(chL, chR)
+            if (stereoStream) {
+              const producerId = await produceStereoStream(stereoStream, chL, chR)
+              socket.emit("bridge:stereo:register", { chL, chR, producerId })
+            }
+          } catch (e) {
+            console.error(`❌ Stereo bridge ch${chL}+${chR} fejlede:`, e)
           }
-        } catch (e) {
-          console.error(`❌ Stereo bridge ch${chL}+${chR} fejlede:`, e)
-        }
-      }
+        })
+      )
 
       // Signal AFTER stereo producers are registered so routing broadcasts include them
       socket.emit("bridge:producers:done")
