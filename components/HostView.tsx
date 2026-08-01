@@ -1242,47 +1242,6 @@ const HostView = (props: any) => {
           </div>
         )
       })()}
-      {qrModal && (() => {
-        const isIos = qrModal === 'ios'
-        const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
-        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
-        const qrData = isIos ? iosUrl : remoteUrl
-        const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.75)" }} onClick={() => setQrModal(null)}>
-            <div className="relative rounded-2xl p-8 flex flex-col items-center gap-5"
-              style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", minWidth: 320 }}
-              onClick={e => e.stopPropagation()}>
-              <button onClick={() => setQrModal(null)}
-                className="absolute top-3 right-3 p-1 rounded text-white/30 hover:text-white/70"><X size={16} /></button>
-              <div className="text-center">
-                <div className="text-xs font-black text-white/50 mb-1">{isIos ? 'iOS APP OPSÆTNING' : 'REMOTE PAD'}</div>
-                <div className="text-[11px] text-white/30 max-w-[260px] leading-relaxed">
-                  {isIos ? 'Scan med iPhone-kameraet for at åbne EasyCom Mobile og forbinde automatisk'
-                          : 'Scan med telefon- eller tablet-kameraet for at åbne Remote Pad i browseren'}
-                </div>
-              </div>
-              <div style={{ background: "#fff", padding: 16, borderRadius: 16 }}>
-                {qrSrc ? <img src={qrSrc} width={220} height={220} alt="QR" />
-                        : <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 12 }}>
-                            {isIos ? 'Ingen netværksinfo' : 'Ingen tunnel URL'}
-                          </div>}
-              </div>
-              {isIos ? (
-                <div className="text-center space-y-1">
-                  <div className="text-[10px] text-white/30">LAN: <span className="text-white/60 font-mono">{qrLanIp}:{qrLanPort}</span></div>
-                  {qrTunnelUrl && <div className="text-[10px] text-white/30">Tunnel: <span className="text-white/60 font-mono">{qrTunnelUrl}</span></div>}
-                </div>
-              ) : (
-                <div className="text-[10px] text-white/40 font-mono text-center max-w-[260px] break-all">
-                  {remoteUrl || <span className="text-orange-400">Tunnel ikke aktiv</span>}
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })()}
 
     </div>
   )
