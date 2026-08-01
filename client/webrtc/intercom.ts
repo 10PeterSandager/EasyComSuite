@@ -6,8 +6,8 @@
 import { io, Socket } from 'socket.io-client'
 import { getDevice, getRecvTransport } from "./mediasoupClient"
 const SERVER_URL = typeof window !== "undefined"
-  ? `${window.location.protocol}//${window.location.hostname}:3000`
-  : "http://localhost:3000"
+  ? window.location.origin
+  : "http://localhost:3001"
 
 const _sessionPw = typeof window !== "undefined"
   ? (localStorage.getItem('easycom_host_session_pw') ?? '')
@@ -125,33 +125,6 @@ socket.on("bridge:stereo:available", ({ chL, chR }: { chL: number; chR: number; 
   // Don't consume here — routing:update will call consumeStereo when bridge channels
   // appear in effective routing. Consuming unconditionally was causing all 30 audio
   // interface channels to play through HOST speakers before any routing was configured.
-})
-
-// bridge:channels:available fires once after ALL bridge producers are registered (bridge:producers:done).
-// Re-request routing at this point so consumeStereo runs with the new, valid producer IDs.
-// Without this, consumeStereo may have already run with stale (closed) producer IDs from
-// the previous page load, causing a silent consume failure and no audio from the audio interface.
-let _bridgeReadyTimer: ReturnType<typeof setTimeout> | null = null
-socket.on("bridge:channels:available", () => {
-  if (_bridgeReadyTimer) clearTimeout(_bridgeReadyTimer)
-  _bridgeReadyTimer = setTimeout(() => {
-    _bridgeReadyTimer = null
-    // Close stale stereo consumers — producers changed after double-init, so old consumers
-    // point to now-silent producers. consumeStereo skips if consumer exists, so we must
-    // evict them here before requesting new routing.
-    for (const [chL, chR] of currentStereoPairs.entries()) {
-      const stereoId = `bridge-stereo-${chL}-${chR}`
-      const c = stereoConsumers.get(stereoId)
-      if (c) {
-        try { c.close() } catch {}
-        disconnectStereoNodes(stereoId)
-        stereoConsumers.delete(stereoId)
-      }
-      pendingStereo.delete(stereoId)
-    }
-    socket.emit("routing:request:all")
-    console.log("[BRIDGE] bridge:channels:available — closed stale stereo consumers, re-requesting routing")
-  }, 200)
 })
 
 /* ── AUDIO LEVELS ── */
@@ -279,17 +252,6 @@ audioCtx.onstatechange = () => {
     audioCtx.resume().catch(() => {})
   }
 }
-
-// Chrome suspends AudioContext until user gesture. Bridge setup auto-starts on mount (no gesture),
-// so audioCtx.resume() in consumeStereo may fail silently. This listener ensures it resumes
-// on the first click/keydown — critical for audio to reach speakers after auto-setup.
-;(() => {
-  const resumeOnGesture = () => {
-    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {})
-  }
-  document.addEventListener('click', resumeOnGesture, { capture: true })
-  document.addEventListener('keydown', resumeOnGesture, { capture: true })
-})()
 const mixers: Record<number, GainNode> = {}
 const panners = new Map<number, StereoPannerNode>()
 let muted = false
@@ -454,9 +416,6 @@ function disconnectStereoNodes(stereoId: string) {
     try { nodes.src.disconnect() } catch {}
     stereoNodes.delete(stereoId)
   }
-  // Clean up the silent driver element added by consumeStereo
-  const el = outputAudios.get(stereoId)
-  if (el) { el.pause(); el.srcObject = null; outputAudios.delete(stereoId) }
 }
 
 // Sets up the Web Audio graph for a consumed track.
@@ -638,7 +597,6 @@ function attachOutputAudio(sourceId: string, track: MediaStreamTrack) {
   // which starves the buffer and causes sawtooth artifacts when the gate opens.
   if (!sourceId.startsWith("bridge-")) el.muted = true
   el.autoplay = true
-  if (currentOutputDeviceId) (el as any).setSinkId(currentOutputDeviceId).catch(() => {})
   el.play().catch(() => {})
   outputAudios.set(sourceId, el)
 }
@@ -695,7 +653,6 @@ export function initRouting(clientId: string) {
   // Pull current state immediately so consumers are pre-created before first TB press,
   // even if the phone was already connected when initRouting was called.
   socket.emit("connections:list")
-  socket.emit("routing:request:all")
 
   // Pre-create consumers for all non-bridge mobile clients connected to us.
   // The consumer starts paused (producer is paused), so no audio flows until the
@@ -744,8 +701,7 @@ export function initRouting(clientId: string) {
   })
 
   socket.on("routing:update", async (connections: any[]) => {
-    const selfIds = clientId === "producer-65" ? new Set([clientId, "host-ui"]) : new Set([clientId])
-    const toMe = connections.filter(c => selfIds.has(c.to))
+    const toMe = connections.filter(c => c.to === clientId)
     console.log(`[ROUTING] update: ${connections.length} total, ${toMe.length} to me`, toMe)
 
     const newRouting: Record<number, string[]> = {}
@@ -921,29 +877,6 @@ async function consumeStereo(chL: number, chR: number) {
     const consumer = await recvTransport.consume({ id, producerId, kind, rtpParameters })
     if (consumer.resume) await consumer.resume()
 
-    console.log(`[STEREO] consumer track: readyState=${consumer.track.readyState} muted=${consumer.track.muted} enabled=${consumer.track.enabled}`)
-    console.log(`[STEREO] audioCtx.state=${audioCtx.state} sinkId=${(audioCtx as any).sinkId ?? 'default'}`)
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      const outs = devices.filter(d => d.kind === 'audiooutput')
-      const sid = (audioCtx as any).sinkId ?? ''
-      const label = sid === '' ? `system default (${outs.find(d => d.deviceId === 'default')?.label ?? 'unknown'})` : (outs.find(d => d.deviceId === sid)?.label ?? sid)
-      console.log(`[STEREO] audioCtx → "${label}"`)
-      console.log('[STEREO] All outputs:', outs.map(d => `"${d.label}"`).join(' | '))
-    })
-
-    // Monitor how long the track stays muted — in Chrome, muted=true means no RTP has arrived yet.
-    // It should unmute within ~50ms once the server-side consumer starts forwarding packets.
-    const _muteT0 = Date.now()
-    consumer.track.addEventListener('unmute', () => {
-      console.log(`[STEREO] track UNMUTED after ${Date.now() - _muteT0}ms ✓ RTP flowing`)
-    }, { once: true })
-    consumer.track.addEventListener('mute', () => {
-      console.log(`[STEREO] track re-muted ← RTP stopped`)
-    })
-    setTimeout(() => {
-      console.log(`[STEREO] 1s check: track.muted=${consumer.track.muted} readyState=${consumer.track.readyState}`)
-    }, 1000)
-
     stereoConsumers.set(stereoId, consumer)
 
     // Disconnect mono nodes FIRST — no overlap window where both play simultaneously
@@ -958,25 +891,10 @@ async function consumeStereo(chL: number, chR: number) {
       }
     }
 
-    // Resume AudioContext if suspended — required for audio to flow on first load
-    if (audioCtx.state !== 'running') {
-      console.warn(`[STEREO] audioCtx is "${audioCtx.state}" — calling resume()`)
-      await audioCtx.resume().catch((e: any) => console.error('[STEREO] resume() failed:', e))
-    }
-
     // Route via ChannelSplitter → individual per-channel panners
     // This preserves phase coherence (single jitter buffer) while keeping independent pan per channel
     disconnectStereoNodes(stereoId)
     const stream = new MediaStream([consumer.track])
-
-    const driverEl = document.createElement('audio')
-    driverEl.srcObject = stream
-    driverEl.volume = 0
-    driverEl.autoplay = true
-    if (currentOutputDeviceId) (driverEl as any).setSinkId(currentOutputDeviceId).catch(() => {})
-    driverEl.play().then(() => console.log('[STEREO] driverEl playing')).catch((e: any) => console.warn('[STEREO] driverEl.play() failed:', e))
-    outputAudios.set(stereoId, driverEl)
-
     const src = audioCtx.createMediaStreamSource(stream)
     const splitter = audioCtx.createChannelSplitter(2)
     src.connect(splitter)
@@ -991,7 +909,7 @@ async function consumeStereo(chL: number, chR: number) {
 
     stereoNodes.set(stereoId, { src, splitter, gainL, gainR, chL, chR })
 
-    console.log(`[STEREO] ✅ "${stereoId}" → ch${chL} + ch${chR}`)
+    console.log(`[STEREO] ✅ "${stereoId}" → ch${chL}(pan=${getPanner(chL).pan.value.toFixed(2)}) + ch${chR}(pan=${getPanner(chR).pan.value.toFixed(2)})`)
   } catch (e) {
     console.error(`[STEREO] ❌ exception "${stereoId}":`, e)
   } finally {
