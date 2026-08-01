@@ -443,6 +443,15 @@ async function start() {
         console.log("✅ Audio capture bridge ready");
         const PORT = parseInt(process.env.PORT ?? "3000");
         const protocol = isHttps ? "https" : "http";
+        server.on("error", (err) => {
+            if (err.code === "EADDRINUSE") {
+                console.error(`❌ Port ${PORT} already in use — another server instance is running. Exiting.`);
+                process.exit(1);
+            }
+            else {
+                console.error("❌ Server error:", err.message);
+            }
+        });
         server.listen(PORT, "0.0.0.0", () => {
             console.log(`🔥 Server running on ${protocol}://0.0.0.0:${PORT}`);
             // Broadcast tunnel status changes to all connected HOST UIs
@@ -457,8 +466,12 @@ async function start() {
             }
         });
         // LAN HTTP server — phones/tablets on local network connect here (no SSL cert needed)
+        // Uses PORT+1 (default 3002) so it doesn't conflict with the HTTPS server on PORT
         if (localHttpServer) {
-            const LOCAL_PORT = 3001;
+            const LOCAL_PORT = parseInt(process.env.LAN_PORT ?? String(PORT + 1));
+            localHttpServer.on("error", (err) => {
+                console.error(`❌ LAN HTTP port ${LOCAL_PORT} error:`, err.message);
+            });
             localHttpServer.listen(LOCAL_PORT, "0.0.0.0", () => {
                 console.log(`📱 LAN HTTP on http://0.0.0.0:${LOCAL_PORT} (lokalt netværk, ingen SSL)`);
             });
