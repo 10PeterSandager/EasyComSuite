@@ -56,52 +56,90 @@ for APP in easycom-broadcast-intercom DESKTOP easycom-remote; do
   fi
 done
 
-# GUI-launcher (.command kopierer kilden, beder om sudo, åbner GUI-installeren)
 cat > "$S/Installer EasyCom Host.command" << 'EOF'
 #!/bin/bash
 DMG="$(cd "$(dirname "$0")" && pwd)"
-DEST="$HOME/EasyCom"
+DEST="$HOME/EASYCOM"
 
 clear
-echo ""
-echo "  ╔══════════════════════════════════════╗"
-echo "  ║       EASYCOM SERVER INSTALLER       ║"
-echo "  ╚══════════════════════════════════════╝"
-echo ""
-echo "  Kopierer EasyCom til $DEST ..."
+printf "\n"
+printf "  ╔══════════════════════════════════════╗\n"
+printf "  ║       EASYCOM HOST INSTALLER         ║\n"
+printf "  ╚══════════════════════════════════════╝\n"
+printf "\n"
+
+# ── Kopier kildekode ──────────────────────────────────────────────────────────
+printf "  Kopierer filer til %s ...\n" "$DEST"
 mkdir -p "$DEST"
 rsync -a --exclude=node_modules "$DMG/source/easycom-host/" "$DEST/easycom-host/"
 [ -d "$DMG/source/easycom-broadcast-intercom" ] && \
   rsync -a --exclude=node_modules "$DMG/source/easycom-broadcast-intercom/" "$DEST/easycom-broadcast-intercom/"
-echo "  Kopi færdig."
-echo ""
+printf "  ✅ Filer kopieret.\n\n"
 
-# Bed om admin-adgangskode her i Terminal — ét enkelt prompt, ingen pop-up dialoger
-echo "  Installationen kræver administratoradgang."
+# ── Admin-adgangskode ─────────────────────────────────────────────────────────
+printf "  Installationen kræver administratoradgang.\n"
 sudo -v
 if [ $? -ne 0 ]; then
-  echo "  ❌ Forkert adgangskode. Prøv igen."
+  printf "  ❌ Forkert adgangskode.\n"
+  read -rp "  Tryk Enter for at lukke..."
   exit 1
 fi
-echo ""
-echo "  ✅ Administratoradgang bekræftet."
-echo "  Åbner installer-interface i browseren..."
-echo ""
+printf "  ✅ Administratoradgang bekræftet.\n\n"
 
-# Frigør Python helt fra Terminal (nohup + disown) så Terminal kan lukke rent
-nohup python3 "$DEST/easycom-host/server/install-mac-gui.py" \
-  > /tmp/easycom-gui.log 2>&1 &
-disown $!
+# ── Kør installer ─────────────────────────────────────────────────────────────
+sudo bash "$DEST/easycom-host/server/install-mac.sh"
+if [ $? -ne 0 ]; then
+  printf "\n  ❌ Installationen fejlede. Se fejlbesked ovenfor.\n"
+  read -rp "  Tryk Enter for at lukke..."
+  exit 1
+fi
 
-sleep 1.5
-echo "  Browser åben. Dette vindue kan lukkes."
-sleep 1
-exit 0
+# ── Opret ikon på skrivebordet ────────────────────────────────────────────────
+ELECTRON="$DEST/easycom-host/electron-wrapper/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+WRAPPER="$DEST/easycom-host/electron-wrapper"
+APP="$HOME/Desktop/EasyCom Host.app"
+
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cat > "$APP/Contents/MacOS/EasyCom Host" << APPEOF
+#!/bin/bash
+unset ELECTRON_RUN_AS_NODE
+exec "$ELECTRON" "$WRAPPER" 2>/tmp/easycom-electron.log
+APPEOF
+chmod +x "$APP/Contents/MacOS/EasyCom Host"
+
+cat > "$APP/Contents/Info.plist" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key>     <string>EasyCom Host</string>
+  <key>CFBundleIdentifier</key>     <string>dk.easycom.host</string>
+  <key>CFBundleName</key>           <string>EasyCom Host</string>
+  <key>CFBundleVersion</key>        <string>1.0</string>
+  <key>CFBundlePackageType</key>    <string>APPL</string>
+  <key>LSMinimumSystemVersion</key> <string>12.0</string>
+</dict></plist>
+PLISTEOF
+
+xattr -cr "$APP" 2>/dev/null
+printf "\n  ✅ Ikon oprettet på skrivebordet.\n"
+
+# ── Start EasyCom ─────────────────────────────────────────────────────────────
+printf "\n  Starter EasyCom Host...\n"
+if [ -f "$ELECTRON" ]; then
+  nohup env -u ELECTRON_RUN_AS_NODE "$ELECTRON" "$WRAPPER" > /tmp/easycom-electron.log 2>&1 &
+  disown $!
+  printf "  ✅ EasyCom Host er startet.\n"
+else
+  printf "  ⚠️  Electron ikke fundet — start EasyCom Host manuelt fra skrivebordet.\n"
+fi
+
+printf "\n"
+printf "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+printf "  ✅ EasyCom Host er installeret!\n"
+printf "  Du kan lukke dette vindue.\n"
+printf "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 EOF
 chmod +x "$S/Installer EasyCom Host.command"
-
-# Inkluder GUI-installer scriptet
-cp "$SCRIPT_DIR/install-mac-gui.py" "$S/source/easycom-host/server/install-mac-gui.py"
 
 make_dmg "EasyCom Host"
 
