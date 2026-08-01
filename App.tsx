@@ -14,11 +14,8 @@ import {
   Globe,
   Activity,
   Wifi,
-  WifiOff,
-  QrCode,
-  X
+  WifiOff
 } from "lucide-react"
-import { QRCodeSVG } from "qrcode.react"
 
 /* ---------------- GPIO ---------------- */
 
@@ -112,36 +109,24 @@ const App: React.FC = () => {
 
   const [theme, setTheme] = useState<"orange" | "blue">("orange")
   const [hostName, setHostName] = useState(() => localStorage.getItem('easycom_hostname') ?? "EASYCOM-HOST")
-  const [showQR, setShowQR] = useState(false)
-  const [remoteUrl, setRemoteUrl] = useState("")
 
   // Persist hostname
   React.useEffect(() => {
     localStorage.setItem('easycom_hostname', hostName)
   }, [hostName])
 
-  // Fetch remote URL for QR code
   React.useEffect(() => {
-    fetch('/api/remote-url').then(r => r.json()).then(d => { if (d.url) setRemoteUrl(d.url) }).catch(() => {})
-  }, [])
-
-  // Persist clients – debounced
-  useEffect(() => {
-    const id = setTimeout(() => {
+    const t = setTimeout(() => {
       try { localStorage.setItem('easycom:clients', JSON.stringify(clients)) } catch {}
     }, 500)
-    return () => clearTimeout(id)
+    return () => clearTimeout(t)
   }, [clients])
-
-  // Persist clients on tab close
-  useEffect(() => {
+  React.useEffect(() => {
     const save = () => { try { localStorage.setItem('easycom:clients', JSON.stringify(clients)) } catch {} }
     window.addEventListener('beforeunload', save)
     return () => window.removeEventListener('beforeunload', save)
   }, [clients])
-
-  // Factory reset handler
-  useEffect(() => {
+  React.useEffect(() => {
     const handler = () => {
       try {
         localStorage.removeItem('easycom:clients')
@@ -692,14 +677,6 @@ const App: React.FC = () => {
               </span>
             </div>
 
-            {remoteUrl && (
-              <button onClick={() => setShowQR(true)}
-                className="flex items-center gap-2 px-3 py-1.5 border border-zinc-700 rounded bg-zinc-800 text-zinc-400 hover:text-white">
-                <QrCode size={12}/>
-                <span className="text-[9px] font-black uppercase">Remote QR</span>
-              </button>
-            )}
-
             <button
               onClick={toggleFullscreen}
               className="flex items-center gap-2 px-3 py-1.5 border rounded bg-zinc-800 text-zinc-400 hover:text-white"
@@ -714,21 +691,6 @@ const App: React.FC = () => {
 
         </div>
 
-      )}
-
-      {showQR && (
-        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowQR(false)}>
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 flex flex-col items-center gap-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between w-full">
-              <span className="text-white font-black uppercase tracking-widest text-sm">Scan med iPad</span>
-              <button onClick={() => setShowQR(false)} className="text-zinc-500 hover:text-white"><X size={16}/></button>
-            </div>
-            <div className="bg-white p-4 rounded-xl">
-              <QRCodeSVG value={remoteUrl} size={220}/>
-            </div>
-            <span className="text-zinc-500 text-[10px] font-mono break-all text-center max-w-xs">{remoteUrl}</span>
-          </div>
-        </div>
       )}
 
       <main className="flex-1 overflow-hidden">

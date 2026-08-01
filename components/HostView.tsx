@@ -27,7 +27,7 @@ import {
   Keyboard, CheckSquare, Square, Smartphone,
   Monitor, Tablet, Video, Link2, Settings2,
   ZoomIn, ZoomOut, GitFork, Camera, Users, X,
-  SlidersHorizontal, UserX
+  SlidersHorizontal, UserX, QrCode
 } from "lucide-react"
 
 type ContextMenu = { clientId: string; x: number; y: number }
@@ -190,13 +190,6 @@ const HostView = (props: any) => {
   })
   const [panelActiveKeys, setPanelActiveKeys] = useState<Record<string, boolean[]>>({})
 
-  useEffect(() => {
-    try { localStorage.setItem('easycom:remotePanels', JSON.stringify(remotePanels)) } catch {}
-  }, [remotePanels])
-  useEffect(() => {
-    try { localStorage.setItem('easycom:panelMappings', JSON.stringify(panelMappings)) } catch {}
-  }, [panelMappings])
-
   const producerExists = rawClients.some((c: Client) => c.id === PRODUCER_ID)
   const clients: Client[] = producerExists ? rawClients : [createProducerClient(), ...rawClients]
   const producerClient = clients.find((c: Client) => c.id === PRODUCER_ID) ?? createProducerClient()
@@ -235,6 +228,19 @@ const HostView = (props: any) => {
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupColor, setNewGroupColor] = useState("#3b82f6")
   const GROUP_COLORS_HV = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899"]
+
+  const [qrModal, setQrModal] = useState<null | 'remote' | 'ios'>(null)
+  const [qrTunnelUrl, setQrTunnelUrl] = useState("")
+  const [qrLanIp, setQrLanIp] = useState("")
+  const [qrLanPort, setQrLanPort] = useState(3002)
+
+  useEffect(() => {
+    fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
+    socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
+      if (info?.lanIp) setQrLanIp(info.lanIp)
+      if (info?.lanPort) setQrLanPort(info.lanPort)
+    })
+  }, [])
 
   useEffect(() => {
     socket.emit("group:list", (g: GroupType[]) => setGroups(Array.isArray(g) ? g : []))
@@ -298,6 +304,13 @@ const HostView = (props: any) => {
     setActiveGroupIds(prev => { const s = new Set(prev); s.delete(id); return s })
   }
 
+  useEffect(() => {
+    try { localStorage.setItem('easycom:remotePanels', JSON.stringify(remotePanels)) } catch {}
+  }, [remotePanels])
+  useEffect(() => {
+    try { localStorage.setItem('easycom:panelMappings', JSON.stringify(panelMappings)) } catch {}
+  }, [panelMappings])
+
   // Drag-to-reorder
   const [gridOrder, setGridOrder] = useState<string[]>([])
   const dragItem = useRef<string | null>(null)
@@ -308,14 +321,12 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     setGridOrder(prev => {
-      const clientIds = regularClients.map((c: Client) => c.id)
-      const groupIds = groups.map(g => `group-${g.id}`)
-      const allIds = [...clientIds, ...groupIds]
-      const existing = prev.filter(id => allIds.includes(id))
-      const added = allIds.filter(id => !prev.includes(id))
+      const ids = regularClients.map((c: Client) => c.id)
+      const existing = prev.filter(id => ids.includes(id))
+      const added = ids.filter((id: string) => !prev.includes(id))
       return [...existing, ...added]
     })
-  }, [regularClients.length, groups.length])
+  }, [regularClients.length])
 
   const orderedRegularClients = gridOrder
     .map(id => regularClients.find((c: Client) => c.id === id))
@@ -549,73 +560,62 @@ const HostView = (props: any) => {
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(92 * cardScale)}px, ${Math.round(92 * cardScale)}px))` }}
               onClick={e => { if (e.target === e.currentTarget) setSelectedIds([]) }}
             >
-              {gridOrder.map(id => {
-                if (id.startsWith('group-')) {
-                  const gid = id.slice(6)
-                  const g = groups.find(x => x.id === gid)
-                  if (!g) return null
-                  return (
-                    <div
-                      key={id}
-                      draggable
-                      onDragStart={() => handleGridDragStart(id)}
-                      onDragEnter={() => handleGridDragEnter(id)}
-                      onDragEnd={handleGridDragEnd}
-                      onDragOver={e => e.preventDefault()}
-                      style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                      className="active:cursor-grabbing"
-                    >
-                      <GroupStrip
-                        group={g}
-                        clients={[producerClient, ...regularClients]}
-                        isActive={activeGroupIds.has(g.id)}
-                        onActivate={() => activateGroup(g)}
-                        onDeactivate={() => deactivateGroup(g)}
-                        onDelete={() => deleteGroup(g.id)}
-                        onUpdate={updateGroup}
-                      />
-                    </div>
-                  )
-                }
-                const c = regularClients.find((x: Client) => x.id === id)
-                if (!c || c.hidden) return null
+              {orderedRegularClients.filter((c: Client) => !c.hidden).map((c: Client) => {
                 const bridgeSources: FeedSource[] = activeBridgeChannels.map(ch => ({
                   id: `bridge-ch${ch}`,
                   label: `Bridge CH${ch}`
                 }))
+
                 const clientSources: FeedSource[] = regularClients
                   .filter((x: Client) => x.id !== c.id && x.status === "online")
                   .map((x: Client) => ({ id: x.id, label: x.name }))
+
                 const feedSources: FeedSource[] = [...clientSources, ...bridgeSources]
+
                 return (
-                  <div
-                    key={c.id}
-                    draggable
-                    onDragStart={() => handleGridDragStart(c.id)}
-                    onDragEnter={() => handleGridDragEnter(c.id)}
-                    onDragEnd={handleGridDragEnd}
-                    onDragOver={e => e.preventDefault()}
-                    onClick={e => handleClientSelect(c.id, e)}
-                    onContextMenu={e => handleRightClick(e, c.id)}
-                    style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                    className="active:cursor-grabbing"
-                  >
-                    <ClientStrip
-                      client={c}
-                      isSelected={selectedIds.includes(c.id)}
-                      onUpdate={(u: any) => handleUpdateClient(c.id, u)}
-                      onHijack={() => {}}
-                      onMapKey={() => setMappingClientId(c.id)}
-                      theme={theme}
-                      isMixerOpen={mixerClientId === c.id}
-                      onToggleMixer={() => toggleMixer(c.id)}
-                      feedSources={feedSources}
-                      allClients={regularClients}
-                      roles={roles}
-                    />
-                  </div>
+                <div
+                  key={c.id}
+                  draggable
+                  onDragStart={() => handleGridDragStart(c.id)}
+                  onDragEnter={() => handleGridDragEnter(c.id)}
+                  onDragEnd={handleGridDragEnd}
+                  onDragOver={e => e.preventDefault()}
+                  onClick={e => handleClientSelect(c.id, e)}
+                  onContextMenu={e => handleRightClick(e, c.id)}
+                  style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                  className="active:cursor-grabbing"
+                >
+                  <ClientStrip
+                    client={c}
+                    isSelected={selectedIds.includes(c.id)}
+                    onUpdate={(u: any) => handleUpdateClient(c.id, u)}
+                    onHijack={() => {}}
+                    onMapKey={() => setMappingClientId(c.id)}
+                    theme={theme}
+                    isMixerOpen={mixerClientId === c.id}
+                    onToggleMixer={() => toggleMixer(c.id)}
+                    feedSources={feedSources}
+                    allClients={regularClients}
+                    roles={roles}
+                  />
+                </div>
                 )
               })}
+
+              {/* GROUP CARDS */}
+              {groups.map(g => (
+                <div key={g.id} style={{ width: `${Math.round(92 * cardScale)}px` }}>
+                  <GroupStrip
+                    group={g}
+                    clients={regularClients}
+                    isActive={activeGroupIds.has(g.id)}
+                    onActivate={() => activateGroup(g)}
+                    onDeactivate={() => deactivateGroup(g)}
+                    onDelete={() => deleteGroup(g.id)}
+                    onUpdate={updateGroup}
+                  />
+                </div>
+              ))}
             </div>
 
             {/* FLOATING MIXER */}
@@ -982,30 +982,6 @@ const HostView = (props: any) => {
               </div>
             )
           })}
-
-          {groups.length > 0 && (
-            <>
-              <div className="px-3 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest text-white/30">Groups</div>
-              {groups.map(g => (
-                <div key={g.id} className="flex items-center justify-between px-3 py-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer"
-                  onClick={() => activeGroupIds.has(g.id) ? deactivateGroup(g) : activateGroup(g)}>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: g.color ?? '#3b82f6' }} />
-                    <span className="text-xs font-bold truncate">{g.name}</span>
-                    <span className="text-[9px] text-white/30">{g.members.length}p</span>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${activeGroupIds.has(g.id) ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-white/30'}`}>
-                      {activeGroupIds.has(g.id) ? 'ON' : 'OFF'}
-                    </span>
-                    <button onClick={e => { e.stopPropagation(); deleteGroup(g.id) }} className="text-white/20 hover:text-red-400">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
         </div>
       </div>
 
@@ -1029,6 +1005,16 @@ const HostView = (props: any) => {
               {tab.icon} {tab.label}
             </button>
           ))}
+          <div className="ml-auto flex items-center gap-1 shrink-0 pl-2">
+            <button onClick={() => setQrModal('remote')} title="Remote Pad QR"
+              className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
+              <QrCode size={13} /> REMOTE PAD
+            </button>
+            <button onClick={() => setQrModal('ios')} title="Opsæt iOS app"
+              className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
+              <Smartphone size={13} /> iOS APP
+            </button>
+          </div>
         </div>
         {/* BASE section always mounted so ProducerStrip mediasoup init runs on every tab */}
         <div style={{ display: activeTab === 'grid' ? undefined : 'none' }} className="px-3 pt-3">
@@ -1210,6 +1196,89 @@ const HostView = (props: any) => {
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-red-600/20 text-white/40 hover:text-red-400">
                 <UserX size={11} /> Kick client
               </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {qrModal && (() => {
+        const isIos = qrModal === 'ios'
+        const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
+        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
+        const qrData = isIos ? iosUrl : remoteUrl
+        const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.75)" }} onClick={() => setQrModal(null)}>
+            <div className="relative rounded-2xl p-8 flex flex-col items-center gap-5"
+              style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", minWidth: 320 }}
+              onClick={e => e.stopPropagation()}>
+              <button onClick={() => setQrModal(null)}
+                className="absolute top-3 right-3 p-1 rounded text-white/30 hover:text-white/70"><X size={16} /></button>
+              <div className="text-center">
+                <div className="text-xs font-black text-white/50 mb-1">{isIos ? 'iOS APP OPSÆTNING' : 'REMOTE PAD'}</div>
+                <div className="text-[11px] text-white/30 max-w-[260px] leading-relaxed">
+                  {isIos ? 'Scan med iPhone-kameraet for at åbne EasyCom Mobile og forbinde automatisk'
+                          : 'Scan med telefon- eller tablet-kameraet for at åbne Remote Pad i browseren'}
+                </div>
+              </div>
+              <div style={{ background: "#fff", padding: 16, borderRadius: 16 }}>
+                {qrSrc ? <img src={qrSrc} width={220} height={220} alt="QR" />
+                        : <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 12 }}>
+                            {isIos ? 'Ingen netværksinfo' : 'Ingen tunnel URL'}
+                          </div>}
+              </div>
+              {isIos ? (
+                <div className="text-center space-y-1">
+                  <div className="text-[10px] text-white/30">LAN: <span className="text-white/60 font-mono">{qrLanIp}:{qrLanPort}</span></div>
+                  {qrTunnelUrl && <div className="text-[10px] text-white/30">Tunnel: <span className="text-white/60 font-mono">{qrTunnelUrl}</span></div>}
+                </div>
+              ) : (
+                <div className="text-[10px] text-white/40 font-mono text-center max-w-[260px] break-all">
+                  {remoteUrl || <span className="text-orange-400">Tunnel ikke aktiv</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+      {qrModal && (() => {
+        const isIos = qrModal === 'ios'
+        const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
+        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
+        const qrData = isIos ? iosUrl : remoteUrl
+        const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.75)" }} onClick={() => setQrModal(null)}>
+            <div className="relative rounded-2xl p-8 flex flex-col items-center gap-5"
+              style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", minWidth: 320 }}
+              onClick={e => e.stopPropagation()}>
+              <button onClick={() => setQrModal(null)}
+                className="absolute top-3 right-3 p-1 rounded text-white/30 hover:text-white/70"><X size={16} /></button>
+              <div className="text-center">
+                <div className="text-xs font-black text-white/50 mb-1">{isIos ? 'iOS APP OPSÆTNING' : 'REMOTE PAD'}</div>
+                <div className="text-[11px] text-white/30 max-w-[260px] leading-relaxed">
+                  {isIos ? 'Scan med iPhone-kameraet for at åbne EasyCom Mobile og forbinde automatisk'
+                          : 'Scan med telefon- eller tablet-kameraet for at åbne Remote Pad i browseren'}
+                </div>
+              </div>
+              <div style={{ background: "#fff", padding: 16, borderRadius: 16 }}>
+                {qrSrc ? <img src={qrSrc} width={220} height={220} alt="QR" />
+                        : <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 12 }}>
+                            {isIos ? 'Ingen netværksinfo' : 'Ingen tunnel URL'}
+                          </div>}
+              </div>
+              {isIos ? (
+                <div className="text-center space-y-1">
+                  <div className="text-[10px] text-white/30">LAN: <span className="text-white/60 font-mono">{qrLanIp}:{qrLanPort}</span></div>
+                  {qrTunnelUrl && <div className="text-[10px] text-white/30">Tunnel: <span className="text-white/60 font-mono">{qrTunnelUrl}</span></div>}
+                </div>
+              ) : (
+                <div className="text-[10px] text-white/40 font-mono text-center max-w-[260px] break-all">
+                  {remoteUrl || <span className="text-orange-400">Tunnel ikke aktiv</span>}
+                </div>
+              )}
             </div>
           </div>
         )
