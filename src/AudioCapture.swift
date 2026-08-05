@@ -5,7 +5,6 @@
 import Foundation
 import CoreAudio
 import AudioToolbox
-import AVFoundation
 
 // ─── Arguments ────────────────────────────────────────────────────────────────
 let args = CommandLine.arguments
@@ -60,20 +59,6 @@ func getAudioDevices() -> [(id: AudioDeviceID, name: String, inputs: Int)] {
 
         return (id: deviceID, name: name as String, inputs: totalInputs)
     }
-}
-
-// Request mic permission if not yet determined (needed when running without an app bundle)
-let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-if authStatus == .notDetermined {
-    let micSem = DispatchSemaphore(value: 0)
-    AVCaptureDevice.requestAccess(for: .audio) { granted in
-        fputs(granted ? "MIC_GRANTED\n" : "MIC_DENIED\n", stderr)
-        micSem.signal()
-    }
-    _ = micSem.wait(timeout: .now() + 8)
-} else if authStatus == .denied || authStatus == .restricted {
-    fputs("ERROR: Microphone access denied by TCC\n", stderr)
-    exit(1)
 }
 
 let devices = getAudioDevices()
