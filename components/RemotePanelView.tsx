@@ -48,7 +48,22 @@ const LayoutWorkspace: React.FC<{
 }> = ({ panel, clients, mappings, setMappings, theme, linkedClientId }) => {
   const accentColor = theme === 'orange' ? '#f97316' : '#3b82f6'
   const [groups, setGroups] = useState<PanelGroup[]>([])
-  const [slots, setSlots] = useState<(SlotData | null)[]>(Array(panel.slotCount).fill(null))
+  const [slots, setSlots] = useState<(SlotData | null)[]>(() =>
+    Array(panel.slotCount).fill(null).map((_, i) => {
+      const m = mappings[i] as any
+      if (!m) return null
+      return {
+        clientId: m.isGroupLatch ? undefined : m.id,
+        groupId: m.isGroupLatch ? m.id : undefined,
+        name: m.name,
+        color: m.color || '',
+        textScale: m.textScale ?? 1,
+        isGroup: !!m.isGroupLatch,
+        memberIds: m.memberIds,
+      } as SlotData
+    })
+  )
+  const [allScale, setAllScale] = useState(1)
   const [selected, setSelected] = useState<number[]>([]) // selected slot indices
   const [showGroupEditor, setShowGroupEditor] = useState(false)
   const [editGroup, setEditGroup] = useState<PanelGroup | null>(null)
@@ -58,9 +73,9 @@ const LayoutWorkspace: React.FC<{
   const [showColorPicker, setShowColorPicker] = useState<number | null>(null)
   const GROUP_COLORS = SLOT_COLORS
 
-  // Sync slots → mappings
+  // Sync slots → mappings (include textScale so it survives close/reopen)
   useEffect(() => {
-    const m = slots.map(s => s ? { id: s.clientId ?? s.groupId ?? '?', name: s.name, color: s.color, isGroupLatch: !!s.isGroup, memberIds: s.memberIds } as any : null)
+    const m = slots.map(s => s ? { id: s.clientId ?? s.groupId ?? '?', name: s.name, color: s.color, isGroupLatch: !!s.isGroup, memberIds: s.memberIds, textScale: s.textScale } as any : null)
     setMappings(m)
   }, [slots])
 
@@ -110,6 +125,11 @@ const LayoutWorkspace: React.FC<{
     setSlots(prev => prev.map((s, i) => selected.includes(i) && s ? { ...s, textScale: scale } : s))
   }
 
+  const applyToAll = (scale: number) => {
+    setAllScale(scale)
+    setSlots(prev => prev.map(s => s ? { ...s, textScale: scale } : s))
+  }
+
   const setSelectedColor = (color: string) => {
     setSlots(prev => prev.map((s, i) => selected.includes(i) && s ? { ...s, color } : s))
     setShowColorPicker(null)
@@ -126,6 +146,19 @@ const LayoutWorkspace: React.FC<{
     <div className="flex h-full overflow-hidden relative">
       {/* SIDEBAR */}
       <div className="w-56 border-r border-white/5 bg-zinc-950 flex flex-col shrink-0 overflow-hidden">
+
+        {/* ALL text size */}
+        <div className="px-3 py-2 border-b border-white/5 shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">All Text Size</span>
+            <span className="text-[8px] font-mono text-zinc-400">{Math.round(allScale * 100)}%</span>
+          </div>
+          <input type="range" min={40} max={200}
+            value={Math.round(allScale * 100)}
+            onChange={e => applyToAll(parseInt(e.target.value) / 100)}
+            className="w-full h-1 rounded cursor-pointer appearance-none bg-zinc-800"
+            style={{ accentColor }} />
+        </div>
 
         {/* Selection tools */}
         {selected.length > 0 && (

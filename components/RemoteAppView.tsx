@@ -184,6 +184,7 @@ const RemoteAppView: React.FC<RemoteAppViewProps> = ({
             const imgSrc = slotImages[i];
             const hasColor = !!(mapping?.color && mapping.color !== '' && mapping.color !== 'transparent');
             const bgColor = hasColor ? mapping!.color : '#27272a';
+            const textScale = (mapping as any)?.textScale ?? 1;
             const role = targetClient?.customRole
               ? roles.find(r => r.id === targetClient.customRole)
               : undefined;
@@ -213,12 +214,13 @@ const RemoteAppView: React.FC<RemoteAppViewProps> = ({
                   {isAssigned && (
                     <div className="relative z-10 flex flex-col items-center justify-center w-full px-1 gap-0.5">
                       {role && (
-                        <span className="text-[7px] font-black uppercase tracking-widest opacity-70 leading-none"
-                          style={{ color: role.color || 'rgba(255,255,255,0.7)' }}>
+                        <span className="font-black uppercase tracking-widest leading-none"
+                          style={{ fontSize: `${Math.round(7 * textScale)}px`, color: role.color || 'rgba(255,255,255,0.85)' }}>
                           {role.label}
                         </span>
                       )}
-                      <span className="font-black text-white uppercase text-xs text-center drop-shadow-md leading-tight break-all">
+                      <span className="font-black text-white uppercase text-center drop-shadow-md leading-tight break-all"
+                        style={{ fontSize: `${Math.round(12 * textScale)}px` }}>
                         {mapping!.name}
                       </span>
                     </div>
