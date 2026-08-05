@@ -1,8 +1,6 @@
-// tunnel.ts – Cloudflare Quick Tunnel manager
-// Uses the `cloudflared` npm package which downloads the binary automatically
-// during `npm install`. No Cloudflare account needed.
-// The tunnel gives a public https://xxx.trycloudflare.com URL that proxies
-// to the local server, satisfying browsers' HTTPS requirement for getUserMedia.
+// tunnel.ts – Cloudflare Tunnel manager
+// Named tunnel (token): uses CLOUDFLARE_TUNNEL_TOKEN + CLOUDFLARE_TUNNEL_URL → static URL
+// Quick tunnel (fallback): no token, generates a random *.trycloudflare.com URL each restart
 
 import { spawn, ChildProcess } from "child_process"
 import { EventEmitter } from "events"
@@ -17,15 +15,16 @@ export function getTunnelUrl(): string { return _url }
 export function getTunnelStatus() { return _status }
 
 export async function startTunnel(port: number): Promise<string> {
-  if (_process) return _url  // already running
+  if (_process) return _url
 
   _status = "starting"
   _url = ""
   tunnelEvents.emit("status", { status: _status, url: _url })
 
+  const token = process.env.CLOUDFLARE_TUNNEL_TOKEN
+  const staticUrl = process.env.CLOUDFLARE_TUNNEL_URL
+
   return new Promise((resolve, reject) => {
-    // The cloudflared npm package exposes the binary path via its `bin` export.
-    // Fall back to system `cloudflared` if the package isn't installed yet.
     let binPath = "cloudflared"
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -34,10 +33,16 @@ export async function startTunnel(port: number): Promise<string> {
       console.log("[tunnel] cloudflared npm package not found, trying system binary")
     }
 
-    console.log(`[tunnel] starting cloudflare tunnel → http://localhost:${port}`)
-    _process = spawn(binPath, ["tunnel", "--url", `http://localhost:${port}`], {
-      stdio: ["ignore", "pipe", "pipe"],
-    })
+    let args: string[]
+    if (token) {
+      console.log(`[tunnel] starting named tunnel → ${staticUrl ?? "(URL from Cloudflare dashboard)"}`)
+      args = ["tunnel", "--no-autoupdate", "run", "--token", token]
+    } else {
+      console.log(`[tunnel] starting quick tunnel → http://localhost:${port}`)
+      args = ["tunnel", "--url", `http://localhost:${port}`]
+    }
+
+    _process = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] })
 
     const timeout = setTimeout(() => {
       _status = "error"
@@ -45,22 +50,41 @@ export async function startTunnel(port: number): Promise<string> {
       reject(new Error("Tunnel startup timed out after 30s"))
     }, 30_000)
 
-    // cloudflared writes the tunnel URL to stderr
-    const onData = (data: Buffer) => {
-      const text = data.toString()
-      const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)
-      if (match && !_url) {
+    if (token && staticUrl) {
+      // Named tunnel: URL is fixed. Resolve as soon as cloudflared produces any output
+      // (meaning the process started and is connecting). The URL never changes.
+      let resolved = false
+      const onStartup = () => {
+        if (resolved) return
+        resolved = true
         clearTimeout(timeout)
-        _url = match[0]
+        _url = staticUrl
         _status = "running"
         tunnelEvents.emit("status", { status: _status, url: _url })
-        console.log(`[tunnel] ✅ public URL: ${_url}`)
+        console.log(`[tunnel] ✅ named tunnel running: ${_url}`)
         resolve(_url)
       }
+      _process.stdout?.on("data", onStartup)
+      _process.stderr?.on("data", onStartup)
+      // Fallback: resolve after 5s even if cloudflared is silent
+      setTimeout(onStartup, 5000)
+    } else {
+      // Quick tunnel: wait for trycloudflare.com URL to appear in output
+      const onData = (data: Buffer) => {
+        const text = data.toString()
+        const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)
+        if (match && !_url) {
+          clearTimeout(timeout)
+          _url = match[0]
+          _status = "running"
+          tunnelEvents.emit("status", { status: _status, url: _url })
+          console.log(`[tunnel] ✅ public URL: ${_url}`)
+          resolve(_url)
+        }
+      }
+      _process.stdout?.on("data", onData)
+      _process.stderr?.on("data", onData)
     }
-
-    _process.stdout?.on("data", onData)
-    _process.stderr?.on("data", onData)
 
     _process.on("exit", (code) => {
       console.log(`[tunnel] process exited (code ${code})`)
