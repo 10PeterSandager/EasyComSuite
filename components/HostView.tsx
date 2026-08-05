@@ -321,12 +321,15 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     setGridOrder(prev => {
-      const ids = regularClients.map((c: Client) => c.id)
+      const ids = [
+        ...regularClients.map((c: Client) => c.id),
+        ...groups.map(g => g.id)
+      ]
       const existing = prev.filter(id => ids.includes(id))
       const added = ids.filter((id: string) => !prev.includes(id))
       return [...existing, ...added]
     })
-  }, [regularClients.length])
+  }, [regularClients.length, groups.length])
 
   const orderedRegularClients = gridOrder
     .map(id => regularClients.find((c: Client) => c.id === id))
@@ -560,62 +563,74 @@ const HostView = (props: any) => {
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(92 * cardScale)}px, ${Math.round(92 * cardScale)}px))` }}
               onClick={e => { if (e.target === e.currentTarget) setSelectedIds([]) }}
             >
-              {orderedRegularClients.filter((c: Client) => !c.hidden).map((c: Client) => {
+              {gridOrder.map(id => {
+                const group = groups.find(g => g.id === id)
+                if (group) {
+                  return (
+                    <div
+                      key={group.id}
+                      draggable
+                      onDragStart={() => handleGridDragStart(group.id)}
+                      onDragEnter={() => handleGridDragEnter(group.id)}
+                      onDragEnd={handleGridDragEnd}
+                      onDragOver={e => e.preventDefault()}
+                      style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                      className="active:cursor-grabbing"
+                    >
+                      <GroupStrip
+                        group={group}
+                        clients={[producerClient, ...regularClients]}
+                        isActive={activeGroupIds.has(group.id)}
+                        onActivate={() => activateGroup(group)}
+                        onDeactivate={() => deactivateGroup(group)}
+                        onDelete={() => deleteGroup(group.id)}
+                        onUpdate={updateGroup}
+                      />
+                    </div>
+                  )
+                }
+
+                const c = regularClients.find((c: Client) => c.id === id)
+                if (!c || c.hidden) return null
+
                 const bridgeSources: FeedSource[] = activeBridgeChannels.map(ch => ({
                   id: `bridge-ch${ch}`,
                   label: `Bridge CH${ch}`
                 }))
-
                 const clientSources: FeedSource[] = regularClients
                   .filter((x: Client) => x.id !== c.id && x.status === "online")
                   .map((x: Client) => ({ id: x.id, label: x.name }))
-
                 const feedSources: FeedSource[] = [...clientSources, ...bridgeSources]
 
                 return (
-                <div
-                  key={c.id}
-                  draggable
-                  onDragStart={() => handleGridDragStart(c.id)}
-                  onDragEnter={() => handleGridDragEnter(c.id)}
-                  onDragEnd={handleGridDragEnd}
-                  onDragOver={e => e.preventDefault()}
-                  onClick={e => handleClientSelect(c.id, e)}
-                  onContextMenu={e => handleRightClick(e, c.id)}
-                  style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                  className="active:cursor-grabbing"
-                >
-                  <ClientStrip
-                    client={c}
-                    isSelected={selectedIds.includes(c.id)}
-                    onUpdate={(u: any) => handleUpdateClient(c.id, u)}
-                    onHijack={() => {}}
-                    onMapKey={() => setMappingClientId(c.id)}
-                    theme={theme}
-                    isMixerOpen={mixerClientId === c.id}
-                    onToggleMixer={() => toggleMixer(c.id)}
-                    feedSources={feedSources}
-                    allClients={regularClients}
-                    roles={roles}
-                  />
-                </div>
+                  <div
+                    key={c.id}
+                    draggable
+                    onDragStart={() => handleGridDragStart(c.id)}
+                    onDragEnter={() => handleGridDragEnter(c.id)}
+                    onDragEnd={handleGridDragEnd}
+                    onDragOver={e => e.preventDefault()}
+                    onClick={e => handleClientSelect(c.id, e)}
+                    onContextMenu={e => handleRightClick(e, c.id)}
+                    style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                    className="active:cursor-grabbing"
+                  >
+                    <ClientStrip
+                      client={c}
+                      isSelected={selectedIds.includes(c.id)}
+                      onUpdate={(u: any) => handleUpdateClient(c.id, u)}
+                      onHijack={() => {}}
+                      onMapKey={() => setMappingClientId(c.id)}
+                      theme={theme}
+                      isMixerOpen={mixerClientId === c.id}
+                      onToggleMixer={() => toggleMixer(c.id)}
+                      feedSources={feedSources}
+                      allClients={regularClients}
+                      roles={roles}
+                    />
+                  </div>
                 )
               })}
-
-              {/* GROUP CARDS */}
-              {groups.map(g => (
-                <div key={g.id} style={{ width: `${Math.round(92 * cardScale)}px` }}>
-                  <GroupStrip
-                    group={g}
-                    clients={regularClients}
-                    isActive={activeGroupIds.has(g.id)}
-                    onActivate={() => activateGroup(g)}
-                    onDeactivate={() => deactivateGroup(g)}
-                    onDelete={() => deleteGroup(g.id)}
-                    onUpdate={updateGroup}
-                  />
-                </div>
-              ))}
             </div>
 
             {/* FLOATING MIXER */}
@@ -982,6 +997,31 @@ const HostView = (props: any) => {
               </div>
             )
           })}
+
+          {groups.length > 0 && (
+            <div className="mt-2 space-y-1">
+              <div className="px-3 pt-1 text-[8px] font-bold uppercase tracking-widest text-white/20">Groups</div>
+              {groups.map(g => (
+                <div key={g.id}
+                  className="flex items-center justify-between px-3 py-1.5 rounded bg-white/5 hover:bg-white/8"
+                  style={{ borderLeft: `2px solid ${g.color}60` }}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: g.color }} />
+                    <span className="text-xs font-bold truncate flex-1">{g.name}</span>
+                    <span className="text-[8px] text-white/30 shrink-0">{g.members.length}m</span>
+                    {activeGroupIds.has(g.id) && (
+                      <span className="text-[7px] font-bold uppercase" style={{ color: g.color }}>ON</span>
+                    )}
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); deleteGroup(g.id) }}
+                    className="text-white/20 hover:text-red-400 shrink-0 ml-1">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
