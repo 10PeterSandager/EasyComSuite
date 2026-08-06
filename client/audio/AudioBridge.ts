@@ -13,6 +13,7 @@ type BridgeInstance = {
   eqHigh: BiquadFilterNode
   analyser: AnalyserNode
   gateNode: GainNode
+  panNode: StereoPannerNode
   destination: MediaStreamAudioDestinationNode
   stream: MediaStream
   channel: number
@@ -40,6 +41,8 @@ const eqFiltersMid = new Map<number, BiquadFilterNode>()
 const eqFiltersHigh = new Map<number, BiquadFilterNode>()
 const eqValues = new Map<number, { low: number; mid: number; high: number }>()
 const bridgeGateNodes = new Map<number, GainNode>()
+const panNodes = new Map<number, StereoPannerNode>()
+const panValues = new Map<number, number>()
 const gateSettings = new Map<number, { enabled: boolean; threshold: number }>()
 const muteValues = new Map<number, boolean>()
 const levelCallbacks = new Map<number, (level: number) => void>()
@@ -183,15 +186,20 @@ export async function startChannelBridge(channel: number, sampleRate: number): P
   gateNode.gain.value = muteValues.get(channel) ? 0 : 1
   bridgeGateNodes.set(channel, gateNode)
 
+  const panNode = ctx.createStereoPanner()
+  panNode.pan.value = panValues.get(channel) ?? 0
+  panNodes.set(channel, panNode)
+
   const destination = ctx.createMediaStreamDestination()
 
-  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → destination
+  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → panNode → destination
   gainNode.connect(eqLow)
   eqLow.connect(eqMid)
   eqMid.connect(eqHigh)
   eqHigh.connect(analyser)
   analyser.connect(gateNode)
-  gateNode.connect(destination)
+  gateNode.connect(panNode)
+  panNode.connect(destination)
 
   const buf = new Float32Array(analyser.fftSize)
   let gateOpen: boolean | null = null  // null = first run, force initial set
@@ -215,7 +223,7 @@ export async function startChannelBridge(channel: number, sampleRate: number): P
   requestAnimationFrame(tick)
 
   const instance: BridgeInstance = {
-    gainNode, eqLow, eqMid, eqHigh, analyser, gateNode,
+    gainNode, eqLow, eqMid, eqHigh, analyser, gateNode, panNode,
     destination,
     stream: destination.stream,
     channel,
@@ -238,12 +246,14 @@ export function stopChannelBridge(channel: number) {
   try { bridge.eqHigh.disconnect() } catch {}
   try { bridge.analyser.disconnect() } catch {}
   try { bridge.gateNode.disconnect() } catch {}
+  try { bridge.panNode.disconnect() } catch {}
   try { bridge.destination.disconnect() } catch {}
   gainNodes.delete(channel)
   eqFiltersLow.delete(channel)
   eqFiltersMid.delete(channel)
   eqFiltersHigh.delete(channel)
   bridgeGateNodes.delete(channel)
+  panNodes.delete(channel)
   bridges.delete(channel)
   console.log(`⏹ Bridge ch${channel} stopped`)
 }
@@ -289,7 +299,17 @@ export function setChannelMute(channel: number, muted: boolean) {
   if (gateNode && sharedCtx && muted) gateNode.gain.setTargetAtTime(0, sharedCtx.currentTime, 0.005)
 }
 
+export function setChannelPan(channel: number, pan: number) {
+  panValues.set(channel, pan)
+  const panNode = panNodes.get(channel)
+  if (panNode && sharedCtx) {
+    panNode.pan.setTargetAtTime(pan, sharedCtx.currentTime, 0.012)
+    console.log(`[AudioBridge] setChannelPan ch${channel} → ${pan.toFixed(2)}`)
+  }
+}
+
 ;(window as any).__setChannelGain = setChannelGain
+;(window as any).__setChannelPan = setChannelPan
 
 export function setChannelLevelCallback(channel: number, cb: (level: number) => void) {
   levelCallbacks.set(channel, cb)
