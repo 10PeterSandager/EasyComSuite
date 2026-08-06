@@ -51,6 +51,7 @@ const ClientStrip: React.FC<Props> = ({
 
   const [snd, setSnd] = useState(0)
   const [rcv, setRcv] = useState(0)
+  const [stereo, setStereo] = useState(0)
   const [phoneRoutes, setPhoneRoutes] = useState<Array<{ from: string; name: string }>>([])
   const [disabledPhoneIds, setDisabledPhoneIds] = useState<Set<string>>(new Set())
   const [isTalkPressed, setIsTalkPressed] = useState(false)
@@ -72,6 +73,7 @@ const ClientStrip: React.FC<Props> = ({
     return subscribeToLevels(levels => {
       setSnd(levels[client.id] ?? 0)
       setRcv(levels[`recv_${client.id}`] ?? 0)
+      setStereo(levels[`recv_stereo_${client.id}`] ?? 0)
     })
   }, [client.id])
 
@@ -279,11 +281,13 @@ const ClientStrip: React.FC<Props> = ({
             </div>
             <Bar level={snd} color="#22c55e" />
             <Bar level={rcv} color="#3b82f6" />
+            <Bar level={stereo} color="#a855f7" />
           </div>
 
           <div className="flex gap-2 px-0.5">
             <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-sm bg-green-500 opacity-50" /><span className="text-[7px] text-white/30">SEND</span></div>
             <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-sm bg-blue-500 opacity-50" /><span className="text-[7px] text-white/30">RECV</span></div>
+            <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-sm opacity-50" style={{ background: "#a855f7" }} /><span className="text-[7px] text-white/30">ST</span></div>
           </div>
 
 
