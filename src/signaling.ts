@@ -903,9 +903,12 @@ export function setupSignaling(io: Server) {
       const update: Record<string, number> = {}
       for (const [clientId, level] of Object.entries(levels)) {
         update[clientId] = level
-        // Find alle connections fra denne bridge-kanal og sæt recv-niveauer
+        // Stereo bridge sources → recv_stereo_{client} to avoid overwriting mono recv
+        const isStereoSrc = clientId.startsWith("bridge-stereo-")
         for (const conn of connections.values()) {
-          if (conn.from === clientId) update[`recv_${conn.to}`] = level
+          if (conn.from === clientId) {
+            update[isStereoSrc ? `recv_stereo_${conn.to}` : `recv_${conn.to}`] = level
+          }
         }
       }
       if (Object.keys(update).length > 0) {
