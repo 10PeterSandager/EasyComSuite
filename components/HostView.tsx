@@ -244,9 +244,10 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
-    socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
+    socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number; tunnelUrl: string }) => {
       if (info?.lanIp) setQrLanIp(info.lanIp)
       if (info?.lanPort) setQrLanPort(info.lanPort)
+      if (info?.tunnelUrl) setQrTunnelUrl(info.tunnelUrl)
     })
   }, [])
 

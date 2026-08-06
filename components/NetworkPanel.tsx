@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { NetworkConfig, RemoteHost, HardwareInterface } from '../types'
-import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader } from 'lucide-react'
+import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader, Copy, Link } from 'lucide-react'
 import { socket } from '../client/webrtc/intercom'
 
 interface NetworkPanelProps {
@@ -34,6 +34,16 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
   const [saving, setSaving]                   = useState(false)
   const [saveStatus, setSaveStatus]           = useState<'idle' | 'ok' | 'error'>('idle')
 
+  // ── LAN / Tunnel live info from server ───────────────────────────────────
+  const [lanIp, setLanIp]           = useState('')
+  const [lanPort, setLanPort]       = useState(0)
+  const [tunnelUrl, setTunnelUrl_]  = useState('')
+  const [tunnelStatus, setTunnelStatus] = useState('')
+  const [tunnelToken, setTunnelToken]   = useState('')
+  const [tunnelStaticUrl, setTunnelStaticUrl] = useState('')
+  const [tunnelSaving, setTunnelSaving] = useState(false)
+  const [tunnelSaveStatus, setTunnelSaveStatus] = useState<'idle' | 'ok' | 'error'>('idle')
+
   // Also sync from server (authoritative) once socket is ready
   useEffect(() => {
     const load = () => {
@@ -44,6 +54,15 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
         setTurnUsername(cfg.turnUsername ?? '')
         setTurnPassword(cfg.turnPassword ?? '')
         setSessionPassword(cfg.sessionPassword ?? '')
+        setTunnelToken(cfg.tunnelToken ?? '')
+        setTunnelStaticUrl(cfg.tunnelStaticUrl ?? '')
+      })
+      socket.emit('server:network:info', (info: any) => {
+        if (!info) return
+        setLanIp(info.lanIp ?? '')
+        setLanPort(info.lanPort ?? 0)
+        setTunnelUrl_(info.tunnelUrl ?? '')
+        setTunnelStatus(info.tunnelStatus ?? '')
       })
     }
     if (socket.connected) load()
@@ -98,6 +117,18 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
     const updated = { ...network, [field]: value }
     setNetwork(updated)
     try { localStorage.setItem(LS_NET, JSON.stringify(updated)) } catch {}
+  }
+
+  const saveTunnelConfig = () => {
+    setTunnelSaving(true)
+    setTunnelSaveStatus('idle')
+    const timeout = setTimeout(() => { setTunnelSaving(false); setTunnelSaveStatus('error'); setTimeout(() => setTunnelSaveStatus('idle'), 3000) }, 5000)
+    socket.emit('server:config:update', { tunnelToken: tunnelToken.trim(), tunnelStaticUrl: tunnelStaticUrl.trim() }, (res: any) => {
+      clearTimeout(timeout)
+      setTunnelSaving(false)
+      setTunnelSaveStatus(res?.ok ? 'ok' : 'error')
+      setTimeout(() => setTunnelSaveStatus('idle'), 3000)
+    })
   }
 
   const refreshHosts = () => { setScanning(true); setTimeout(() => setScanning(false), 2000) }
@@ -237,36 +268,118 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
         {/* ── LOCAL NETWORK ────────────────────────────────────────────── */}
         <div className="bg-zinc-900 p-6 rounded-2xl border border-white/5 space-y-4">
           <div className="flex items-center gap-3">
-            <Globe size={16} />
-            <h3 className="text-sm font-bold text-white">Local Network</h3>
+            <Globe size={16} className="text-blue-400" />
+            <h3 className="text-sm font-bold text-white">Local Network (LAN)</h3>
           </div>
 
-          <div className="space-y-3">
-            {[
-              { label: 'IP Address', field: 'ip' as const, type: 'text' },
-              { label: 'Subnet', field: 'subnet' as const, type: 'text' },
-              { label: 'Gateway', field: 'gateway' as const, type: 'text' },
-              { label: 'Port', field: 'port' as const, type: 'number' },
-            ].map(({ label, field, type }) => (
-              <div key={field}>
-                <label className="text-[10px] text-white/30 uppercase tracking-wider">{label}</label>
-                <input
-                  type={type}
-                  value={(network as any)[field]}
-                  onChange={e => updateNet(field, type === 'number' ? parseInt(e.target.value) : e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white"
-                />
+          <p className="text-[10px] text-white/30 leading-relaxed">
+            Mobile clients on the same WiFi connect directly via LAN without needing internet.
+          </p>
+
+          {/* LAN IP */}
+          <div>
+            <label className="text-[10px] text-white/40 uppercase tracking-wider">Server LAN IP</label>
+            <div className="flex gap-2 mt-1">
+              <div className="flex-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono select-all">
+                {lanIp || <span className="text-white/20">Detecting…</span>}
               </div>
-            ))}
+              {lanIp && (
+                <button
+                  onClick={() => navigator.clipboard.writeText(lanIp)}
+                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded text-white/50 hover:text-white transition-colors"
+                  title="Copy IP"
+                >
+                  <Copy size={11} />
+                </button>
+              )}
+            </div>
+            <p className="text-[9px] text-white/20 mt-1">Auto-detected from the server's network interface.</p>
+          </div>
+
+          {/* LAN Port */}
+          <div>
+            <label className="text-[10px] text-white/40 uppercase tracking-wider">LAN Port (HTTP)</label>
+            <div className="mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono">
+              {lanPort || <span className="text-white/20">—</span>}
+            </div>
+            <p className="text-[9px] text-white/20 mt-1">Plain HTTP — no SSL required on local network.</p>
+          </div>
+
+          {/* Tunnel status */}
+          <div className="pt-2 border-t border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-2 h-2 rounded-full ${tunnelStatus === 'running' ? 'bg-green-500' : tunnelStatus === 'starting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500/60'}`} />
+              <span className="text-[10px] text-white/40 uppercase tracking-wider">
+                Cloudflare Tunnel — {tunnelStatus || 'stopped'}
+              </span>
+            </div>
+            {tunnelUrl ? (
+              <div className="flex gap-2">
+                <div className="flex-1 px-3 py-2 bg-black border border-white/10 rounded text-[10px] text-white/60 font-mono break-all">
+                  {tunnelUrl}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(tunnelUrl)}
+                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded text-white/50 hover:text-white transition-colors shrink-0"
+                  title="Copy URL"
+                >
+                  <Copy size={11} />
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-white/20">No tunnel URL yet — tunnel may still be starting.</p>
+            )}
+          </div>
+
+          {/* Static tunnel config */}
+          <div className="pt-2 border-t border-white/5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Link size={11} className="text-white/30" />
+              <span className="text-[10px] text-white/40 uppercase tracking-wider">Static Tunnel (named tunnel)</span>
+            </div>
+            <p className="text-[9px] text-white/20 leading-relaxed">
+              Set a Cloudflare tunnel token + fixed URL to get a permanent address that never changes on restart.
+              Get the token from your Cloudflare Zero Trust dashboard → Tunnels.
+            </p>
             <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider">Encryption Key</label>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">Tunnel Token</label>
               <input
                 type="password"
-                value={network.encryptionKey}
-                onChange={e => updateNet('encryptionKey', e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white"
+                value={tunnelToken}
+                onChange={e => setTunnelToken(e.target.value)}
+                placeholder="eyJhIjoiM…  (from Cloudflare dashboard)"
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                autoComplete="off"
               />
             </div>
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">Static Tunnel URL</label>
+              <input
+                type="text"
+                value={tunnelStaticUrl}
+                onChange={e => setTunnelStaticUrl(e.target.value)}
+                placeholder="https://easycom.example.com"
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                spellCheck={false}
+                autoCapitalize="none"
+              />
+              <p className="text-[9px] text-white/20 mt-1">The public URL assigned to your named tunnel in Cloudflare.</p>
+            </div>
+            <button
+              onClick={saveTunnelConfig}
+              disabled={tunnelSaving}
+              className="w-full py-2 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 rounded-xl text-xs font-black text-white uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+            >
+              {tunnelSaving ? (
+                <><Loader size={12} className="animate-spin" /> Saving…</>
+              ) : tunnelSaveStatus === 'ok' ? (
+                <><CheckCircle size={12} /> Saved — restart to apply</>
+              ) : tunnelSaveStatus === 'error' ? (
+                'Error — is the server running?'
+              ) : (
+                'Save Tunnel Config'
+              )}
+            </button>
           </div>
         </div>
 
