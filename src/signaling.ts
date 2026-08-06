@@ -422,7 +422,7 @@ export function setupSignaling(io: Server) {
         name:   c.data?.name   || "",
         type:   c.data?.type   || "",
         code:   c.data?.code   || "0000",
-        status: c.data?.status || "online",
+        status: c.socketId !== "" ? "online" : "offline",
         color:  c.data?.color  || undefined,
       })).filter(c => c.id !== "" && c.id !== "host-ui")
 
@@ -909,6 +909,17 @@ export function setupSignaling(io: Server) {
       )
       const bridgeId = conn?.from ?? null
       io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId })
+    })
+
+    // 🔥 Relay pan from mobile client to host-ui
+    socket.on("client:pan", ({ channel, pan, bridgeId }: { channel: number; pan: number; bridgeId?: string }) => {
+      const hostSocket = clients.get("host-ui")?.socketId
+      if (!hostSocket) return
+      const clientId = (socket as any).clientId || socket.id
+      const resolvedBridgeId = bridgeId ?? Array.from(connections.values()).find(
+        c => c.to === clientId && c.channel === channel
+      )?.from ?? null
+      io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId: resolvedBridgeId })
     })
 
     socket.on("audio:level", ({ clientId, level }: { clientId: string; level: number }) => {
