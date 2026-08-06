@@ -1005,9 +1005,15 @@ async function consumeStereoSource(stereoId: string, channel: number) {
 
     stereoSourceConsumers.set(stereoId, consumer)
 
-    // Silent driver element keeps WebRTC RTP decoder alive (same as bridge mono path)
+    // Vol=0 silent driver keeps RTP decoder alive; audio goes exclusively through MASN → ChannelSplitter → panners
+    // (attachOutputAudio sets volume=1 for bridge-* sources which would bypass the stereo split path)
     detachOutputAudio(stereoId)
-    attachOutputAudio(stereoId, consumer.track)
+    const driverEl = document.createElement('audio')
+    driverEl.srcObject = new MediaStream([consumer.track])
+    driverEl.volume = 0
+    driverEl.autoplay = true
+    driverEl.play().catch(() => {})
+    outputAudios.set(stereoId, driverEl)
 
     disconnectStereoSourceNodes(stereoId)
     const stream = new MediaStream([consumer.track])

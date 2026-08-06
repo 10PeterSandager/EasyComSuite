@@ -308,13 +308,11 @@ export default function ConnectionsPopup({
                 {isActive ? (
                   <div className="space-y-0.5 mt-0.5">
                     {active.map(({ conn, name }, idx) => (
-                      <div key={idx} className="flex items-center gap-1">
-                        <span className="text-[7px] text-white/55 truncate flex-1">{name}</span>
-                        <button onClick={() => disconnect(conn)}
-                          className="p-0.5 hover:text-red-400 text-white/25 shrink-0">
-                          <Unlink size={8} />
-                        </button>
-                      </div>
+                      <button key={idx} onClick={() => disconnect(conn)}
+                        className="w-full flex items-center gap-1 rounded px-1 -mx-1 hover:bg-red-500/15 transition-colors group">
+                        <span className="text-[7px] text-white/55 truncate flex-1 text-left">{name}</span>
+                        <X size={9} className="text-white/20 group-hover:text-red-400 shrink-0 transition-colors" />
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -336,35 +334,41 @@ export default function ConnectionsPopup({
             const recvIn = incoming.filter(c => c.channel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
             // outgoing non-talk: I send to someone on toChannel ch
             const recvOut = outgoing.filter(c => c.toChannel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
-            type Entry = { conn: Connection; name: string }
+            type Entry = { conn: Connection; name: string; isStereo?: boolean }
             const active: Entry[] = [
               ...recvIn.map(c => {
                 const src = clients.find(x => x.id === c.from)
                 const bch = bridgeChannels.find(x => `bridge-ch${x.channel}` === c.from)
-                return { conn: c, name: src?.name ?? bch?.name ?? c.from }
+                const sp = stereoPairs.find(p => `bridge-stereo-${p.chL}-${p.chR}` === c.from)
+                return { conn: c, name: src?.name ?? bch?.name ?? sp?.name ?? c.from, isStereo: !!sp }
               }),
               ...recvOut.map(c => ({ conn: c, name: clients.find(x => x.id === c.to)?.name ?? c.to })),
             ]
             const isActive = active.length > 0
+            const hasStereo = active.some(a => a.isStereo)
             return (
               <div key={ch}
                 className="rounded-lg p-2 space-y-0.5"
                 style={isActive
-                  ? { background: chColor(ch) + "25", border: `1px solid ${chColor(ch)}60` }
+                  ? hasStereo
+                    ? { background: `${STEREO_COLOR}20`, border: `1px solid ${STEREO_COLOR}55` }
+                    : { background: chColor(ch) + "25", border: `1px solid ${chColor(ch)}60` }
                   : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="text-xs font-black" style={{ color: isActive ? chColor(ch) : "rgba(255,255,255,0.2)" }}>
+                <div className="text-xs font-black flex items-center gap-1"
+                  style={{ color: isActive ? (hasStereo ? STEREO_COLOR : chColor(ch)) : "rgba(255,255,255,0.2)" }}>
+                  {hasStereo && <Headphones size={9} />}
                   {ch}
                 </div>
                 {isActive ? (
                   <div className="space-y-0.5 mt-0.5">
-                    {active.map(({ conn, name }, idx) => (
-                      <div key={idx} className="flex items-center gap-1">
-                        <span className="text-[7px] text-white/55 truncate flex-1">{name}</span>
-                        <button onClick={() => disconnect(conn)}
-                          className="p-0.5 hover:text-red-400 text-white/25 shrink-0">
-                          <Unlink size={8} />
-                        </button>
-                      </div>
+                    {active.map(({ conn, name, isStereo }, idx) => (
+                      <button key={idx} onClick={() => disconnect(conn)}
+                        className="w-full flex items-center gap-1 rounded px-1 -mx-1 hover:bg-red-500/15 transition-colors group">
+                        {isStereo && <Headphones size={7} style={{ color: STEREO_COLOR, flexShrink: 0 }} />}
+                        <span className="text-[7px] truncate flex-1 text-left"
+                          style={{ color: isStereo ? STEREO_COLOR : "rgba(255,255,255,0.55)" }}>{name}</span>
+                        <X size={9} className="text-white/20 group-hover:text-red-400 shrink-0 transition-colors" />
+                      </button>
                     ))}
                   </div>
                 ) : (

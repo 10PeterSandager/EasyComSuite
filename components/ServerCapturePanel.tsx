@@ -499,7 +499,10 @@ export default function ServerCapturePanel({ onStreamReady, stereoPairs = [], on
                               L: CH{pair.chL} {lInfo.name !== `CH${pair.chL}` ? `(${lInfo.name})` : ""} · R: CH{pair.chR} {rInfo.name !== `CH${pair.chR}` ? `(${rInfo.name})` : ""}
                             </p>
                           </div>
-                          <button onClick={() => onStereoPairsChange(stereoPairs.filter(p => p.id !== pair.id))}
+                          <button onClick={() => {
+                              socket.emit("bridge:stereo:deregister", { chL: pair.chL, chR: pair.chR })
+                              onStereoPairsChange(stereoPairs.filter(p => p.id !== pair.id))
+                            }}
                             className="shrink-0 text-white/20 hover:text-red-400 transition-colors">
                             <Trash2 size={11} />
                           </button>
