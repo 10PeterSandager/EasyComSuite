@@ -8,6 +8,16 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
+import os from "os"
+
+function getLanIp(): string {
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address
+    }
+  }
+  return "127.0.0.1"
+}
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
@@ -1217,6 +1227,19 @@ export function setupSignaling(io: Server) {
 
     /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
 
+    socket.on("server:network:info", (cb) => {
+      if (typeof cb !== "function") return
+      const port    = parseInt(process.env.PORT ?? "3000")
+      const lanPort = parseInt(process.env.LAN_PORT ?? String(port + 1))
+      cb({
+        lanIp:       getLanIp(),
+        port,
+        lanPort,
+        tunnelUrl:   getTunnelUrl(),
+        tunnelStatus: getTunnelStatus(),
+      })
+    })
+
     socket.on("server:config:get", (cb) => {
       if (typeof cb !== "function") return
       cb({
@@ -1225,12 +1248,14 @@ export function setupSignaling(io: Server) {
         turnUsername:   process.env.TURN_USERNAME ?? "",
         turnPassword:   process.env.TURN_PASSWORD ?? "",
         sessionPassword: process.env.SESSION_PASSWORD ?? "",
+        tunnelToken:    process.env.CLOUDFLARE_TUNNEL_TOKEN ?? "",
+        tunnelStaticUrl: process.env.CLOUDFLARE_TUNNEL_URL ?? "",
       })
     })
 
     socket.on("server:config:update", (
-      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }:
-      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string },
+      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, tunnelToken, tunnelStaticUrl }:
+      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string; tunnelToken?: string; tunnelStaticUrl?: string },
       cb?: (r: { ok: boolean }) => void
     ) => {
       const toSave: Record<string, string> = {}
@@ -1248,6 +1273,15 @@ export function setupSignaling(io: Server) {
         process.env.SESSION_PASSWORD = sessionPassword
         toSave["SESSION_PASSWORD"] = sessionPassword
         console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`)
+      }
+      if (tunnelToken !== undefined) {
+        process.env.CLOUDFLARE_TUNNEL_TOKEN = tunnelToken
+        toSave["CLOUDFLARE_TUNNEL_TOKEN"] = tunnelToken
+        console.log(`[signaling] tunnel token ${tunnelToken ? "set" : "cleared"}`)
+      }
+      if (tunnelStaticUrl !== undefined) {
+        process.env.CLOUDFLARE_TUNNEL_URL = tunnelStaticUrl
+        toSave["CLOUDFLARE_TUNNEL_URL"] = tunnelStaticUrl
       }
 
       persistEnvVars(toSave)
