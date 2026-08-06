@@ -48,6 +48,7 @@ export default function IntercomScreen({
   const [meterLevels, setMeterLevels] = useState<number[]>(new Array(8).fill(0))
 
   const [gains, setGains] = useState<number[]>(new Array(8).fill(80))
+  const [pans,  setPans]  = useState<number[]>(new Array(8).fill(0)) // -1=L, 0=C, 1=R
   const [audioStreams,   setAudioStreams]   = useState<any[]>([])
   const [videoStreamUrl, setVideoStreamUrl] = useState<(string|null)[]>([null, null])
   const [videoStreams,   setVideoStreams]   = useState<(any|null)[]>([null, null])
@@ -62,19 +63,9 @@ export default function IntercomScreen({
   const [toneActive, setToneActive] = useState(false)
   const [routing, setRouting] = useState<Record<number, string[]>>({})
 
-  // ── Phone routing mode ──────────────────────────────────────────────────────
-  // slotRoutes: { talk1: targetClientId, talk2: ..., talk3: ..., talk4: ... }
-  const [isRoutingMode, setIsRoutingMode] = useState(false)
-  const [slotRoutes, setSlotRoutes] = useState<Record<string, string>>({})
-  const [allClients, setAllClients] = useState<Array<{ id: string; name: string; color?: string }>>([])
-  const [activeRoutes, setActiveRoutes] = useState<Set<string>>(new Set()) // targetIds with active CH2 routes
-  const [disabledRoutes, setDisabledRoutes] = useState<Set<string>>(new Set()) // disabled by HOST
-  const [activePickerKey, setActivePickerKey] = useState<string | null>(null) // which TB's picker is open
-
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
   useEffect(() => {
     import('../webrtc/intercom').then(({ onStreamAdded, getActiveStreams }) => {
-      // Replay any streams that arrived before this screen mounted
       const existing = getActiveStreams()
       if (existing.size > 0) setAudioStreams(Array.from(existing.values()))
       onStreamAdded((stream: any) => {
@@ -84,84 +75,6 @@ export default function IntercomScreen({
         })
       })
     })
-  }, [])
-
-  // Load all clients when routing mode is activated; close picker when deactivated
-  useEffect(() => {
-    if (!isRoutingMode) { setActivePickerKey(null); return }
-    import('../webrtc/intercom').then(({ fetchAllClients }) => {
-      fetchAllClients().then(list => setAllClients(list))
-    })
-  }, [isRoutingMode])
-
-  // Track active CH2 routes by watching current routing
-  useEffect(() => {
-    const routedTargets = new Set<string>()
-    Object.values(slotRoutes).forEach(targetId => {
-      if (targetId) routedTargets.add(targetId)
-    })
-    setActiveRoutes(routedTargets)
-  }, [slotRoutes])
-
-  const handleRouteSelect = (slotKey: string, targetId: string) => {
-    const prev = slotRoutes[slotKey]
-    if (prev && prev !== targetId) {
-      // Remove old route
-      import('../webrtc/intercom').then(({ removePhoneRoute }) => removePhoneRoute(prev, 2))
-    }
-    if (targetId) {
-      import('../webrtc/intercom').then(({ createPhoneRoute }) => createPhoneRoute(targetId, 2))
-    }
-    setSlotRoutes(p => ({ ...p, [slotKey]: targetId }))
-  }
-
-  const handleRouteClear = (slotKey: string) => {
-    const targetId = slotRoutes[slotKey]
-    if (targetId) {
-      import('../webrtc/intercom').then(({ removePhoneRoute }) => removePhoneRoute(targetId, 2))
-    }
-    setSlotRoutes(p => { const n = { ...p }; delete n[slotKey]; return n })
-  }
-
-  // Listen for HOST-pushed routing mode changes
-  useEffect(() => {
-    let cleanup: (() => void) | null = null
-    import('../webrtc/intercom').then(({ getSocket }) => {
-      const s = getSocket()
-      if (!s) return
-      const handler = ({ enabled }: { enabled: boolean }) => setIsRoutingMode(enabled)
-      s.on('routing:mode', handler)
-      cleanup = () => s.off('routing:mode', handler)
-    })
-    return () => { cleanup?.() }
-  }, [])
-
-  // Track slotRoutes in a ref so the connections:all handler can read current state without stale closures
-  const slotRoutesRef = useRef(slotRoutes)
-  useEffect(() => { slotRoutesRef.current = slotRoutes }, [slotRoutes])
-
-  // Detect host-removed routes: if slotRoutes[key] still has a target but the connection is gone, host disabled it
-  useEffect(() => {
-    let cleanup: (() => void) | null = null
-    import('../webrtc/intercom').then(({ getSocket, getClientId }) => {
-      const s = getSocket()
-      if (!s) return
-      const handler = (allConns: Array<{ from: string; to: string; channel: number }>) => {
-        const myId = getClientId()
-        if (!myId) return
-        const currentRoutes = slotRoutesRef.current
-        const disabled = new Set<string>()
-        Object.values(currentRoutes).forEach(targetId => {
-          if (!targetId) return
-          const active = allConns.some(c => c.from === myId && c.to === targetId && c.channel === 2)
-          if (!active) disabled.add(targetId)
-        })
-        setDisabledRoutes(disabled)
-      }
-      s.on('connections:all', handler)
-      cleanup = () => s.off('connections:all', handler)
-    })
-    return () => { cleanup?.() }
   }, [])
 
   // Double-tap detection ref (slot index → timestamp of last tap)
@@ -212,7 +125,7 @@ export default function IntercomScreen({
       try {
         stream.getAudioTracks?.()?.forEach((t: any) => {
           t.enabled = enabled
-          if (enabled) t._setVolume?.(vol / 100)  // 0-1 range, 1.0 = normal
+          if (enabled) t._setVolume?.(vol / 100)
         })
       } catch {}
     }
@@ -237,7 +150,6 @@ export default function IntercomScreen({
     }
   }
 
-  // Re-consume a slot from scratch (used when producer arrives late or routing changes)
   const retryVideoSlot = (slotIdx: number) => {
     const slot = slotIdx + 1
     import('../webrtc/intercom').then(({ consumeVideoSlot, stopVideoSlot }) => {
@@ -255,12 +167,9 @@ export default function IntercomScreen({
     })
   }
 
-  // Producer arrived late / routing changed → retry any active slot missing a stream
-  // Producer closed by host → clear the stream
   useEffect(() => {
     let cleanup: (() => void) | null = null
     import('../webrtc/intercom').then(({ getSocket, onVideoSlotStopped }) => {
-      // When host closes the camera, clear our stream immediately
       onVideoSlotStopped(slot => {
         const idx = slot - 1
         setVideoStreamUrl(p => { const n=[...p]; n[idx]=null; return n })
@@ -270,7 +179,6 @@ export default function IntercomScreen({
       const s = getSocket()
       if (!s) return
 
-      // New producer available → retry slots whose routed source matches the new clientId
       const onProducerReady = ({ clientId }: { clientId: string }) => {
         import('../webrtc/intercom').then(({ getVideoRouting }) => {
           const routing = getVideoRouting()
@@ -283,7 +191,6 @@ export default function IntercomScreen({
         })
       }
 
-      // Routing changed → re-consume all active slots with the new source
       const onRoutingChanged = () => {
         setTimeout(() => {
           if (showV1Ref.current) retryVideoSlot(0)
@@ -301,7 +208,6 @@ export default function IntercomScreen({
     return () => { cleanup?.() }
   }, [])
 
-  // Consume / stop video when V1 or V2 toggles
   useEffect(() => {
     import('../webrtc/intercom').then(({ consumeVideoSlot, stopVideoSlot }) => {
       if (showV1) {
@@ -356,19 +262,18 @@ export default function IntercomScreen({
     return () => { unsub?.() }
   }, [])
 
-  // Toggle AEC off when entering tone test mode so the InCallManager ringback
-  // played through the speaker is not cancelled before reaching the mic/producer.
   useEffect(() => {
     import('../webrtc/intercom').then(({ setToneMode }) => setToneMode(toneActive))
   }, [toneActive])
 
-  // Gate microphone based on any active talk button or test tone.
+  // Gate microphone + unmute consumers when talk stops
   useEffect(() => {
     const anyTalkActive = Object.values(talkActive).some(Boolean) || Object.values(talkLatched).some(Boolean)
     const isActive = anyTalkActive || toneActive
-    import('../webrtc/intercom').then(({ setMicActive, muteAllConsumers, playLocalTone }) => {
+    import('../webrtc/intercom').then(({ setMicActive, muteAllConsumers, unmuteActiveConsumers, playLocalTone }) => {
       setMicActive(isActive)
       if (isActive) muteAllConsumers()
+      else unmuteActiveConsumers()
       playLocalTone(toneActive && anyTalkActive)
     })
   }, [talkActive, talkLatched, toneActive])
@@ -435,10 +340,12 @@ export default function IntercomScreen({
           <View style={lc.fadersRow}>
             <FaderCtrl idx={idx1} label={`CH ${idx1+1}`}
               gains={gains} setGains={setGains}
+              pans={pans} setPans={setPans}
               socketEmit={socketEmit} channelIndex={idx1+1} routing={routing} />
             <View style={lc.divider} />
             <FaderCtrl idx={idx2} label={`CH ${idx2+1}`}
               gains={gains} setGains={setGains}
+              pans={pans} setPans={setPans}
               socketEmit={socketEmit} channelIndex={idx2+1} routing={routing} />
           </View>
         </View>
@@ -510,6 +417,7 @@ export default function IntercomScreen({
                   const d = { talk1:'Producer', talk2:'Talk 2', talk3:'Talk 3', talk4:'Talk 4' }
                   setTalkNames(d); setEditedNames(d); setShuffleOffset(0); setIsRotated(false)
                   setGains(new Array(8).fill(80))
+                  setPans(new Array(8).fill(0))
                 }}])}>
               <Text style={st.resetTxt}>DEFAULT</Text>
             </TouchableOpacity>
@@ -610,12 +518,6 @@ export default function IntercomScreen({
             onPress={() => setShuffleOffset(p=>(p+1)%4)}>
             <Text style={[s.topBtnTxt, shuffleOffset!==0 && s.topBtnTxtOn]}>⇄</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.topBtn, isRoutingMode && { backgroundColor:'#1e3a5f', borderColor:'#3b82f6' }]}
-            onPress={() => setIsRoutingMode(p => !p)}
-          >
-            <Text style={[s.topBtnTxt, isRoutingMode && { color:'#3b82f6' }]}>⇢</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={[s.topBtnWide, showV1 && s.topBtnV1]} onPress={() => setShowV1(p=>!p)}>
             <Text style={[s.topBtnWideTxt, showV1 && s.topBtnWideTxtOn]}>V1</Text>
           </TouchableOpacity>
@@ -681,7 +583,6 @@ export default function IntercomScreen({
             <Text style={[s.videoBadge, videoFullscreen===0?{color:RED_C}:{color:'#3b82f6'}, {top:56,fontSize:9}]}>
               ● {videoFullscreen===0?'PGM 01':'PGM 02'}
             </Text>
-            {/* Single tap toggles controls in fullscreen */}
             <Pressable style={StyleSheet.absoluteFill} onPress={() =>
               setShowVideoControls(p => ({ ...p, [videoFullscreen]: !p[videoFullscreen] }))
             } />
@@ -748,11 +649,7 @@ export default function IntercomScreen({
             <TalkButton key={key} talkKey={key} name={name}
               active={talkActive[key]} latched={talkLatched[key]}
               toneMode={toneActive}
-              routingMode={isRoutingMode}
-              routeTargetId={slotRoutes[key]}
-              routeDisabled={disabledRoutes.has(slotRoutes[key] ?? '')}
-              onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch}
-              onOpenPicker={() => setActivePickerKey(key)} />
+              onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
           ))}
         </View>
         <View style={s.talkRow}>
@@ -760,48 +657,9 @@ export default function IntercomScreen({
             <TalkButton key={key} talkKey={key} name={name}
               active={talkActive[key]} latched={talkLatched[key]}
               toneMode={toneActive}
-              routingMode={isRoutingMode}
-              routeTargetId={slotRoutes[key]}
-              routeDisabled={disabledRoutes.has(slotRoutes[key] ?? '')}
-              onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch}
-              onOpenPicker={() => setActivePickerKey(key)} />
+              onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
           ))}
         </View>
-
-        {/* CENTERED ROUTE PICKER OVERLAY */}
-        {activePickerKey && isRoutingMode && (
-          <View style={s.routePickerOverlay}>
-            <View style={s.routePickerPanel}>
-              <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingBottom:8, marginBottom:4, borderBottomWidth:1, borderBottomColor:'rgba(255,255,255,0.1)' }}>
-                <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'900', letterSpacing:1 }}>
-                  ROUTE · {talkNames[activePickerKey as keyof typeof talkNames]}
-                </Text>
-                <TouchableOpacity onPress={() => setActivePickerKey(null)} hitSlop={{ top:8, left:8, right:8, bottom:8 }}>
-                  <Text style={{ color:'rgba(255,255,255,0.4)', fontSize:16, lineHeight:16 }}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={{ maxHeight:200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                {slotRoutes[activePickerKey] && (
-                  <TouchableOpacity style={s.routePickerRow} onPress={() => { handleRouteClear(activePickerKey); setActivePickerKey(null) }}>
-                    <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'900' }}>✕  Clear route</Text>
-                  </TouchableOpacity>
-                )}
-                {allClients.map(c => (
-                  <TouchableOpacity key={c.id}
-                    style={[s.routePickerRow, c.id === slotRoutes[activePickerKey] && s.routePickerRowActive]}
-                    onPress={() => { handleRouteSelect(activePickerKey, c.id); setActivePickerKey(null) }}>
-                    <View style={[s.routePickerDot, { backgroundColor: c.color || '#555' }]} />
-                    <Text style={[s.routePickerName, c.id === slotRoutes[activePickerKey] && { color:'#3b82f6' }]} numberOfLines={1}>{c.name}</Text>
-                    {c.id === slotRoutes[activePickerKey] && <Text style={{ color:'#3b82f6', fontSize:9, marginLeft:4 }}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
-                {allClients.length === 0 && (
-                  <Text style={{ color:'rgba(255,255,255,0.3)', fontSize:9, textAlign:'center', paddingVertical:16 }}>No clients online</Text>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        )}
       </View>
 
     </SafeAreaView>
@@ -843,25 +701,38 @@ interface FaderProps {
   idx: number; label: string
   gains: number[]
   setGains: React.Dispatch<React.SetStateAction<number[]>>
+  pans: number[]
+  setPans: React.Dispatch<React.SetStateAction<number[]>>
   socketEmit?: (event: string, data: any) => void
   channelIndex: number
   routing?: Record<number, string[]>
 }
-function FaderCtrl({ idx, label, gains, setGains, socketEmit, channelIndex, routing }: FaderProps) {
+function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, channelIndex, routing }: FaderProps) {
   const startY   = useRef(0)
   const startVal = useRef(80)
   const gain = gains[idx]
+  const pan  = pans[idx]
   const FH = 160, TH = 32, TRACK = FH - TH
   const thumbTop = TRACK - Math.round((gain / 100) * TRACK)
 
-  const emitGain = (g: number) => {
+  const getBridgeId = () => {
     const rt = routing || {}
     const entries = Object.entries(rt).sort((a, b) => Number(a[0]) - Number(b[0]))
     const slotEntry = entries[idx]
     const sources = slotEntry ? slotEntry[1] : []
-    const bridgeId = sources[0] || null
+    return sources[0] || null
+  }
+
+  const emitGain = (g: number) => {
+    const bridgeId = getBridgeId()
     socketEmit?.('client:gain', { channel: channelIndex, gain: g / 100, bridgeId })
   }
+
+  const emitPan = (p: number) => {
+    const bridgeId = getBridgeId()
+    socketEmit?.('client:pan', { channel: channelIndex, pan: p, bridgeId })
+  }
+
   const dbLabel = gain === 0 ? '-∞' : gain >= 100 ? '+6' : `${Math.round((gain/100)*18-12)}dB`
 
   return (
@@ -893,61 +764,64 @@ function FaderCtrl({ idx, label, gains, setGains, socketEmit, channelIndex, rout
         </View>
       </View>
 
+      {/* PAN */}
+      <Text style={lc.panTitle}>PAN</Text>
+      <View style={lc.panRow}>
+        {([-1, 0, 1] as const).map(v => (
+          <TouchableOpacity
+            key={v}
+            style={[lc.panBtn, pan === v && lc.panBtnOn]}
+            onPress={() => { setPans(prev => { const n=[...prev]; n[idx]=v; return n }); emitPan(v) }}
+          >
+            <Text style={[lc.panTxt, pan === v && lc.panTxtOn]}>
+              {v === -1 ? '◀' : v === 0 ? '●' : '▶'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   )
 }
+
 interface TalkBtnProps {
   talkKey:string; name:string; active:boolean; latched:boolean; toneMode?: boolean
-  routingMode?: boolean
-  routeTargetId?: string
-  routeDisabled?: boolean
   onIn:(k:string)=>void; onOut:(k:string)=>void; onLatch:(k:string)=>void
-  onOpenPicker?: () => void
 }
-function TalkButton({ talkKey, name, active, latched, toneMode, routingMode, routeTargetId, routeDisabled, onIn, onOut, onLatch, onOpenPicker }: TalkBtnProps) {
+function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onLatch }: TalkBtnProps) {
   const isOn = active || latched
 
   return (
     <View style={s.talkCell}>
-      <Pressable
+      {/* Main talk surface — use responder system for reliable hold-to-talk on iOS */}
+      <View
         style={[s.talkBtn, isOn && s.talkBtnOn]}
-        onPressIn={() => onIn(talkKey)}
-        onPressOut={() => onOut(talkKey)}
-        onPress={() => { if (latched) onLatch(talkKey) }}
-        unstable_pressDelay={0}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => false}
+        onResponderGrant={() => {
+          if (!latched) onIn(talkKey)
+        }}
+        onResponderRelease={() => {
+          if (latched) onLatch(talkKey)
+          else onOut(talkKey)
+        }}
+        onResponderTerminate={() => {
+          if (!latched) onOut(talkKey)
+        }}
       >
         <View style={s.talkGloss} pointerEvents="none" />
         <Text style={s.micIcon}>{toneMode ? '〜' : '🎙'}</Text>
         <Text style={[s.talkName, isOn && s.talkNameOn]}>{name}</Text>
         {toneMode && <Text style={s.toneBadge}>TONE</Text>}
-        {routingMode && routeTargetId && (
-          <Text style={s.routeBadge} numberOfLines={1}>⇢</Text>
-        )}
-      </Pressable>
+      </View>
 
-      {routingMode ? (
-        /* ROUTING ANCHOR: tap opens the centered picker */
-        <Pressable
-          style={[s.latchBtn, routeTargetId ? { backgroundColor:'#1e3a5f', borderColor:'#3b82f6' } : undefined,
-                  routeDisabled && { backgroundColor:'#450a0a', borderColor:'#ef4444' }]}
-          onPress={() => onOpenPicker?.()}
-          hitSlop={{ top:12, left:12, right:12, bottom:12 }}
-        >
-          {routeDisabled
-            ? <Text style={{ fontSize:11, color:'#ef4444' }}>✕</Text>
-            : <Text style={[s.latchIcon, routeTargetId && { color:'#3b82f6' }]}>⇢</Text>
-          }
-        </Pressable>
-      ) : (
-        /* NORMAL LATCH ANCHOR */
-        <Pressable
-          style={[s.latchBtn, latched && s.latchBtnOn]}
-          onPress={() => onLatch(talkKey)}
-          hitSlop={{ top:12, left:12, right:12, bottom:12 }}
-        >
-          <Text style={[s.latchIcon, latched && s.latchIconOn]}>⚓</Text>
-        </Pressable>
-      )}
+      {/* Latch anchor */}
+      <Pressable
+        style={[s.latchBtn, latched && s.latchBtnOn]}
+        onPress={() => onLatch(talkKey)}
+        hitSlop={{ top:12, left:12, right:12, bottom:12 }}
+      >
+        <Text style={[s.latchIcon, latched && s.latchIconOn]}>⚓</Text>
+      </Pressable>
     </View>
   )
 }
@@ -986,7 +860,6 @@ const s = StyleSheet.create({
   meterSection:   { paddingHorizontal:14, paddingTop:14 },
   meterGrid:      { flexDirection:'row', gap:6 },
   meterPair:      { flex:1, flexDirection:'row', gap:4, backgroundColor:'rgba(0,0,0,0.3)', borderRadius:10, padding:5, borderWidth:1, borderColor:BORDER, height:88 },
-  meterPairStereo:{ backgroundColor:'rgba(249,115,22,0.06)', borderColor:'rgba(249,115,22,0.25)' },
   meterCh:        { flex:1, alignItems:'center', gap:3 },
   meterBar:       { flex:1, width:'100%', backgroundColor:'#09090b', borderRadius:4, overflow:'hidden', justifyContent:'flex-end' },
   meterFill:      { width:'100%', position:'absolute', bottom:0, borderRadius:3 },
@@ -1032,13 +905,6 @@ const s = StyleSheet.create({
   latchIcon:      { fontSize:11, color:'#71717a' },
   latchIconOn:    { color:'#ea580c' },
   toneBadge:      { position:'absolute', top:8, right:10, color:'#22c55e', fontSize:6, fontWeight:'900', letterSpacing:1 },
-  routeBadge:          { position:'absolute', bottom:18, color:'#3b82f6', fontSize:10, fontWeight:'900' },
-  routePickerOverlay:  { position:'absolute', left:0, right:0, top:0, bottom:0, alignItems:'center', justifyContent:'center', zIndex:50, backgroundColor:'rgba(0,0,0,0.65)' },
-  routePickerPanel:    { width:240, backgroundColor:'#0a1628', borderRadius:14, borderWidth:1, borderColor:'#3b82f6', padding:12, shadowColor:'#000', shadowOpacity:0.9, shadowRadius:24, shadowOffset:{width:0,height:8}, elevation:40 },
-  routePickerRow:      { flexDirection:'row', alignItems:'center', gap:8, paddingHorizontal:6, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'rgba(255,255,255,0.06)' },
-  routePickerRowActive:{ backgroundColor:'rgba(59,130,246,0.18)' },
-  routePickerDot:      { width:10, height:10, borderRadius:5, flexShrink:0 },
-  routePickerName:     { flex:1, color:'rgba(255,255,255,0.7)', fontSize:11, fontWeight:'700' },
 })
 
 // ─── Channel Logic styles ─────────────────────────────────────────────────────
@@ -1063,10 +929,6 @@ const lc = StyleSheet.create({
   panBtnOn:   { backgroundColor:ACCENT, borderColor:ACCENT },
   panTxt:     { color:'rgba(255,255,255,0.4)', fontSize:14, fontWeight:'900' },
   panTxtOn:   { color:'#000' },
-  stereoBtn:  { padding:20, borderRadius:16, backgroundColor:CARD, borderWidth:1, borderColor:BORDER, alignItems:'center' },
-  stereoBtnOn:{ backgroundColor:ACCENT, borderColor:ACCENT },
-  stereoTxt:  { color:'#71717a', fontWeight:'900', fontSize:13, letterSpacing:2 },
-  stereoTxtOn:{ color:'#fff' },
 })
 
 // ─── Settings styles ──────────────────────────────────────────────────────────

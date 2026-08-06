@@ -722,6 +722,16 @@ export function muteAllConsumers() {
   }
 }
 
+// Called when talk stops — re-enables consumers that are in the current routing.
+export function unmuteActiveConsumers() {
+  const routedSources = new Set(Object.values(_currentRouting).flat())
+  for (const [srcId, consumer] of _consumers.entries()) {
+    if (routedSources.has(srcId)) {
+      try { if (consumer.track && !consumer.track.enabled) consumer.track.enabled = true } catch {}
+    }
+  }
+}
+
 // ─── Disconnect ────────────────────────────────────────────────────────────
 export function disconnectSocket() {
   for (const [srcId, c] of _consumers.entries()) {

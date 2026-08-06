@@ -1,7 +1,7 @@
 // App.tsx – React Native root
 console.log("[APP] App.tsx loading...")
 import React, { useState, useEffect } from 'react'
-import { StatusBar, LogBox } from 'react-native'
+import { StatusBar, LogBox, Linking } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import LoginScreen from './screens/LoginScreen'
@@ -21,7 +21,9 @@ import {
 
 LogBox.ignoreLogs(['new NativeEventEmitter'])
 
-export type ClientInfo = { id: string; name: string; code: string }
+export type ClientInfo = { id: string; name: string; code: string; status?: string }
+
+export type QrConfig = { ip: string; port: string; tunnel: string }
 
 export default function App() {
   const [screen,          setScreen]          = useState<'login' | 'intercom'>('login')
@@ -30,9 +32,27 @@ export default function App() {
   const [error,           setError]           = useState('')
   const [loading,         setLoading]         = useState(false)
   const [channelNames,    setChannelNames]    = useState<Record<number, string>>({})
+  const [qrConfig,        setQrConfig]        = useState<QrConfig | null>(null)
 
   useEffect(() => {
     onChannelNames(names => setChannelNames({ ...names }))
+  }, [])
+
+  // Handle easycommobile://setup?host=...&port=...&tunnel=... QR links
+  useEffect(() => {
+    const parseQrUrl = (url: string | null) => {
+      if (!url) return
+      const match = url.match(/^easycommobile:\/\/setup\?(.+)$/)
+      if (!match) return
+      const params = new URLSearchParams(match[1])
+      const ip     = params.get('host') ?? ''
+      const port   = params.get('port') ?? ''
+      const tunnel = params.get('tunnel') ?? ''
+      if (ip || port) setQrConfig({ ip, port, tunnel })
+    }
+    Linking.getInitialURL().then(parseQrUrl).catch(() => {})
+    const sub = Linking.addEventListener('url', ({ url }) => parseQrUrl(url))
+    return () => sub.remove()
   }, [])
 
   // ── Search ────────────────────────────────────────────────────────────────
@@ -55,7 +75,7 @@ export default function App() {
       }
       const deduped = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
       console.log('[App] clients after dedup:', deduped.length)
-      setClients(deduped.map(c => ({ id: c.id, name: c.name, code: c.code || '0000' })))
+      setClients(deduped.map(c => ({ id: c.id, name: c.name, code: c.code || '0000', status: c.status })))
     } catch (e: any) {
       console.error('[App] search error:', e.message)
       setError(e.message)
@@ -156,6 +176,7 @@ export default function App() {
             onSearch={handleSearch}
             onConnect={handleConnect}
             onOpenWithoutConnection={handleOpenWithoutConnection}
+            qrConfig={qrConfig}
           />
         ) : (
           <IntercomScreen

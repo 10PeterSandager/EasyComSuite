@@ -7,7 +7,7 @@ import {
   TouchableWithoutFeedback, Keyboard, Linking,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import type { ClientInfo } from '../App'
+import type { ClientInfo, QrConfig } from '../App'
 
 const STORAGE_KEYS = {
   hostIp:          'easycom_host_ip',
@@ -28,10 +28,11 @@ type Props = {
   onSearch:  (ip: string, sessionPassword: string, ssl: boolean, port?: string) => void
   onConnect: (client: ClientInfo, pin: string) => void
   onOpenWithoutConnection?: () => void
+  qrConfig?: QrConfig | null
 }
 
 export default function LoginScreen({
-  clients, loading, error, onSearch, onConnect, onOpenWithoutConnection,
+  clients, loading, error, onSearch, onConnect, onOpenWithoutConnection, qrConfig,
 }: Props) {
   const [hostIp,          setHostIp]          = useState('192.168.1.23')
   const [hostPort,        setHostPort]        = useState('3000')
@@ -56,6 +57,13 @@ export default function LoginScreen({
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
   }, [])
+
+  // Apply config received from QR scan — overrides saved values
+  useEffect(() => {
+    if (!qrConfig) return
+    if (qrConfig.ip)   { setHostIp(qrConfig.ip);     AsyncStorage.setItem(STORAGE_KEYS.hostIp,   qrConfig.ip).catch(() => {}) }
+    if (qrConfig.port) { setHostPort(qrConfig.port);  AsyncStorage.setItem(STORAGE_KEYS.hostPort, qrConfig.port).catch(() => {}) }
+  }, [qrConfig])
 
   const saveSettings = () => {
     AsyncStorage.setItem(STORAGE_KEYS.hostIp,          hostIp).catch(() => {})
@@ -140,6 +148,7 @@ export default function LoginScreen({
                     <Text style={[s.dropdownText, selectedClient?.id === c.id && s.dropdownTextOn]}>
                       {c.name}
                     </Text>
+                    <View style={[s.statusDot, { backgroundColor: c.status === 'online' ? '#22c55e' : '#3f3f46' }]} />
                     {selectedClient?.id === c.id && <Text style={s.check}>✓</Text>}
                   </TouchableOpacity>
                 ))}
@@ -380,6 +389,7 @@ const s = StyleSheet.create({
   dropdownTextOn:       { color: '#fff' },
   dot:                  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2a2a2a' },
   dotOn:                { backgroundColor: ACCENT },
+  statusDot:            { width: 7, height: 7, borderRadius: 3.5, marginLeft: 'auto' as any },
   check:                { color: ACCENT, fontSize: 16, fontWeight: '900' },
 
   connectBtn:           { backgroundColor: ACCENT, borderRadius: 12, padding: 18, alignItems: 'center', justifyContent: 'center' },
