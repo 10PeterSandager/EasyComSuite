@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { socket, setAudioOutputDevice } from "../client/webrtc/intercom"
 import { Client } from "../types"
-import { Unlink, RefreshCw, ChevronRight, ChevronLeft, Check, X, Wifi, WifiOff, Server, Users, ArrowUpRight, ArrowRight, ArrowLeft, GripHorizontal } from "lucide-react"
+import { Unlink, RefreshCw, ChevronRight, ChevronLeft, Check, X, Wifi, WifiOff, Server, Users, ArrowUpRight, ArrowRight, ArrowLeft, GripHorizontal, Headphones } from "lucide-react"
 import { useDraggable } from "../hooks/useDraggable"
 
 type Connection = { from: string; to: string; channel: number; toChannel?: number }
@@ -723,9 +723,20 @@ export default function ConnectionsPopup({
           </p>
         )}
       </div>
-      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
-        SELECT RECEIVE CHANNEL
-      </p>
+      {scIsStereo ? (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: STEREO_COLOR }}>
+            <Headphones size={11} /> VÆLG DEDIKERET STEREOKANAL
+          </p>
+          <p className="text-[9px] text-white/35 leading-tight">
+            Den valgte kanal reserveres til L+R stereo — klik for at bekræfte.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
+          SELECT RECEIVE CHANNEL
+        </p>
+      )}
       <div className="grid grid-cols-4 gap-1.5">
         {Array.from({ length: clientRecvChCount(sourceClient.id) }, (_, i) => {
           const ch = i + 1
@@ -735,8 +746,16 @@ export default function ConnectionsPopup({
               className="rounded-lg p-2.5 transition-all"
               style={sel
                 ? { background: (scIsStereo ? STEREO_COLOR : chColor(ch)) + "40", border: `2px solid ${scIsStereo ? STEREO_COLOR : chColor(ch)}`, color: scIsStereo ? STEREO_COLOR : chColor(ch) }
-                : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)" }}>
-              <div className="text-sm font-black">CH{ch}</div>
+                : { background: scIsStereo ? `${STEREO_COLOR}08` : "rgba(255,255,255,0.03)", border: `1px solid ${scIsStereo ? STEREO_COLOR + "25" : "rgba(255,255,255,0.07)"}`, color: scIsStereo ? `${STEREO_COLOR}70` : "rgba(255,255,255,0.3)" }}>
+              {scIsStereo ? (
+                <div className="flex flex-col items-center gap-0.5">
+                  <Headphones size={12} />
+                  <div className="text-[10px] font-black">CH{ch}</div>
+                  <div className="text-[7px] font-bold opacity-70 tracking-wider">L+R</div>
+                </div>
+              ) : (
+                <div className="text-sm font-black">CH{ch}</div>
+              )}
             </button>
           )
         })}
