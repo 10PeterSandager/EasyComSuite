@@ -645,7 +645,7 @@ const App: React.FC = () => {
                 <Radio size={18} className="text-white"/>
               </div>
 
-              <span className="font-black text-white uppercase tracking-tight">
+              <span className="font-black text-white uppercase tracking-tight text-[30px] leading-none">
                 EASYC<span className={`text-${themeColor}-500`}>O</span>M
               </span>
             </div>
