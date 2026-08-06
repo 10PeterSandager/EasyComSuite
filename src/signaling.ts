@@ -465,6 +465,17 @@ export function setupSignaling(io: Server) {
       }
     })
 
+    socket.on("bridge:stereo:deregister", ({ chL, chR }: { chL: number; chR: number }) => {
+      const stereoId = `bridge-stereo-${chL}-${chR}`
+      producers.delete(stereoId)
+      for (const [key, conn] of connections.entries()) {
+        if (conn.from === stereoId) connections.delete(key)
+      }
+      broadcastRouting(io)
+      save()
+      console.log(`[signaling] stereo deregistered: ${stereoId}, connections cleaned up`)
+    })
+
     socket.on("bridge:stereo:register", ({ chL, chR, producerId }: { chL: number; chR: number; producerId: string }) => {
       const stereoId = `bridge-stereo-${chL}-${chR}`
       producers.set(stereoId, producerId)
