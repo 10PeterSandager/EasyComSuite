@@ -16,7 +16,9 @@ let _routeChangeListener: any = null
 export function startAudioSession() {
   // media:'video' sets AVAudioSession to playAndRecord with defaultToSpeaker option.
   InCallManager.start({ media: 'video' })
-  console.log('[audio] session started')
+  // Explicitly route to speaker — iOS sometimes routes to earpiece despite defaultToSpeaker.
+  InCallManager.setForceSpeakerphoneOn(true)
+  console.log('[audio] session started, speaker forced')
 
   if (!_routeChangeListener && NativeModules.RNInCallManager) {
     try {
@@ -27,7 +29,8 @@ export function startAudioSession() {
         console.log('[audio] route change:', JSON.stringify(info))
         setTimeout(() => {
           InCallManager.start({ media: 'video' })
-          console.log('[audio] session re-asserted after route change')
+          InCallManager.setForceSpeakerphoneOn(true)
+          console.log('[audio] session re-asserted + speaker forced after route change')
         }, 500)
       })
     } catch (e) {
@@ -110,6 +113,15 @@ export async function connectSocket(hostIp: string, sessionPassword = '', ssl = 
         _levelListeners.forEach(fn => fn({ ..._audioLevels }))
       })
 
+      // Decay meter to 0 if no update arrives — prevents hanging meters
+      setInterval(() => {
+        let changed = false
+        for (const k of Object.keys(_audioLevels)) {
+          if (_audioLevels[k] > 0) { _audioLevels[k] = Math.max(0, _audioLevels[k] - 8); changed = true }
+        }
+        if (changed) _levelListeners.forEach(fn => fn({ ..._audioLevels }))
+      }, 80)
+
       // Re-register on every subsequent reconnect (socket.io auto-reconnects but
       // the server deletes the client entry on disconnect, so we must re-register).
       s.on('connect', () => {
@@ -142,7 +154,7 @@ export async function fetchClients(hostIp: string, sessionPassword = '', ssl = f
     s.emit('clients:list', (clients: any[]) => {
       if (!Array.isArray(clients)) return reject(new Error('Invalid response'))
       resolve(clients.filter(c =>
-        c.type === 'mobile' && c.id !== 'host-ui' && c.id !== 'producer-65'
+        c.id !== 'host-ui' && c.id !== 'producer-65' && !c.id.startsWith('bridge-')
       ))
     })
     setTimeout(() => reject(new Error('Timeout')), 4000)
