@@ -47,6 +47,16 @@ const tunnel_1 = require("./tunnel");
 const persist_1 = require("./persist");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
+function getLanIp() {
+    for (const ifaces of Object.values(os_1.default.networkInterfaces())) {
+        for (const iface of ifaces ?? []) {
+            if (iface.family === "IPv4" && !iface.internal)
+                return iface.address;
+        }
+    }
+    return "127.0.0.1";
+}
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -360,9 +370,10 @@ function setupSignaling(io) {
                     return;
                 }
             }
-            clients.set(client.id, { socketId: socket.id, data: client });
+            const isMobileType = client.type === "mobile" || client.type === "remote" || client.type === "desktop";
+            clients.set(client.id, { socketId: isMobileType ? socket.id : "", data: client });
             socket.clientId = client.id;
-            io.emit("clients:update", { id: client.id, updates: { ...client, status: "online" } });
+            io.emit("clients:update", { id: client.id, updates: { ...client, status: isMobileType ? "online" : "offline" } });
             save();
             cb?.({ ok: true });
             // When a new mobile/remote registers, replicate any active IFB slot routings
@@ -425,7 +436,7 @@ function setupSignaling(io) {
                 name: c.data?.name || "",
                 type: c.data?.type || "",
                 code: c.data?.code || "0000",
-                status: c.data?.status || "online",
+                status: c.socketId !== "" ? "online" : "offline",
                 color: c.data?.color || undefined,
             })).filter(c => c.id !== "" && c.id !== "host-ui");
             // Find the requesting client (not host-ui)
@@ -476,6 +487,17 @@ function setupSignaling(io) {
                         .catch(e => req.cb?.({ error: String(e) }));
                 }
             }
+        });
+        socket.on("bridge:stereo:deregister", ({ chL, chR }) => {
+            const stereoId = `bridge-stereo-${chL}-${chR}`;
+            producers.delete(stereoId);
+            for (const [key, conn] of connections.entries()) {
+                if (conn.from === stereoId)
+                    connections.delete(key);
+            }
+            broadcastRouting(io);
+            save();
+            console.log(`[signaling] stereo deregistered: ${stereoId}, connections cleaned up`);
         });
         socket.on("bridge:stereo:register", ({ chL, chR, producerId }) => {
             const stereoId = `bridge-stereo-${chL}-${chR}`;
@@ -890,6 +912,15 @@ function setupSignaling(io) {
             const bridgeId = conn?.from ?? null;
             io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId });
         });
+        // 🔥 Relay pan from mobile client to host-ui
+        socket.on("client:pan", ({ channel, pan, bridgeId }) => {
+            const hostSocket = clients.get("host-ui")?.socketId;
+            if (!hostSocket)
+                return;
+            const clientId = socket.clientId || socket.id;
+            const resolvedBridgeId = bridgeId ?? Array.from(connections.values()).find(c => c.to === clientId && c.channel === channel)?.from ?? null;
+            io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId: resolvedBridgeId });
+        });
         socket.on("audio:level", ({ clientId, level }) => {
             const update = { [clientId]: level };
             for (const conn of connections.values()) {
@@ -903,10 +934,12 @@ function setupSignaling(io) {
             const update = {};
             for (const [clientId, level] of Object.entries(levels)) {
                 update[clientId] = level;
-                // Find alle connections fra denne bridge-kanal og sæt recv-niveauer
+                // Stereo bridge sources → recv_stereo_{client} to avoid overwriting mono recv
+                const isStereoSrc = clientId.startsWith("bridge-stereo-");
                 for (const conn of connections.values()) {
-                    if (conn.from === clientId)
-                        update[`recv_${conn.to}`] = level;
+                    if (conn.from === clientId) {
+                        update[isStereoSrc ? `recv_stereo_${conn.to}` : `recv_${conn.to}`] = level;
+                    }
                 }
             }
             if (Object.keys(update).length > 0) {
@@ -1220,6 +1253,19 @@ function setupSignaling(io) {
             cb(clientVisibility.get(clientId) ?? []);
         });
         /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
+        socket.on("server:network:info", (cb) => {
+            if (typeof cb !== "function")
+                return;
+            const port = parseInt(process.env.PORT ?? "3000");
+            const lanPort = parseInt(process.env.LAN_PORT ?? String(port + 1));
+            cb({
+                lanIp: getLanIp(),
+                port,
+                lanPort,
+                tunnelUrl: (0, tunnel_1.getTunnelUrl)(),
+                tunnelStatus: (0, tunnel_1.getTunnelStatus)(),
+            });
+        });
         socket.on("server:config:get", (cb) => {
             if (typeof cb !== "function")
                 return;
@@ -1229,9 +1275,11 @@ function setupSignaling(io) {
                 turnUsername: process.env.TURN_USERNAME ?? "",
                 turnPassword: process.env.TURN_PASSWORD ?? "",
                 sessionPassword: process.env.SESSION_PASSWORD ?? "",
+                tunnelToken: process.env.CLOUDFLARE_TUNNEL_TOKEN ?? "",
+                tunnelStaticUrl: process.env.CLOUDFLARE_TUNNEL_URL ?? "",
             });
         });
-        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }, cb) => {
+        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, tunnelToken, tunnelStaticUrl }, cb) => {
             const toSave = {};
             if (announcedIp !== undefined) {
                 process.env.MEDIASOUP_ANNOUNCED_IP = announcedIp;
@@ -1255,6 +1303,15 @@ function setupSignaling(io) {
                 process.env.SESSION_PASSWORD = sessionPassword;
                 toSave["SESSION_PASSWORD"] = sessionPassword;
                 console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`);
+            }
+            if (tunnelToken !== undefined) {
+                process.env.CLOUDFLARE_TUNNEL_TOKEN = tunnelToken;
+                toSave["CLOUDFLARE_TUNNEL_TOKEN"] = tunnelToken;
+                console.log(`[signaling] tunnel token ${tunnelToken ? "set" : "cleared"}`);
+            }
+            if (tunnelStaticUrl !== undefined) {
+                process.env.CLOUDFLARE_TUNNEL_URL = tunnelStaticUrl;
+                toSave["CLOUDFLARE_TUNNEL_URL"] = tunnelStaticUrl;
             }
             persistEnvVars(toSave);
             cb?.({ ok: true });

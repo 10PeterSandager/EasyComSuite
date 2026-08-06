@@ -355,9 +355,10 @@ export function setupSignaling(io: Server) {
         }
       }
 
-      clients.set(client.id, { socketId: socket.id, data: client })
+      const isMobileType = client.type === "mobile" || client.type === "remote" || client.type === "desktop"
+      clients.set(client.id, { socketId: isMobileType ? socket.id : "", data: client })
       ;(socket as any).clientId = client.id
-      io.emit("clients:update", { id: client.id, updates: { ...client, status: "online" } })
+      io.emit("clients:update", { id: client.id, updates: { ...client, status: isMobileType ? "online" : "offline" } })
       save()
       cb?.({ ok: true })
 
