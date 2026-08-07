@@ -504,6 +504,8 @@ function setupSignaling(io) {
             producers.set(stereoId, producerId);
             console.log(`[signaling] stereo bridge registered: ${stereoId} → ${producerId}`);
             io.emit("bridge:stereo:available", { chL, chR, stereoId });
+            // Tell mobile clients to re-consume this stereo source (same as mono bridge:producers:done)
+            io.emit("producer:ready", { clientId: stereoId });
             // Fulfill any consume:requests that arrived before this stereo producer was ready
             const pending = pendingConsumeQueue.get(stereoId);
             if (pending?.length) {
