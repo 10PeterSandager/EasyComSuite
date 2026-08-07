@@ -425,7 +425,7 @@ export function setupSignaling(io: Server) {
         code:   c.data?.code   || "0000",
         status: c.socketId !== "" ? "online" : "offline",
         color:  c.data?.color  || undefined,
-      })).filter(c => c.id !== "" && c.id !== "host-ui")
+      })).filter(c => c.id !== "" && c.id !== "host-ui" && c.type === "mobile")
 
       // Find the requesting client (not host-ui)
       const callerId = [...clients.entries()]
