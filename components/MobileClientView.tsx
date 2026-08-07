@@ -5,6 +5,7 @@ import { Client } from '../types';
 import { initAudio } from '../client/webrtc/clientHandshake';
 import { audioCtx, socket, setReceiverGain, setPanForChannel, setStereoPairs, startLevelMeter, subscribeToReceivedChannelLevels } from '../client/webrtc/intercom';
 import { produceStream, stopProducing } from '../client/webrtc/mediasoupClient';
+import { startStereoTestTone, stopStereoTestTone } from '../client/audio/AudioBridge';
 interface MobileClientViewProps {
   hijackedClient?: Client;
   availableClients?: Client[];
@@ -184,6 +185,7 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
   const toneOscRef = useRef<OscillatorNode | null>(null)
   const [toneActive, setToneActive] = useState(false)
   const toneActiveRef = useRef(false)
+  const [stereoTestActive, setStereoTestActive] = useState(false)
 
   const stopToneResources = () => {
     if (toneOscRef.current) { try { toneOscRef.current.stop() } catch {} toneOscRef.current = null }
@@ -483,10 +485,18 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
             <div className="mt-auto flex flex-col gap-3 pb-2 safe-bottom shrink-0 pt-2 relative z-10">
                {/* TONE MODE TOGGLE */}
                {!hijackedClient && (
-                 <div className="flex justify-center">
+                 <div className="flex justify-center gap-2">
                    <button onClick={handleToneToggle}
                      className={`px-8 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all bevel no-active ${toneActive ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-zinc-800/60 border border-white/5 text-zinc-500'}`}>
                      {toneActive ? 'TONE AKTIV' : 'TONE MODE'}
+                   </button>
+                   <button onClick={() => {
+                     const next = !stereoTestActive
+                     setStereoTestActive(next)
+                     next ? startStereoTestTone(17, 18) : stopStereoTestTone()
+                   }}
+                     className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all bevel no-active ${stereoTestActive ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-zinc-800/60 border border-white/5 text-zinc-500'}`}>
+                     {stereoTestActive ? 'L/R AKTIV' : 'STEREO TEST'}
                    </button>
                  </div>
                )}

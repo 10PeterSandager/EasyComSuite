@@ -362,6 +362,53 @@ export async function getStereoStream(chL: number, chR: number): Promise<MediaSt
   return dest.stream
 }
 
+// ─── Stereo test tone ─────────────────────────────────────────────────────────
+// Injects a 440 Hz sine that alternates L↔R every 2 s into the existing gainNodes
+// for chL and chR. Summed with real audio from those channels (zero during testing).
+let _stereoTestOsc:  OscillatorNode | null = null
+let _stereoTestGainL: GainNode | null = null
+let _stereoTestGainR: GainNode | null = null
+let _stereoTestTimer: ReturnType<typeof setInterval> | null = null
+
+export function startStereoTestTone(chL = 17, chR = 18) {
+  stopStereoTestTone()
+  const ctx = sharedCtx
+  const gL  = gainNodes.get(chL)
+  const gR  = gainNodes.get(chR)
+  if (!ctx || !gL || !gR) { console.warn('[StereoTest] gainNodes not ready — start bridge first'); return }
+
+  const osc = ctx.createOscillator()
+  osc.type = 'sine'; osc.frequency.value = 440
+
+  const tL = ctx.createGain(); tL.gain.value = 0.5
+  const tR = ctx.createGain(); tR.gain.value = 0.0
+
+  osc.connect(tL); osc.connect(tR)
+  tL.connect(gL); tR.connect(gR)
+  osc.start()
+
+  _stereoTestOsc = osc; _stereoTestGainL = tL; _stereoTestGainR = tR
+
+  let leftActive = true
+  _stereoTestTimer = setInterval(() => {
+    leftActive = !leftActive
+    const t = ctx.currentTime
+    tL.gain.setTargetAtTime(leftActive ? 0.5 : 0, t, 0.04)
+    tR.gain.setTargetAtTime(leftActive ? 0 : 0.5, t, 0.04)
+    console.log(`[StereoTest] → ${leftActive ? 'LEFT' : 'RIGHT'}`)
+  }, 2000)
+
+  console.log('[StereoTest] ▶ started on ch', chL, '+', chR)
+}
+
+export function stopStereoTestTone() {
+  if (_stereoTestTimer)  { clearInterval(_stereoTestTimer); _stereoTestTimer = null }
+  if (_stereoTestOsc)    { try { _stereoTestOsc.stop() } catch {}; _stereoTestOsc = null }
+  try { _stereoTestGainL?.disconnect() } catch {}; _stereoTestGainL = null
+  try { _stereoTestGainR?.disconnect() } catch {}; _stereoTestGainR = null
+  console.log('[StereoTest] ■ stopped')
+}
+
 // Backward-compat
 export function startAudioBridge(sampleRate: number): Promise<MediaStream> {
   return startChannelBridge(1, sampleRate)
