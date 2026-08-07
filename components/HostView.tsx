@@ -18,7 +18,7 @@ import GroupStrip, { Group as GroupType } from "./GroupStrip"
 import SignalChainDebugger from "./SignalChainDebugger"
 
 import { socket } from "../client/webrtc/intercom"
-import { setChannelGain } from "../client/audio/AudioBridge"
+import { setChannelGain, startStereoTestTone, stopStereoTestTone } from "../client/audio/AudioBridge"
 import { subscribeBridge } from "../client/audio/audioBridgeStore"
 import { ChannelMixerSettings, Client } from "../types"
 
@@ -210,6 +210,7 @@ const HostView = (props: any) => {
   const [editingNameValue, setEditingNameValue] = useState("")
   const [mixerClientId, setMixerClientId] = useState<string | null>(null)
   const [showSignalDebug, setShowSignalDebug] = useState(false)
+  const [stereoTestActive, setStereoTestActive] = useState(false)
   const [showBulkPanel, setShowBulkPanel] = useState(false)
   const [bulkColor, setBulkColor] = useState("#71717a")
 
@@ -512,7 +513,16 @@ const HostView = (props: any) => {
               </button>
               <span className="text-[10px] text-white/30">{Math.round(cardScale * 100)}%</span>
 
-              {/* Signal debug removed */}
+              <button
+                onClick={() => {
+                  const next = !stereoTestActive
+                  setStereoTestActive(next)
+                  next ? startStereoTestTone(17, 18) : stopStereoTestTone()
+                }}
+                className={`ml-2 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${stereoTestActive ? 'bg-cyan-600 text-white shadow shadow-cyan-900/50' : 'bg-white/5 text-white/30 hover:bg-white/10'}`}
+              >
+                {stereoTestActive ? '◀ L/R ▶ AKTIV' : 'STEREO TEST'}
+              </button>
 
               {selectedIds.length > 1 && (
                 <span className={`ml-1 text-[10px] px-2 py-0.5 rounded bg-${themeColor}-600/30 text-${themeColor}-400`}>
