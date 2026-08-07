@@ -263,12 +263,25 @@ async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
     s.emit('mediasoup:connectTransport', { transportId: transport.id, dtlsParameters }, cb)
   })
 
-  transport.on('connectionstatechange', (state: string) => {
+  transport.on('connectionstatechange', async (state: string) => {
     console.log(`[transport] ${direction} ICE state: ${state}`)
     if (state === 'failed') {
-      console.warn(`[transport] ${direction} ICE FAILED — re-asserting audio session`)
-      // Re-assert iOS audio session; often recovers the audio path without a full reconnect
+      console.warn(`[transport] ${direction} ICE FAILED — attempting ICE restart`)
       InCallManager.start({ media: 'video' })
+      try {
+        const result = await new Promise<any>((resolve, reject) => {
+          const t = setTimeout(() => reject(new Error('restartIce timeout')), 5000)
+          s.emit('mediasoup:restartIce', { transportId: transport.id }, (r: any) => {
+            clearTimeout(t)
+            resolve(r)
+          })
+        })
+        if (result?.error) throw new Error(result.error)
+        await transport.restartIce({ iceParameters: result.iceParameters })
+        console.log(`[transport] ${direction} ICE restart requested — waiting for reconnect`)
+      } catch (e) {
+        console.error(`[transport] ${direction} ICE restart failed:`, e)
+      }
     }
   })
 
