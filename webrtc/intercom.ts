@@ -14,30 +14,22 @@ registerGlobals()
 let _routeChangeListener: any = null
 
 export function startAudioSession() {
-  // media:'video' sets AVAudioSession to playAndRecord + defaultToSpeaker.
-  // Do NOT call setForceSpeakerphoneOn(true) — that overrides iOS audio routing
-  // and fights with AirPods/Bluetooth: iOS tries to switch to AirPods, the app
-  // forces speaker back, the session enters a broken state and drops the transport.
-  InCallManager.start({ media: 'video' })
-  console.log('[audio] session started (speaker default, Bluetooth allowed)')
-
-  if (!_routeChangeListener && NativeModules.RNInCallManager) {
-    try {
-      const emitter = new NativeEventEmitter(NativeModules.RNInCallManager)
-      // Re-assert audio session on wired headset change. For AirPods/Bluetooth,
-      // iOS handles routing automatically when we don't force speakerphone.
-      _routeChangeListener = emitter.addListener('WiredHeadset', (info: any) => {
-        console.log('[audio] wired headset change:', JSON.stringify(info))
-        setTimeout(() => {
-          InCallManager.start({ media: 'video' })
-          // Only force speaker if no headset is plugged in
-          if (!info?.isPlugged) InCallManager.setForceSpeakerphoneOn(true)
-          console.log('[audio] session re-asserted after headset change, isPlugged:', info?.isPlugged)
-        }, 500)
-      })
-    } catch (e) {
-      console.log('[audio] route change listener not available:', e)
-    }
+  // Use EasyComAudio native module instead of InCallManager.start().
+  // InCallManager forces AVAudioSessionModeVideoChat (VoiceProcessingIO = mono, low-rate)
+  // and sets allowBluetooth which puts AirPods in HFP mode (mono 8-16kHz Bluetooth codec).
+  // EasyComAudio uses:
+  //   mode: Default      → standard RemoteIO audio unit (stereo, 48kHz)
+  //   allowBluetoothA2DP → AirPods stay in A2DP (stereo, high quality)
+  //   no allowBluetooth  → no HFP; iPhone built-in mic used for input
+  //   defaultToSpeaker   → audio routes to speaker when no Bluetooth device
+  const { EasyComAudio } = NativeModules
+  if (EasyComAudio?.configureForStereo) {
+    EasyComAudio.configureForStereo()
+    console.log('[audio] stereo session configured (Default mode, A2DP only)')
+  } else {
+    // Fallback if native module not linked yet (mono)
+    InCallManager.start({ media: 'video' })
+    console.log('[audio] session started (InCallManager fallback, mono)')
   }
 }
 
