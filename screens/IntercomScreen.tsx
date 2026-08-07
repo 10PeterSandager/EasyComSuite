@@ -247,14 +247,15 @@ export default function IntercomScreen({
       unsub = subscribeToLevels(levels => {
         const rt = getChannelRouting()
         const newLevels = new Array(8).fill(0)
-        const entries = Object.entries(rt).sort((a, b) => Number(a[0]) - Number(b[0]))
-        entries.slice(0, 8).forEach(([, sources], i) => {
+        Object.entries(rt).forEach(([ch, sources]) => {
+          const idx = Number(ch) - 1  // channel is 1-based, array is 0-based
+          if (idx < 0 || idx > 7) return
           let max = 0
           for (const src of sources) {
             const v = levels[`recv_${src}`] ?? levels[src] ?? 0
             max = Math.max(max, v)
           }
-          newLevels[i] = max > 0 ? Math.min(1, max / 100) : 0
+          newLevels[idx] = max > 0 ? Math.min(1, max / 100) : 0
         })
         setMeterLevels(newLevels)
       })
