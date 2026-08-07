@@ -43,6 +43,7 @@ exports.consume = consume;
 exports.getProducer = getProducer;
 exports.getConsumer = getConsumer;
 exports.getTransport = getTransport;
+exports.restartIce = restartIce;
 const mediasoup = __importStar(require("mediasoup"));
 const os = __importStar(require("os"));
 function getLocalIp() {
@@ -177,5 +178,12 @@ function getConsumer(consumerId) {
 }
 function getTransport(transportId) {
     return transports.get(transportId);
+}
+async function restartIce(transportId) {
+    const transport = transports.get(transportId);
+    if (!transport)
+        throw new Error(`restartIce: transport not found ${transportId}`);
+    const iceParameters = await transport.restartIce();
+    return iceParameters;
 }
 //# sourceMappingURL=mediasoup.js.map

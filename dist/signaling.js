@@ -986,6 +986,15 @@ function setupSignaling(io) {
                 cb?.({ error: String(e) });
             }
         });
+        socket.on("mediasoup:restartIce", async ({ transportId }, cb) => {
+            try {
+                const iceParameters = await (0, mediasoup_1.restartIce)(transportId);
+                cb?.({ iceParameters });
+            }
+            catch (e) {
+                cb?.({ error: String(e) });
+            }
+        });
         socket.on("consume:request", async ({ targetId, rtpCapabilities, transportId, kind: reqKind }, cb) => {
             try {
                 // Check both audio and video producers

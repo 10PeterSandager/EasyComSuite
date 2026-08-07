@@ -1,5 +1,5 @@
 import { Server } from "socket.io"
-import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp } from "./mediasoup"
+import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp, restartIce } from "./mediasoup"
 import {
   startOutputRoute, stopOutputRoute, stopAllForClient,
   listOutputDevices, setChannelConfig,
@@ -976,6 +976,13 @@ export function setupSignaling(io: Server) {
       try {
         const p = await produce(transportId, kind, rtpParameters)
         if (typeof cb === "function") cb({ id: p.id })
+      } catch (e) { cb?.({ error: String(e) }) }
+    })
+
+    socket.on("mediasoup:restartIce", async ({ transportId }, cb) => {
+      try {
+        const iceParameters = await restartIce(transportId)
+        cb?.({ iceParameters })
       } catch (e) { cb?.({ error: String(e) }) }
     })
 
