@@ -14,23 +14,25 @@ registerGlobals()
 let _routeChangeListener: any = null
 
 export function startAudioSession() {
-  // media:'video' sets AVAudioSession to playAndRecord with defaultToSpeaker option.
+  // media:'video' sets AVAudioSession to playAndRecord + defaultToSpeaker.
+  // Do NOT call setForceSpeakerphoneOn(true) — that overrides iOS audio routing
+  // and fights with AirPods/Bluetooth: iOS tries to switch to AirPods, the app
+  // forces speaker back, the session enters a broken state and drops the transport.
   InCallManager.start({ media: 'video' })
-  // Explicitly route to speaker — iOS sometimes routes to earpiece despite defaultToSpeaker.
-  InCallManager.setForceSpeakerphoneOn(true)
-  console.log('[audio] session started, speaker forced')
+  console.log('[audio] session started (speaker default, Bluetooth allowed)')
 
   if (!_routeChangeListener && NativeModules.RNInCallManager) {
     try {
       const emitter = new NativeEventEmitter(NativeModules.RNInCallManager)
-      // Re-assert audio session on ANY route change (AirPods connect/disconnect, wired headset, etc.)
-      // iOS resets AVAudioSession routing on Bluetooth events, which kills speaker output.
+      // Re-assert audio session on wired headset change. For AirPods/Bluetooth,
+      // iOS handles routing automatically when we don't force speakerphone.
       _routeChangeListener = emitter.addListener('WiredHeadset', (info: any) => {
-        console.log('[audio] route change:', JSON.stringify(info))
+        console.log('[audio] wired headset change:', JSON.stringify(info))
         setTimeout(() => {
           InCallManager.start({ media: 'video' })
-          InCallManager.setForceSpeakerphoneOn(true)
-          console.log('[audio] session re-asserted + speaker forced after route change')
+          // Only force speaker if no headset is plugged in
+          if (!info?.isPlugged) InCallManager.setForceSpeakerphoneOn(true)
+          console.log('[audio] session re-asserted after headset change, isPlugged:', info?.isPlugged)
         }, 500)
       })
     } catch (e) {
@@ -259,6 +261,15 @@ async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
 
   transport.on('connect', ({ dtlsParameters }: any, cb: () => void) => {
     s.emit('mediasoup:connectTransport', { transportId: transport.id, dtlsParameters }, cb)
+  })
+
+  transport.on('connectionstatechange', (state: string) => {
+    console.log(`[transport] ${direction} ICE state: ${state}`)
+    if (state === 'failed') {
+      console.warn(`[transport] ${direction} ICE FAILED — re-asserting audio session`)
+      // Re-assert iOS audio session; often recovers the audio path without a full reconnect
+      InCallManager.start({ media: 'video' })
+    }
   })
 
   if (direction === 'send') {
