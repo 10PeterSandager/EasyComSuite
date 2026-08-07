@@ -305,8 +305,12 @@ async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
 
 // ─── Microphone ────────────────────────────────────────────────────────────
 export async function getLocalAudioStream(): Promise<MediaStream> {
+  // echoCancellation: false → react-native-webrtc uses standard RemoteIO instead of
+  // VoiceProcessingIO. VoiceProcessingIO forces mono on all output (including stereo
+  // consumers). RemoteIO supports stereo and lets iOS use A2DP (stereo) for AirPods.
+  // AEC is not needed when using headphones — no speaker→mic feedback path.
   const stream = await mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } as any,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } as any,
     video: false,
   })
   return stream as unknown as MediaStream
