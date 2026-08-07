@@ -7,6 +7,8 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { RTCView } from 'react-native-webrtc'
+import { NativeModules } from 'react-native'
+const { EasyComAudio } = NativeModules
 
 const ACCENT = '#f97316'
 const BG     = '#09090b'
@@ -61,6 +63,7 @@ export default function IntercomScreen({
   const [isRotated, setIsRotated] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [toneActive, setToneActive] = useState(false)
+  const [stereoTestActive, setStereoTestActive] = useState(false)
   const [routing, setRouting] = useState<Record<number, string[]>>({})
 
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
@@ -393,6 +396,26 @@ export default function IntercomScreen({
                   value={toneActive}
                   onValueChange={v => setToneActive(v)}
                   trackColor={{ false: BORDER, true: GREEN }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <View style={st.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.rowLabel}>Stereo Test (Local)</Text>
+                  <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>
+                    {stereoTestActive
+                      ? 'ACTIVE — 440 Hz alternating L → R every 2 s'
+                      : 'Local tone: tests if phone audio output is stereo'}
+                  </Text>
+                </View>
+                <Switch
+                  value={stereoTestActive}
+                  onValueChange={v => {
+                    setStereoTestActive(v)
+                    if (v) EasyComAudio?.startStereoTest?.()
+                    else   EasyComAudio?.stopStereoTest?.()
+                  }}
+                  trackColor={{ false: BORDER, true: '#06b6d4' }}
                   thumbColor="#fff"
                 />
               </View>
