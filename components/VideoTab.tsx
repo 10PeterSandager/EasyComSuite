@@ -3,14 +3,12 @@ import { socket, subscribeToLevels } from '../client/webrtc/intercom'
 import { Client } from '../types'
 import { Play, Square, AlertCircle, Trash2, Check, X, Pencil, Tv, Video, Monitor, Volume2, VolumeX } from 'lucide-react'
 
-function ClientLevelMeter({ clientId }: { clientId: string }) {
+function SlotMeter({ clientId, color }: { clientId: string; color: string }) {
   const [rcv, setRcv] = React.useState(0)
-  React.useEffect(() => {
-    return subscribeToLevels(levels => setRcv(levels[`recv_${clientId}`] ?? 0))
-  }, [clientId])
+  React.useEffect(() => subscribeToLevels(l => setRcv(l[`recv_${clientId}`] ?? 0)), [clientId])
   return (
-    <div style={{ width: "100%", height: 3, background: "rgba(255,255,255,0.07)", borderRadius: 2, marginTop: 4 }}>
-      <div style={{ width: `${Math.min(1, rcv / 100) * 100}%`, height: "100%", background: "#3b82f6", borderRadius: 2, transition: "width 80ms linear" }} />
+    <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, marginTop: 3 }}>
+      <div style={{ width: `${Math.min(1, rcv / 100) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 80ms linear' }} />
     </div>
   )
 }
@@ -447,8 +445,7 @@ const VideoTab: React.FC<VideoTabProps> = ({
   }
 
   const toggleAudioMute = (ch: number) => {
-    const newMuted = !audioMuted[ch]
-    setAudioMuted(prev => ({ ...prev, [ch]: newMuted }))
+    setAudioMuted(prev => ({ ...prev, [ch]: !prev[ch] }))
   }
   const [enabled, setEnabled] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true })
 
@@ -896,14 +893,14 @@ const VideoTab: React.FC<VideoTabProps> = ({
                                   style={{ background: `${accentColor}25`, color: accentColor }}>✓</span>
                               )}
                             </div>
-                            <ClientLevelMeter clientId={c.id} />
                           </td>
                         ) : null}
 
-                        {/* Slot label */}
+                        {/* Slot label + level meter */}
                         <td className="py-1.5 px-2 text-[9px] font-bold text-center"
                           style={{ color: slot === 0 ? '#ef4444' : '#3b82f6', opacity: 0.9, borderRight: "1px solid rgba(255,255,255,0.04)" }}>
                           V{slot + 1}
+                          <SlotMeter clientId={c.id} color={slot === 0 ? '#ef4444' : '#3b82f6'} />
                         </td>
 
                         {/* OFF */}
