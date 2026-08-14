@@ -47,6 +47,7 @@ const terminals = new Map<string, Terminal>()
 const disconnectTimes = new Map<string, number>()
 const directVideoOffers = new Map<string, string>() // cache: sourceId → sdp
 const producers = new Map<string, string>()
+const videoProducers = new Map<string, string>() // clientId → videoProducerId
 const videoRouting = new Map<string, number[]>() // clientId → videoSources array
 const groups: Group[] = []
 const audioRoutes = new Map<string, AudioRoute>()
@@ -290,6 +291,11 @@ export function setupSignaling(io: Server) {
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
         // Track TB gating state for this mobile/remote (empty = no TB pressed)
         if (!mobileActiveTb.has(client.id)) mobileActiveTb.set(client.id, new Set())
+        // Send eksisterende video producers til ny mobil client
+        for (const [sourceId, producerId] of videoProducers.entries()) {
+          socket.emit("video:producer:available", { clientId: sourceId, producerId })
+        }
+
         // 🔥 Send video routing til ny client
         const clientVideoSources = videoRouting.get(client.id) || []
         if (clientVideoSources.length > 0) {
@@ -425,9 +431,15 @@ export function setupSignaling(io: Server) {
 
     socket.on("producer:closed", ({ clientId, producerId }: { clientId: string; producerId: string }) => {
       console.log(`[signaling] producer closed: ${clientId} → ${producerId}`)
+      // Remove from app-level map so consume:request returns "no producer" instead of
+      // successfully creating a consumer on a zombie producer (which generates PLC noise).
       producers.delete(clientId)
+      // Close the mediasoup server-side producer so its consumers get a producerclose event
+      // and RTP stops flowing immediately rather than lingering as a silent zombie.
       try { getProducer(producerId)?.close() } catch {}
+      // Notify all consuming clients (phone closes its consumer)
       io.emit("producer:closed", { clientId, producerId })
+      // Rebroadcast routing so clients stop trying to consume the now-dead producer
       broadcastRouting(io)
     })
 
@@ -534,24 +546,31 @@ export function setupSignaling(io: Server) {
       console.log(`[signaling] IFB slot${slot} → ${bch} for ${mobileIds.length} client(s)`)
     })
 
-    socket.on("producer:register", ({ clientId, producerId }) => {
-      producers.set(clientId, producerId)
-      console.log(`[signaling] producer registered: ${clientId} → ${producerId}`)
-      io.emit("producer:ready", { clientId, producerId })
+    socket.on("producer:register", ({ clientId, producerId, kind = "audio" }) => {
+      if (kind === "video") {
+        videoProducers.set(clientId, producerId)
+        console.log(`[signaling] VIDEO producer registered: ${clientId} → ${producerId}`)
+        // Notify clients that have this clientId in their videoSources
+        io.emit("video:producer:available", { clientId, producerId })
+      } else {
+        producers.set(clientId, producerId)
+        console.log(`[signaling] producer registered: ${clientId} → ${producerId}`)
+        io.emit("producer:ready", { clientId, producerId })
 
-      // Fulfill any consume:requests that arrived before this producer was ready
-      const pending = pendingConsumeQueue.get(clientId)
-      if (pending?.length) {
-        pendingConsumeQueue.delete(clientId)
-        console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${clientId}"`)
-        for (const req of pending) {
-          clearTimeout(req.timer)
-          consume(req.transportId, producerId, req.rtpCapabilities)
-            .then(async consumer => {
-              if (consumer.kind === 'audio') await consumer.resume()
-              req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters })
-            })
-            .catch(e => req.cb?.({ error: String(e) }))
+        // Fulfill any consume:requests that arrived before this producer was ready
+        const pending = pendingConsumeQueue.get(clientId)
+        if (pending?.length) {
+          pendingConsumeQueue.delete(clientId)
+          console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${clientId}"`)
+          for (const req of pending) {
+            clearTimeout(req.timer)
+            consume(req.transportId, producerId, req.rtpCapabilities)
+              .then(async consumer => {
+                if (consumer.kind === 'audio') await consumer.resume()
+                req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters })
+              })
+              .catch(e => req.cb?.({ error: String(e) }))
+          }
         }
       }
       broadcastRouting(io)
@@ -612,6 +631,12 @@ export function setupSignaling(io: Server) {
       }
     })
 
+    socket.on("consume:request:video", ({ targetId, rtpCapabilities, transportId }, cb) => {
+      const producerId = videoProducers.get(targetId)
+      if (!producerId) { cb?.({ error: "no video producer for " + targetId }); return }
+      // Brug samme mediasoup consumer logik
+      socket.emit("consume:request", { targetId, rtpCapabilities, transportId }, cb)
+    })
 
     /* ---------- GROUPS ---------- */
 
@@ -804,6 +829,25 @@ export function setupSignaling(io: Server) {
       if (typeof cb === "function") cb(Array.from(audioRoutes.values()))
     })
 
+    /* ---------- VIDEO PRODUCERS REQUEST ---------- */
+    socket.on("video:producers:request", (data: any, cb) => {
+      const clientId = typeof data === 'string' ? data : data?.clientId
+      // Returner alle kendte video producers til client
+      const prods = Array.from(videoProducers.entries()).map(([sourceId, producerId]) => ({ sourceId, producerId }))
+      console.log(`[signaling] video:producers:request for "${clientId}": ${prods.length} producers`)
+      cb?.(prods)
+      // Emit event til client så de kan consume via normal flow
+      prods.forEach(({ sourceId, producerId }) => {
+        socket.emit("video:producer:available", { clientId: sourceId, producerId })
+      })
+      // Tjek også om client har specifik video routing
+      const routing = videoRouting.get(clientId) || []
+      routing.forEach(src => {
+        const hostClientId = `video-source-${src}`
+        const producerId = videoProducers.get(hostClientId)
+        if (producerId) socket.emit("video:producer:available", { clientId: hostClientId, producerId })
+      })
+    })
 
     /* ---------- BRIDGE CHANNEL INFO ---------- */
     socket.on("audio:bridge:channelInfo:set", (channelInfo: any[]) => {
@@ -872,17 +916,23 @@ export function setupSignaling(io: Server) {
     /* ---------- MEDIASOUP ---------- */
 
     socket.on("mediasoup:getRouterRtpCapabilities", (cb) => {
+      console.log(`[mediasoup] getRouterRtpCapabilities fra ${socket.id}`)
       if (typeof cb === "function") cb(router.rtpCapabilities)
     })
 
     socket.on("mediasoup:createTransport", async ({ direction }, cb) => {
+      console.log(`[mediasoup] createTransport "${direction}" fra ${socket.id}`)
       try {
         const t = await createTransport(direction)
+        console.log(`[mediasoup] transport oprettet: ${t.id} (${direction})`)
         if (typeof cb === "function") cb({
           id: t.id, iceParameters: t.iceParameters,
           iceCandidates: t.iceCandidates, dtlsParameters: t.dtlsParameters
         })
-      } catch (e) { cb?.({ error: String(e) }) }
+      } catch (e) {
+        console.error(`[mediasoup] createTransport FEJL (${direction}):`, e)
+        cb?.({ error: String(e) })
+      }
     })
 
     socket.on("mediasoup:connectTransport", async ({ transportId, dtlsParameters }, cb) => {
@@ -899,22 +949,30 @@ export function setupSignaling(io: Server) {
 
     socket.on("consume:request", async ({ targetId, rtpCapabilities, transportId, kind: reqKind }, cb) => {
       try {
-        const producerId = producers.get(targetId)
+        // Check both audio and video producers
+        const producerId = reqKind === "video"
+          ? (videoProducers.get(targetId) || producers.get(targetId))
+          : (producers.get(targetId) || videoProducers.get(targetId))
         if (!producerId) {
-          // Queue audio consume requests for up to 5 s — handles the race where
-          // connection:create arrives before producer:register (mic not yet started).
-          console.log(`[signaling] no producer for "${targetId}" – queuing consume:request (5 s)`)
-          const timer = setTimeout(() => {
-            const arr = pendingConsumeQueue.get(targetId)
-            if (arr) {
-              const i = arr.findIndex(r => r.transportId === transportId)
-              if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
-            }
-            cb?.({ error: "no producer (timeout)" })
-          }, 5000)
-          const arr = pendingConsumeQueue.get(targetId) ?? []
-          arr.push({ transportId, rtpCapabilities, cb, kind: reqKind, timer })
-          pendingConsumeQueue.set(targetId, arr)
+          if (reqKind !== "video") {
+            // Queue audio consume requests for up to 5 s — handles the race where
+            // connection:create arrives before producer:register (mic not yet started).
+            console.log(`[signaling] no producer for "${targetId}" – queuing consume:request (5 s)`)
+            const timer = setTimeout(() => {
+              const arr = pendingConsumeQueue.get(targetId)
+              if (arr) {
+                const i = arr.findIndex(r => r.transportId === transportId)
+                if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
+              }
+              cb?.({ error: "no producer (timeout)" })
+            }, 5000)
+            const arr = pendingConsumeQueue.get(targetId) ?? []
+            arr.push({ transportId, rtpCapabilities, cb, kind: reqKind, timer })
+            pendingConsumeQueue.set(targetId, arr)
+            return
+          }
+          console.log(`[signaling] no producer for "${targetId}" (audio: ${Array.from(producers.keys()).join(',')}, video: ${Array.from(videoProducers.keys()).join(',')})`)
+          if (typeof cb === "function") cb({ error: "no producer" })
           return
         }
         const consumer = await consume(transportId, producerId, rtpCapabilities)
@@ -932,6 +990,41 @@ export function setupSignaling(io: Server) {
           kind: consumer.kind, rtpParameters: consumer.rtpParameters
         })
       } catch (e) { cb?.({ error: String(e) }) }
+    })
+
+    // Push-based consume — mobile uses this instead of consume:request so the
+    // server can push params as a direct event (survives iOS AVAudioSession TCP freeze).
+    socket.on("consume:subscribe", async ({ targetId, rtpCapabilities, transportId }: { targetId: string, rtpCapabilities: any, transportId: string }) => {
+      const pushEvent = `mediasoup:consumer:push:${targetId}`
+      const producerId = producers.get(targetId)
+      if (!producerId) {
+        console.log(`[signaling] consume:subscribe no producer "${targetId}" – queuing (5 s)`)
+        const timer = setTimeout(() => {
+          const arr = pendingConsumeQueue.get(targetId)
+          if (arr) {
+            const i = arr.findIndex(r => r.transportId === transportId)
+            if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
+          }
+          socket.emit(pushEvent, { error: 'no producer (timeout)' })
+        }, 5000)
+        const arr = pendingConsumeQueue.get(targetId) ?? []
+        const pushCb = (params: any) => socket.emit(pushEvent, params)
+        arr.push({ transportId, rtpCapabilities, cb: pushCb, kind: 'audio', timer })
+        pendingConsumeQueue.set(targetId, arr)
+        return
+      }
+      try {
+        const consumer = await consume(transportId, producerId, rtpCapabilities)
+        await consumer.resume()
+        console.log(`[signaling] consume:subscribe ✅ "${targetId}" → consumer ${consumer.id}`)
+        socket.emit(pushEvent, {
+          producerId, id: consumer.id,
+          kind: consumer.kind, rtpParameters: consumer.rtpParameters
+        })
+      } catch (e) {
+        console.error(`[signaling] consume:subscribe FEJL "${targetId}":`, e)
+        socket.emit(pushEvent, { error: String(e) })
+      }
     })
 
     // 🔥 Eksplicit resume endpoint hvis client kalder det
@@ -1366,11 +1459,14 @@ export function setupSignaling(io: Server) {
       cb?.({ ok: true })
     })
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
       // Find ALL clients registered on this socket (not just the first one)
       const disconnectedIds = [...clients.entries()]
         .filter(([, v]) => v.socketId === socket.id)
         .map(([id]) => id)
+
+      if (disconnectedIds.length > 0)
+        console.log(`[socket] disconnected: ${socket.id}, årsag: ${reason}, klienter: [${disconnectedIds}]`)
 
       if (disconnectedIds.length === 0) return
 
