@@ -1,7 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { socket } from '../client/webrtc/intercom'
+import { socket, subscribeToLevels } from '../client/webrtc/intercom'
 import { Client } from '../types'
 import { Play, Square, AlertCircle, Trash2, Check, X, Pencil, Tv, Video, Monitor, Volume2, VolumeX } from 'lucide-react'
+
+function ClientLevelMeter({ clientId }: { clientId: string }) {
+  const [rcv, setRcv] = React.useState(0)
+  React.useEffect(() => {
+    return subscribeToLevels(levels => setRcv(levels[`recv_${clientId}`] ?? 0))
+  }, [clientId])
+  return (
+    <div style={{ width: "100%", height: 3, background: "rgba(255,255,255,0.07)", borderRadius: 2, marginTop: 4 }}>
+      <div style={{ width: `${Math.min(1, rcv / 100) * 100}%`, height: "100%", background: "#3b82f6", borderRadius: 2, transition: "width 80ms linear" }} />
+    </div>
+  )
+}
 
 interface VideoTabProps {
   clients: Client[]
@@ -884,6 +896,7 @@ const VideoTab: React.FC<VideoTabProps> = ({
                                   style={{ background: `${accentColor}25`, color: accentColor }}>✓</span>
                               )}
                             </div>
+                            <ClientLevelMeter clientId={c.id} />
                           </td>
                         ) : null}
 
