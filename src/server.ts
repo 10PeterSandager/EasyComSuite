@@ -40,18 +40,11 @@ if (fs.existsSync(desktopDist)) {
   console.log("🖥️  Desktop app served at /desktop")
 }
 
-// Serve host UI at /host — built into server/public/ to avoid iCloud reversion
-const hostDist = path.join(__dirname, "../public")
-if (fs.existsSync(path.join(hostDist, "index.html"))) {
-  app.use("/host", express.static(hostDist, { index: false }))
-  app.get("/host", (_, res) => {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate")
-    res.sendFile(path.join(hostDist, "index.html"))
-  })
-  app.get("/host/{*splat}", (_, res) => {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate")
-    res.sendFile(path.join(hostDist, "index.html"))
-  })
+// Serve easycom-broadcast-intercom (host UI) at /host
+const hostDist = path.join(__dirname, "../../../easycom-broadcast-intercom/dist")
+if (fs.existsSync(hostDist)) {
+  app.use("/host", express.static(hostDist))
+  app.get("/host/{*splat}", (_, res) => res.sendFile(path.join(hostDist, "index.html")))
   console.log("🎛️  Host app served at /host")
 }
 

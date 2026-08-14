@@ -1,5 +1,5 @@
 import { Server } from "socket.io"
-import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp, restartIce } from "./mediasoup"
+import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp } from "./mediasoup"
 import {
   startOutputRoute, stopOutputRoute, stopAllForClient,
   listOutputDevices, setChannelConfig,
@@ -8,16 +8,6 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
-import os from "os"
-
-function getLanIp(): string {
-  for (const ifaces of Object.values(os.networkInterfaces())) {
-    for (const iface of ifaces ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) return iface.address
-    }
-  }
-  return "127.0.0.1"
-}
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
@@ -57,7 +47,6 @@ const terminals = new Map<string, Terminal>()
 const disconnectTimes = new Map<string, number>()
 const directVideoOffers = new Map<string, string>() // cache: sourceId → sdp
 const producers = new Map<string, string>()
-const videoProducers = new Map<string, string>() // clientId → videoProducerId
 const videoRouting = new Map<string, number[]>() // clientId → videoSources array
 const groups: Group[] = []
 const audioRoutes = new Map<string, AudioRoute>()
@@ -301,11 +290,6 @@ export function setupSignaling(io: Server) {
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
         // Track TB gating state for this mobile/remote (empty = no TB pressed)
         if (!mobileActiveTb.has(client.id)) mobileActiveTb.set(client.id, new Set())
-        // Send eksisterende video producers til ny mobil client
-        for (const [sourceId, producerId] of videoProducers.entries()) {
-          socket.emit("video:producer:available", { clientId: sourceId, producerId })
-        }
-
         // 🔥 Send video routing til ny client
         const clientVideoSources = videoRouting.get(client.id) || []
         if (clientVideoSources.length > 0) {
@@ -355,10 +339,9 @@ export function setupSignaling(io: Server) {
         }
       }
 
-      const isMobileType = client.type === "mobile" || client.type === "remote" || client.type === "desktop"
-      clients.set(client.id, { socketId: isMobileType ? socket.id : "", data: client })
+      clients.set(client.id, { socketId: socket.id, data: client })
       ;(socket as any).clientId = client.id
-      io.emit("clients:update", { id: client.id, updates: { ...client, status: isMobileType ? "online" : "offline" } })
+      io.emit("clients:update", { id: client.id, updates: { ...client, status: "online" } })
       save()
       cb?.({ ok: true })
 
@@ -423,9 +406,9 @@ export function setupSignaling(io: Server) {
         name:   c.data?.name   || "",
         type:   c.data?.type   || "",
         code:   c.data?.code   || "0000",
-        status: c.socketId !== "" ? "online" : "offline",
+        status: c.data?.status || "online",
         color:  c.data?.color  || undefined,
-      })).filter(c => c.id !== "" && c.id !== "host-ui" && c.type === "mobile")
+      })).filter(c => c.id !== "" && c.id !== "host-ui")
 
       // Find the requesting client (not host-ui)
       const callerId = [...clients.entries()]
@@ -442,15 +425,9 @@ export function setupSignaling(io: Server) {
 
     socket.on("producer:closed", ({ clientId, producerId }: { clientId: string; producerId: string }) => {
       console.log(`[signaling] producer closed: ${clientId} → ${producerId}`)
-      // Remove from app-level map so consume:request returns "no producer" instead of
-      // successfully creating a consumer on a zombie producer (which generates PLC noise).
       producers.delete(clientId)
-      // Close the mediasoup server-side producer so its consumers get a producerclose event
-      // and RTP stops flowing immediately rather than lingering as a silent zombie.
       try { getProducer(producerId)?.close() } catch {}
-      // Notify all consuming clients (phone closes its consumer)
       io.emit("producer:closed", { clientId, producerId })
-      // Rebroadcast routing so clients stop trying to consume the now-dead producer
       broadcastRouting(io)
     })
 
@@ -476,24 +453,11 @@ export function setupSignaling(io: Server) {
       }
     })
 
-    socket.on("bridge:stereo:deregister", ({ chL, chR }: { chL: number; chR: number }) => {
-      const stereoId = `bridge-stereo-${chL}-${chR}`
-      producers.delete(stereoId)
-      for (const [key, conn] of connections.entries()) {
-        if (conn.from === stereoId) connections.delete(key)
-      }
-      broadcastRouting(io)
-      save()
-      console.log(`[signaling] stereo deregistered: ${stereoId}, connections cleaned up`)
-    })
-
     socket.on("bridge:stereo:register", ({ chL, chR, producerId }: { chL: number; chR: number; producerId: string }) => {
       const stereoId = `bridge-stereo-${chL}-${chR}`
       producers.set(stereoId, producerId)
       console.log(`[signaling] stereo bridge registered: ${stereoId} → ${producerId}`)
       io.emit("bridge:stereo:available", { chL, chR, stereoId })
-      // Tell mobile clients to re-consume this stereo source (same as mono bridge:producers:done)
-      io.emit("producer:ready", { clientId: stereoId })
 
       // Fulfill any consume:requests that arrived before this stereo producer was ready
       const pending = pendingConsumeQueue.get(stereoId)
@@ -570,31 +534,24 @@ export function setupSignaling(io: Server) {
       console.log(`[signaling] IFB slot${slot} → ${bch} for ${mobileIds.length} client(s)`)
     })
 
-    socket.on("producer:register", ({ clientId, producerId, kind = "audio" }) => {
-      if (kind === "video") {
-        videoProducers.set(clientId, producerId)
-        console.log(`[signaling] VIDEO producer registered: ${clientId} → ${producerId}`)
-        // Notify clients that have this clientId in their videoSources
-        io.emit("video:producer:available", { clientId, producerId })
-      } else {
-        producers.set(clientId, producerId)
-        console.log(`[signaling] producer registered: ${clientId} → ${producerId}`)
-        io.emit("producer:ready", { clientId, producerId })
+    socket.on("producer:register", ({ clientId, producerId }) => {
+      producers.set(clientId, producerId)
+      console.log(`[signaling] producer registered: ${clientId} → ${producerId}`)
+      io.emit("producer:ready", { clientId, producerId })
 
-        // Fulfill any consume:requests that arrived before this producer was ready
-        const pending = pendingConsumeQueue.get(clientId)
-        if (pending?.length) {
-          pendingConsumeQueue.delete(clientId)
-          console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${clientId}"`)
-          for (const req of pending) {
-            clearTimeout(req.timer)
-            consume(req.transportId, producerId, req.rtpCapabilities)
-              .then(async consumer => {
-                if (consumer.kind === 'audio') await consumer.resume()
-                req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters })
-              })
-              .catch(e => req.cb?.({ error: String(e) }))
-          }
+      // Fulfill any consume:requests that arrived before this producer was ready
+      const pending = pendingConsumeQueue.get(clientId)
+      if (pending?.length) {
+        pendingConsumeQueue.delete(clientId)
+        console.log(`[signaling] fulfilling ${pending.length} queued consume:request(s) for "${clientId}"`)
+        for (const req of pending) {
+          clearTimeout(req.timer)
+          consume(req.transportId, producerId, req.rtpCapabilities)
+            .then(async consumer => {
+              if (consumer.kind === 'audio') await consumer.resume()
+              req.cb?.({ producerId, id: consumer.id, kind: consumer.kind, rtpParameters: consumer.rtpParameters })
+            })
+            .catch(e => req.cb?.({ error: String(e) }))
         }
       }
       broadcastRouting(io)
@@ -655,12 +612,6 @@ export function setupSignaling(io: Server) {
       }
     })
 
-    socket.on("consume:request:video", ({ targetId, rtpCapabilities, transportId }, cb) => {
-      const producerId = videoProducers.get(targetId)
-      if (!producerId) { cb?.({ error: "no video producer for " + targetId }); return }
-      // Brug samme mediasoup consumer logik
-      socket.emit("consume:request", { targetId, rtpCapabilities, transportId }, cb)
-    })
 
     /* ---------- GROUPS ---------- */
 
@@ -853,25 +804,6 @@ export function setupSignaling(io: Server) {
       if (typeof cb === "function") cb(Array.from(audioRoutes.values()))
     })
 
-    /* ---------- VIDEO PRODUCERS REQUEST ---------- */
-    socket.on("video:producers:request", (data: any, cb) => {
-      const clientId = typeof data === 'string' ? data : data?.clientId
-      // Returner alle kendte video producers til client
-      const prods = Array.from(videoProducers.entries()).map(([sourceId, producerId]) => ({ sourceId, producerId }))
-      console.log(`[signaling] video:producers:request for "${clientId}": ${prods.length} producers`)
-      cb?.(prods)
-      // Emit event til client så de kan consume via normal flow
-      prods.forEach(({ sourceId, producerId }) => {
-        socket.emit("video:producer:available", { clientId: sourceId, producerId })
-      })
-      // Tjek også om client har specifik video routing
-      const routing = videoRouting.get(clientId) || []
-      routing.forEach(src => {
-        const hostClientId = `video-source-${src}`
-        const producerId = videoProducers.get(hostClientId)
-        if (producerId) socket.emit("video:producer:available", { clientId: hostClientId, producerId })
-      })
-    })
 
     /* ---------- BRIDGE CHANNEL INFO ---------- */
     socket.on("audio:bridge:channelInfo:set", (channelInfo: any[]) => {
@@ -914,17 +846,6 @@ export function setupSignaling(io: Server) {
       io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId })
     })
 
-    // 🔥 Relay pan from mobile client to host-ui
-    socket.on("client:pan", ({ channel, pan, bridgeId }: { channel: number; pan: number; bridgeId?: string }) => {
-      const hostSocket = clients.get("host-ui")?.socketId
-      if (!hostSocket) return
-      const clientId = (socket as any).clientId || socket.id
-      const resolvedBridgeId = bridgeId ?? Array.from(connections.values()).find(
-        c => c.to === clientId && c.channel === channel
-      )?.from ?? null
-      io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId: resolvedBridgeId })
-    })
-
     socket.on("audio:level", ({ clientId, level }: { clientId: string; level: number }) => {
       const update: Record<string, number> = { [clientId]: level }
       for (const conn of connections.values()) {
@@ -938,12 +859,9 @@ export function setupSignaling(io: Server) {
       const update: Record<string, number> = {}
       for (const [clientId, level] of Object.entries(levels)) {
         update[clientId] = level
-        // Stereo bridge sources → recv_stereo_{client} to avoid overwriting mono recv
-        const isStereoSrc = clientId.startsWith("bridge-stereo-")
+        // Find alle connections fra denne bridge-kanal og sæt recv-niveauer
         for (const conn of connections.values()) {
-          if (conn.from === clientId) {
-            update[isStereoSrc ? `recv_stereo_${conn.to}` : `recv_${conn.to}`] = level
-          }
+          if (conn.from === clientId) update[`recv_${conn.to}`] = level
         }
       }
       if (Object.keys(update).length > 0) {
@@ -979,39 +897,24 @@ export function setupSignaling(io: Server) {
       } catch (e) { cb?.({ error: String(e) }) }
     })
 
-    socket.on("mediasoup:restartIce", async ({ transportId }, cb) => {
-      try {
-        const iceParameters = await restartIce(transportId)
-        cb?.({ iceParameters })
-      } catch (e) { cb?.({ error: String(e) }) }
-    })
-
     socket.on("consume:request", async ({ targetId, rtpCapabilities, transportId, kind: reqKind }, cb) => {
       try {
-        // Check both audio and video producers
-        const producerId = reqKind === "video"
-          ? (videoProducers.get(targetId) || producers.get(targetId))
-          : (producers.get(targetId) || videoProducers.get(targetId))
+        const producerId = producers.get(targetId)
         if (!producerId) {
-          if (reqKind !== "video") {
-            // Queue audio consume requests for up to 5 s — handles the race where
-            // connection:create arrives before producer:register (mic not yet started).
-            console.log(`[signaling] no producer for "${targetId}" – queuing consume:request (5 s)`)
-            const timer = setTimeout(() => {
-              const arr = pendingConsumeQueue.get(targetId)
-              if (arr) {
-                const i = arr.findIndex(r => r.transportId === transportId)
-                if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
-              }
-              cb?.({ error: "no producer (timeout)" })
-            }, 5000)
-            const arr = pendingConsumeQueue.get(targetId) ?? []
-            arr.push({ transportId, rtpCapabilities, cb, kind: reqKind, timer })
-            pendingConsumeQueue.set(targetId, arr)
-            return
-          }
-          console.log(`[signaling] no producer for "${targetId}" (audio: ${Array.from(producers.keys()).join(',')}, video: ${Array.from(videoProducers.keys()).join(',')})`)
-          if (typeof cb === "function") cb({ error: "no producer" })
+          // Queue audio consume requests for up to 5 s — handles the race where
+          // connection:create arrives before producer:register (mic not yet started).
+          console.log(`[signaling] no producer for "${targetId}" – queuing consume:request (5 s)`)
+          const timer = setTimeout(() => {
+            const arr = pendingConsumeQueue.get(targetId)
+            if (arr) {
+              const i = arr.findIndex(r => r.transportId === transportId)
+              if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
+            }
+            cb?.({ error: "no producer (timeout)" })
+          }, 5000)
+          const arr = pendingConsumeQueue.get(targetId) ?? []
+          arr.push({ transportId, rtpCapabilities, cb, kind: reqKind, timer })
+          pendingConsumeQueue.set(targetId, arr)
           return
         }
         const consumer = await consume(transportId, producerId, rtpCapabilities)
@@ -1248,19 +1151,6 @@ export function setupSignaling(io: Server) {
 
     /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
 
-    socket.on("server:network:info", (cb) => {
-      if (typeof cb !== "function") return
-      const port    = parseInt(process.env.PORT ?? "3000")
-      const lanPort = parseInt(process.env.LAN_PORT ?? String(port + 1))
-      cb({
-        lanIp:       getLanIp(),
-        port,
-        lanPort,
-        tunnelUrl:   getTunnelUrl(),
-        tunnelStatus: getTunnelStatus(),
-      })
-    })
-
     socket.on("server:config:get", (cb) => {
       if (typeof cb !== "function") return
       cb({
@@ -1269,14 +1159,12 @@ export function setupSignaling(io: Server) {
         turnUsername:   process.env.TURN_USERNAME ?? "",
         turnPassword:   process.env.TURN_PASSWORD ?? "",
         sessionPassword: process.env.SESSION_PASSWORD ?? "",
-        tunnelToken:    process.env.CLOUDFLARE_TUNNEL_TOKEN ?? "",
-        tunnelStaticUrl: process.env.CLOUDFLARE_TUNNEL_URL ?? "",
       })
     })
 
     socket.on("server:config:update", (
-      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, tunnelToken, tunnelStaticUrl }:
-      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string; tunnelToken?: string; tunnelStaticUrl?: string },
+      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }:
+      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string },
       cb?: (r: { ok: boolean }) => void
     ) => {
       const toSave: Record<string, string> = {}
@@ -1294,15 +1182,6 @@ export function setupSignaling(io: Server) {
         process.env.SESSION_PASSWORD = sessionPassword
         toSave["SESSION_PASSWORD"] = sessionPassword
         console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`)
-      }
-      if (tunnelToken !== undefined) {
-        process.env.CLOUDFLARE_TUNNEL_TOKEN = tunnelToken
-        toSave["CLOUDFLARE_TUNNEL_TOKEN"] = tunnelToken
-        console.log(`[signaling] tunnel token ${tunnelToken ? "set" : "cleared"}`)
-      }
-      if (tunnelStaticUrl !== undefined) {
-        process.env.CLOUDFLARE_TUNNEL_URL = tunnelStaticUrl
-        toSave["CLOUDFLARE_TUNNEL_URL"] = tunnelStaticUrl
       }
 
       persistEnvVars(toSave)

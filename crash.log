@@ -1,31 +1,1078 @@
-PID 53091 received SIGSEGV for address: 0x0
-0   segfault-handler.node               0x000000010a1c8ee4 _ZL16segfault_handleriP9__siginfoPv + 288
-1   libsystem_platform.dylib            0x000000019683f744 _sigtramp + 56
-2   naudiodon.node                      0x0000000136b0172c _ZN10streampunk10getDevicesEP10napi_env__P20napi_callback_info__ + 56
-3   node                                0x0000000102e12070 _ZN6v8impl12_GLOBAL__N_123FunctionCallbackWrapper6InvokeERKN2v820FunctionCallbackInfoINS2_5ValueEEE + 80
-4   node                                0x0000000103ce2818 Builtins_CallApiCallbackGeneric + 152
-5   node                                0x0000000103ce0bec Builtins_InterpreterEntryTrampoline + 268
-6   ???                                 0x0000000126adb3e4 0x0 + 4943885284
-7   ???                                 0x00000001272150f0 0x0 + 4951462128
-8   node                                0x0000000103ce0bec Builtins_InterpreterEntryTrampoline + 268
-9   node                                0x0000000103ce0bec Builtins_InterpreterEntryTrampoline + 268
-10  ???                                 0x0000000126e41de4 0x0 + 4947451364
-11  node                                0x0000000103cde8cc Builtins_JSEntryTrampoline + 172
-12  node                                0x0000000103cde570 Builtins_JSEntry + 176
-13  node                                0x000000010320a664 _ZN2v88internal12_GLOBAL__N_16InvokeEPNS0_7IsolateERKNS1_12InvokeParamsE + 1652
-14  node                                0x0000000103209fc8 _ZN2v88internal9Execution4CallEPNS0_7IsolateENS0_12DirectHandleINS0_6ObjectEEES6_NS_4base6VectorIKS6_EE + 120
-15  node                                0x000000010307e760 _ZN2v88Function4CallEPNS_7IsolateENS_5LocalINS_7ContextEEENS3_INS_5ValueEEEiPS7_ + 492
-16  node                                0x0000000102d690f0 _ZN4node21InternalCallbackScope5CloseEv + 524
-17  node                                0x0000000102d69320 _ZN4node20InternalMakeCallbackEPNS_11EnvironmentEN2v85LocalINS2_6ObjectEEES5_NS3_INS2_8FunctionEEEiPNS3_INS2_5ValueEEENS_13async_contextES9_ + 452
-18  node                                0x0000000102d7c660 _ZN4node9AsyncWrap12MakeCallbackEN2v85LocalINS1_8FunctionEEEiPNS2_INS1_5ValueEEE + 256
-19  node                                0x0000000102f987e4 _ZN4node10StreamBase18CallJSOnreadMethodElN2v85LocalINS1_11ArrayBufferEEEmNS0_18StreamBaseJSChecksE + 232
-20  node                                0x0000000102f99f78 _ZN4node22EmitToJSStreamListener12OnStreamReadElRK8uv_buf_t + 372
-21  node                                0x0000000102f9e2a0 _ZN4node15LibuvStreamWrap8OnUvReadElPK8uv_buf_t + 660
-22  node                                0x0000000102f9e9d0 _ZZN4node15LibuvStreamWrap9ReadStartEvEN3$_18__invokeEP11uv_stream_slPK8uv_buf_t + 88
-23  node                                0x0000000103ccacbc uv__stream_io + 1332
-24  node                                0x0000000103cd32e4 uv__io_poll + 1032
-25  node                                0x0000000103cbf694 uv_run + 408
-26  node                                0x0000000102d69b44 _ZN4node21SpinEventLoopInternalEPNS_11EnvironmentE + 248
-27  node                                0x0000000102ebb234 _ZN4node16NodeMainInstance3RunEv + 268
-28  node                                0x0000000102e216ac _ZN4node5StartEiPPc + 604
-29  dyld                                0x000000019646dd54 start + 7184
+[persist] restored 5 connections, 0 groups, 0 clients, 0 terminals
+📱 Remote app served at /remote
+🖥️  Desktop app served at /desktop
+🎛️  Host app served at /host
+🚀 Starting EasyCom Server...
+✅ Mediasoup router created
+✅ Mediasoup ready
+✅ Signaling ready
+✅ ffmpeg fundet – audio capture bridge klar
+✅ Audio capture bridge ready
+🎛️ Stream Deck manager started
+[StreamDeck] USB error: Cannot read properties of undefined (reading 'path')
+🔥 Server running on https://0.0.0.0:3000
+[tunnel] starting cloudflare tunnel → http://localhost:3000
+📱 LAN HTTP on http://0.0.0.0:3002 (lokalt netværk, ingen SSL)
+[tunnel] ✅ public URL: https://framed-necessity-butler-measuring.trycloudflare.com
+🌐 Cloudflare Tunnel: https://framed-necessity-butler-measuring.trycloudflare.com
+[socket] disconnected: FPcPglU_RePRLCryAAAB, reason: transport close
+🎛️  Lydenheder: [1] Unknown USB Audio Device (1ch), [3] Mikrofon i PEter Sandager - iPhone 🤩 (1ch), [4] Universal Audio Thunderbolt (30ch)
+🎙️  Starter capture: device 4 (Universal Audio Thunderbolt) @ 48000Hz
+[mediasoup] createTransport "send" from CuFqaK8yL3wWrAgmAAAD
+[mediasoup] transport created: 558f0b00-3b10-47e6-ac01-22b74c55cd51 (send)
+[mediasoup] createTransport "recv" from CuFqaK8yL3wWrAgmAAAD
+[mediasoup] transport created: 56b759e2-374e-41dc-a216-2710986f7be8 (recv)
+[signaling] routing sent to "host-ui" on register: 4 connections
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 5 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-0 ch1
+[signaling] routing sent to "client-1786052854690-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-1" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-2" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+🎙️  30 kanaler – 22 inputs, 8 outputs
+[audioOutput] registered device 4: max 8 output channels
+[signaling] output bridge channels: [19,20,21,22,23,24,25,26]
+✅ Producer created: 0790f1d9-c403-4579-a7d1-e61b6278f218 (audio)
+[signaling] bridge producer registered: bridge-ch1 → 0790f1d9-c403-4579-a7d1-e61b6278f218
+✅ Producer created: 7893789b-6811-40cb-88d5-01b0f641df74 (audio)
+[signaling] bridge producer registered: bridge-ch2 → 7893789b-6811-40cb-88d5-01b0f641df74
+✅ Producer created: 01fc92dd-00a6-430c-afa1-9683c7304979 (audio)
+[signaling] bridge producer registered: bridge-ch3 → 01fc92dd-00a6-430c-afa1-9683c7304979
+✅ Producer created: 6492b913-7baf-4107-9b76-d00ed4763192 (audio)
+[signaling] bridge producer registered: bridge-ch4 → 6492b913-7baf-4107-9b76-d00ed4763192
+✅ Producer created: 11764f16-429a-4244-925a-b673e849a453 (audio)
+[signaling] bridge producer registered: bridge-ch5 → 11764f16-429a-4244-925a-b673e849a453
+✅ Producer created: 4ac50508-9e12-4b14-bb30-947eaaa7eccf (audio)
+[signaling] bridge producer registered: bridge-ch6 → 4ac50508-9e12-4b14-bb30-947eaaa7eccf
+✅ Producer created: 91cf910c-aa2c-4d2a-a7ff-03c0a800a4cb (audio)
+[signaling] bridge producer registered: bridge-ch7 → 91cf910c-aa2c-4d2a-a7ff-03c0a800a4cb
+✅ Producer created: 10019059-0886-45dc-91fa-2b2781ff3c77 (audio)
+[signaling] bridge producer registered: bridge-ch8 → 10019059-0886-45dc-91fa-2b2781ff3c77
+✅ Producer created: 2a8798de-d53f-48d1-ba87-ce178d74059d (audio)
+[signaling] bridge producer registered: bridge-ch9 → 2a8798de-d53f-48d1-ba87-ce178d74059d
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1}]
+✅ Producer created: b67570fb-0e34-4512-ac26-e2462bae89aa (audio)
+[signaling] bridge producer registered: bridge-ch10 → b67570fb-0e34-4512-ac26-e2462bae89aa
+✅ Producer created: d6394bca-8f64-4457-b114-808e5c46ed6d (audio)
+[signaling] bridge producer registered: bridge-ch11 → d6394bca-8f64-4457-b114-808e5c46ed6d
+✅ Producer created: e9d89a9b-e6a3-4ad2-abcc-9dd0c5fd5703 (audio)
+[signaling] bridge producer registered: bridge-ch12 → e9d89a9b-e6a3-4ad2-abcc-9dd0c5fd5703
+✅ Producer created: c859772f-fd9f-4f02-803b-c37a07331121 (audio)
+[signaling] bridge producer registered: bridge-ch13 → c859772f-fd9f-4f02-803b-c37a07331121
+✅ Producer created: f3c738bc-1bcb-4b30-b467-0eec79416fe8 (audio)
+[signaling] bridge producer registered: bridge-ch14 → f3c738bc-1bcb-4b30-b467-0eec79416fe8
+✅ Producer created: 0e82187c-c57c-4657-9e4e-c2bec7825f4e (audio)
+[signaling] bridge producer registered: bridge-ch15 → 0e82187c-c57c-4657-9e4e-c2bec7825f4e
+✅ Producer created: b32bd1fd-fde9-4a2c-85c9-2020bb942bce (audio)
+[signaling] bridge producer registered: bridge-ch16 → b32bd1fd-fde9-4a2c-85c9-2020bb942bce
+✅ Producer created: 0fe041dc-0584-4e4e-9c31-535db5b01655 (audio)
+[signaling] bridge producer registered: bridge-ch17 → 0fe041dc-0584-4e4e-9c31-535db5b01655
+✅ Producer created: f32b3d0a-1c69-4a0c-a41b-94ff4348f7af (audio)
+[signaling] bridge producer registered: bridge-ch18 → f32b3d0a-1c69-4a0c-a41b-94ff4348f7af
+✅ Producer created: 8f2e84a1-2f84-47dd-aeca-c14aa21c25dc (audio)
+[signaling] bridge producer registered: bridge-ch19 → 8f2e84a1-2f84-47dd-aeca-c14aa21c25dc
+✅ Producer created: 216c4f80-0c88-4c88-bcb1-1a22792b5309 (audio)
+[signaling] bridge producer registered: bridge-ch20 → 216c4f80-0c88-4c88-bcb1-1a22792b5309
+✅ Producer created: 69692139-c65a-4901-b93a-78811f98990a (audio)
+[signaling] bridge producer registered: bridge-ch21 → 69692139-c65a-4901-b93a-78811f98990a
+✅ Producer created: 9915b13f-bb68-47a9-b655-9e2bcfdeb5a3 (audio)
+[signaling] bridge producer registered: bridge-ch22 → 9915b13f-bb68-47a9-b655-9e2bcfdeb5a3
+✅ Producer created: 21bc4ad0-ae67-40bf-81a7-2c8c5c722609 (audio)
+[signaling] bridge producer registered: bridge-ch23 → 21bc4ad0-ae67-40bf-81a7-2c8c5c722609
+✅ Producer created: 61379ae4-79e2-4ca0-85cf-09c56781a97b (audio)
+[signaling] bridge producer registered: bridge-ch24 → 61379ae4-79e2-4ca0-85cf-09c56781a97b
+✅ Producer created: db78dc07-49c8-4918-81d9-0acfe2aeb9fd (audio)
+[signaling] bridge producer registered: bridge-ch25 → db78dc07-49c8-4918-81d9-0acfe2aeb9fd
+✅ Producer created: 863cacaa-4a41-44f2-a94a-53d4ec7b03d2 (audio)
+[signaling] bridge producer registered: bridge-ch26 → 863cacaa-4a41-44f2-a94a-53d4ec7b03d2
+✅ Producer created: 3e9e618c-85a2-4e53-8edd-74b101103dc9 (audio)
+[signaling] bridge producer registered: bridge-ch27 → 3e9e618c-85a2-4e53-8edd-74b101103dc9
+✅ Producer created: 470fed1f-f6f2-4665-8a04-bf561e3c4b37 (audio)
+[signaling] bridge producer registered: bridge-ch28 → 470fed1f-f6f2-4665-8a04-bf561e3c4b37
+✅ Producer created: a9cf6e50-3cd5-4e0b-bd71-fe442d7df38c (audio)
+[signaling] bridge producer registered: bridge-ch29 → a9cf6e50-3cd5-4e0b-bd71-fe442d7df38c
+✅ Producer created: bcfb3750-1a53-4e09-8b6d-1b51bb393bb8 (audio)
+[signaling] bridge producer registered: bridge-ch30 → bcfb3750-1a53-4e09-8b6d-1b51bb393bb8
+✅ Producer created: 273b6e84-fb48-4e06-9d9d-949b19b00414 (audio)
+[signaling] stereo bridge registered: bridge-stereo-1-2 → 273b6e84-fb48-4e06-9d9d-949b19b00414
+✅ Producer created: 7dfcb61d-30e8-405f-9f45-ee79732c2903 (audio)
+[signaling] stereo bridge registered: bridge-stereo-3-4 → 7dfcb61d-30e8-405f-9f45-ee79732c2903
+✅ Producer created: aa415d1c-8aa6-4852-bc02-e08a41bf7324 (audio)
+[signaling] stereo bridge registered: bridge-stereo-5-6 → aa415d1c-8aa6-4852-bc02-e08a41bf7324
+✅ Producer created: c680c8e2-6e8b-4ed2-88ce-eb7907c94f17 (audio)
+[signaling] stereo bridge registered: bridge-stereo-7-8 → c680c8e2-6e8b-4ed2-88ce-eb7907c94f17
+✅ Producer created: 0d0493f0-6438-4cdc-b860-a817d3f2c284 (audio)
+[signaling] stereo bridge registered: bridge-stereo-9-10 → 0d0493f0-6438-4cdc-b860-a817d3f2c284
+✅ Producer created: c59ff103-6647-4f32-8df7-721301fc4c86 (audio)
+[signaling] stereo bridge registered: bridge-stereo-11-12 → c59ff103-6647-4f32-8df7-721301fc4c86
+✅ Producer created: 3d440d29-18bf-4dc8-8715-d01a7597db06 (audio)
+[signaling] stereo bridge registered: bridge-stereo-13-14 → 3d440d29-18bf-4dc8-8715-d01a7597db06
+✅ Producer created: 5f0c89f6-0e62-4670-8596-9e6979659553 (audio)
+[signaling] stereo bridge registered: bridge-stereo-15-16 → 5f0c89f6-0e62-4670-8596-9e6979659553
+✅ Producer created: 836e645a-6948-4afa-b899-caa5163195fa (audio)
+[signaling] stereo bridge registered: bridge-stereo-17-18 → 836e645a-6948-4afa-b899-caa5163195fa
+✅ Producer created: 1b64a6aa-33ce-46b7-8343-1badc07dc942 (audio)
+[signaling] stereo bridge registered: bridge-stereo-19-20 → 1b64a6aa-33ce-46b7-8343-1badc07dc942
+✅ Producer created: b8add768-f984-49db-b862-dafea6feb2ae (audio)
+[signaling] stereo bridge registered: bridge-stereo-21-22 → b8add768-f984-49db-b862-dafea6feb2ae
+✅ Producer created: d4f2c2ff-60c5-4969-a538-c85089f56b8f (audio)
+[signaling] stereo bridge registered: bridge-stereo-23-24 → d4f2c2ff-60c5-4969-a538-c85089f56b8f
+✅ Producer created: 92a421d2-0932-4477-ba45-bdf7c75250bb (audio)
+[signaling] stereo bridge registered: bridge-stereo-25-26 → 92a421d2-0932-4477-ba45-bdf7c75250bb
+✅ Producer created: ba50e735-bbf6-4e80-95cc-7303355a1738 (audio)
+[signaling] stereo bridge registered: bridge-stereo-27-28 → ba50e735-bbf6-4e80-95cc-7303355a1738
+✅ Producer created: d3226cbc-5dd5-4ee6-8a6b-13054960b57a (audio)
+[signaling] stereo bridge registered: bridge-stereo-29-30 → d3226cbc-5dd5-4ee6-8a6b-13054960b57a
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+[socket] disconnected: CuFqaK8yL3wWrAgmAAAD, reason: transport close
+[socket] closed recv transport 56b759e2-374e-41dc-a216-2710986f7be8 for CuFqaK8yL3wWrAgmAAAD
+⏹️  Capture stopped: CuFqaK8yL3wWrAgmAAAD
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1}]
+[signaling] routing broadcast: 0 effective / 1 total
+[signaling] all blocked by TB gating – stored: [{"from":"producer-65","to":"bridge-ch19","channel":1,"toChannel":1}]
+[mediasoup] createTransport "send" from 5-4bjQohy-0VLiwlAAAF
+[mediasoup] transport created: e240e4b7-d31e-41d0-b091-475efb5edbbe (send)
+[mediasoup] createTransport "recv" from 5-4bjQohy-0VLiwlAAAF
+[mediasoup] transport created: 72919df3-4e73-421f-8651-245ae5b441ad (recv)
+🎛️  Lydenheder: [1] Unknown USB Audio Device (1ch), [3] Mikrofon i PEter Sandager - iPhone 🤩 (1ch), [4] Universal Audio Thunderbolt (30ch)
+🎙️  Starter capture: device 4 (Universal Audio Thunderbolt) @ 48000Hz
+[signaling] default IFB: bridge-ch1 → host-ui ch1
+[signaling] routing sent to "host-ui" on register: 1 connections
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 2 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-0 ch1
+[signaling] routing sent to "client-1786052854690-0" on register: 3 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-1 ch1
+[signaling] routing sent to "client-1786052854690-1" on register: 4 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-2 ch1
+[signaling] routing sent to "client-1786052854690-2" on register: 5 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-3 ch1
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+🎙️  30 kanaler – 22 inputs, 8 outputs
+[audioOutput] registered device 4: max 8 output channels
+[signaling] output bridge channels: [19,20,21,22,23,24,25,26]
+✅ Producer created: 5c44e7a3-67a5-420f-8a0c-5906cc2e155e (audio)
+[signaling] bridge producer registered: bridge-ch1 → 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+✅ Producer created: f7d0e9d0-ed3c-4e65-bc2d-ea17e78e7096 (audio)
+[signaling] bridge producer registered: bridge-ch2 → f7d0e9d0-ed3c-4e65-bc2d-ea17e78e7096
+✅ Producer created: 1063a72f-c9be-486c-b75c-f659c2329c53 (audio)
+[signaling] bridge producer registered: bridge-ch3 → 1063a72f-c9be-486c-b75c-f659c2329c53
+✅ Producer created: 753a1299-db59-4256-922c-7f238924423d (audio)
+[signaling] bridge producer registered: bridge-ch4 → 753a1299-db59-4256-922c-7f238924423d
+✅ Producer created: f7bbebc1-cece-4f1f-80ed-ad07f1a34744 (audio)
+[signaling] bridge producer registered: bridge-ch5 → f7bbebc1-cece-4f1f-80ed-ad07f1a34744
+✅ Producer created: b297d913-f35e-4f12-bad7-5084f2646fee (audio)
+[signaling] bridge producer registered: bridge-ch6 → b297d913-f35e-4f12-bad7-5084f2646fee
+✅ Producer created: d43680d7-c94a-4670-bd0b-e63bb35f8c7a (audio)
+[signaling] bridge producer registered: bridge-ch7 → d43680d7-c94a-4670-bd0b-e63bb35f8c7a
+✅ Producer created: 6689f813-812c-48bd-8929-403f20dae8e9 (audio)
+[signaling] bridge producer registered: bridge-ch8 → 6689f813-812c-48bd-8929-403f20dae8e9
+✅ Producer created: 1935c5a2-8036-4b73-ba58-cdfab95e2a21 (audio)
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] bridge producer registered: bridge-ch9 → 1935c5a2-8036-4b73-ba58-cdfab95e2a21
+✅ Producer created: e2dc4862-553c-4928-9552-e45b57663cc3 (audio)
+[signaling] bridge producer registered: bridge-ch10 → e2dc4862-553c-4928-9552-e45b57663cc3
+✅ Producer created: b0475c9f-cacf-4266-abb0-f5f5a0376de3 (audio)
+[signaling] bridge producer registered: bridge-ch11 → b0475c9f-cacf-4266-abb0-f5f5a0376de3
+✅ Producer created: 5a8e8bec-599b-4f9d-8b34-ffab2827e2b2 (audio)
+[signaling] bridge producer registered: bridge-ch12 → 5a8e8bec-599b-4f9d-8b34-ffab2827e2b2
+✅ Producer created: 895a6e98-71b4-472e-b101-af87a8b15cce (audio)
+[signaling] bridge producer registered: bridge-ch13 → 895a6e98-71b4-472e-b101-af87a8b15cce
+✅ Producer created: 55588ac0-1e83-40d8-82a8-1da82212afd6 (audio)
+[signaling] bridge producer registered: bridge-ch14 → 55588ac0-1e83-40d8-82a8-1da82212afd6
+✅ Producer created: 2cc96aa6-ac38-4aa8-8e6b-fa3b36b89c37 (audio)
+[signaling] bridge producer registered: bridge-ch15 → 2cc96aa6-ac38-4aa8-8e6b-fa3b36b89c37
+✅ Producer created: 091aa15b-9f54-4d6e-be68-6a0b9e862527 (audio)
+[signaling] bridge producer registered: bridge-ch16 → 091aa15b-9f54-4d6e-be68-6a0b9e862527
+✅ Producer created: dcda9c74-a06e-4c07-980d-ff506576e96b (audio)
+[signaling] bridge producer registered: bridge-ch17 → dcda9c74-a06e-4c07-980d-ff506576e96b
+✅ Producer created: 6fcc2dea-4104-4a14-a9b3-aab391b600b0 (audio)
+[signaling] bridge producer registered: bridge-ch18 → 6fcc2dea-4104-4a14-a9b3-aab391b600b0
+✅ Producer created: c8dbae21-e9c1-4c12-a286-838bc8f38089 (audio)
+[signaling] bridge producer registered: bridge-ch19 → c8dbae21-e9c1-4c12-a286-838bc8f38089
+✅ Producer created: 91d314b6-c083-4ce7-ad3f-daeae1c879d8 (audio)
+[signaling] bridge producer registered: bridge-ch20 → 91d314b6-c083-4ce7-ad3f-daeae1c879d8
+✅ Producer created: cacbd42f-09d5-4b25-b2ae-463f98b00221 (audio)
+[signaling] bridge producer registered: bridge-ch21 → cacbd42f-09d5-4b25-b2ae-463f98b00221
+✅ Producer created: 622ebd45-c89d-49e6-a717-0c3a04f47654 (audio)
+[signaling] bridge producer registered: bridge-ch22 → 622ebd45-c89d-49e6-a717-0c3a04f47654
+✅ Producer created: a9944dd9-a7f5-4b49-8c1a-038ef3129460 (audio)
+[signaling] bridge producer registered: bridge-ch23 → a9944dd9-a7f5-4b49-8c1a-038ef3129460
+✅ Producer created: b57640d8-e080-4b7f-98f6-18bcaeace916 (audio)
+[signaling] bridge producer registered: bridge-ch24 → b57640d8-e080-4b7f-98f6-18bcaeace916
+✅ Producer created: 86647455-19fd-4219-9048-a51e36afa566 (audio)
+[signaling] bridge producer registered: bridge-ch25 → 86647455-19fd-4219-9048-a51e36afa566
+✅ Producer created: 1a22f762-a3e9-4151-adec-c212a29fd0c7 (audio)
+[signaling] bridge producer registered: bridge-ch26 → 1a22f762-a3e9-4151-adec-c212a29fd0c7
+✅ Producer created: e4dbcce4-ed48-47e4-8f3b-9acb861e9af0 (audio)
+[signaling] bridge producer registered: bridge-ch27 → e4dbcce4-ed48-47e4-8f3b-9acb861e9af0
+✅ Producer created: 573efbc5-fa7c-4bc5-a201-fcb49beadf8d (audio)
+[signaling] bridge producer registered: bridge-ch28 → 573efbc5-fa7c-4bc5-a201-fcb49beadf8d
+✅ Producer created: 7c2b8040-1e62-4843-a2b3-cf425fc5668d (audio)
+[signaling] bridge producer registered: bridge-ch29 → 7c2b8040-1e62-4843-a2b3-cf425fc5668d
+✅ Producer created: 6ae5d18d-7ba1-4381-b005-69b203ee9873 (audio)
+[signaling] bridge producer registered: bridge-ch30 → 6ae5d18d-7ba1-4381-b005-69b203ee9873
+✅ Producer created: 8cd59b06-98a0-42dd-bc1d-3193b62bdfe0 (audio)
+[signaling] stereo bridge registered: bridge-stereo-1-2 → 8cd59b06-98a0-42dd-bc1d-3193b62bdfe0
+✅ Producer created: 7053703b-bad1-446e-9c2b-dda2dfc3e718 (audio)
+[signaling] stereo bridge registered: bridge-stereo-3-4 → 7053703b-bad1-446e-9c2b-dda2dfc3e718
+✅ Producer created: 1e8dc578-0997-4516-82ee-7334c2653bb1 (audio)
+[signaling] stereo bridge registered: bridge-stereo-5-6 → 1e8dc578-0997-4516-82ee-7334c2653bb1
+✅ Producer created: f18426dc-0c55-43b9-92dc-eb7c10fa0a8a (audio)
+[signaling] stereo bridge registered: bridge-stereo-7-8 → f18426dc-0c55-43b9-92dc-eb7c10fa0a8a
+✅ Producer created: c55f98ad-3503-44d8-aa15-76f4c3249cfb (audio)
+[signaling] stereo bridge registered: bridge-stereo-9-10 → c55f98ad-3503-44d8-aa15-76f4c3249cfb
+✅ Producer created: d72bc484-fecb-4e80-83d0-4095cb34d5b8 (audio)
+[signaling] stereo bridge registered: bridge-stereo-11-12 → d72bc484-fecb-4e80-83d0-4095cb34d5b8
+✅ Producer created: 3b9fe8bc-0b3b-44d6-9440-79a8c108f84c (audio)
+[signaling] stereo bridge registered: bridge-stereo-13-14 → 3b9fe8bc-0b3b-44d6-9440-79a8c108f84c
+✅ Producer created: 28755554-8df0-484a-8dd9-dee14b56190f (audio)
+[signaling] stereo bridge registered: bridge-stereo-15-16 → 28755554-8df0-484a-8dd9-dee14b56190f
+✅ Producer created: d34c5a79-c08f-4a4b-bd0e-2fdab10f034e (audio)
+[signaling] stereo bridge registered: bridge-stereo-17-18 → d34c5a79-c08f-4a4b-bd0e-2fdab10f034e
+✅ Producer created: b1da7665-53b5-4dac-be85-de687196acd1 (audio)
+[signaling] stereo bridge registered: bridge-stereo-19-20 → b1da7665-53b5-4dac-be85-de687196acd1
+✅ Producer created: 41f443b9-5040-46e1-bee8-31fdc3e21aff (audio)
+[signaling] stereo bridge registered: bridge-stereo-21-22 → 41f443b9-5040-46e1-bee8-31fdc3e21aff
+✅ Producer created: 9200e197-12fd-4264-9a5d-53d3aa551faf (audio)
+[signaling] stereo bridge registered: bridge-stereo-23-24 → 9200e197-12fd-4264-9a5d-53d3aa551faf
+✅ Producer created: 477bd300-68e7-4355-8c7c-95b3195d600c (audio)
+[signaling] stereo bridge registered: bridge-stereo-25-26 → 477bd300-68e7-4355-8c7c-95b3195d600c
+✅ Producer created: c53746b1-24da-4efc-872d-683155db5633 (audio)
+[signaling] stereo bridge registered: bridge-stereo-27-28 → c53746b1-24da-4efc-872d-683155db5633
+✅ Producer created: 5eb66fdb-c1d7-48a1-b4a0-01d7ea762876 (audio)
+[signaling] stereo bridge registered: bridge-stereo-29-30 → 5eb66fdb-c1d7-48a1-b4a0-01d7ea762876
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[mediasoup] createTransport "send" from UGnhyryud5AuBLg-AAAH
+[mediasoup] createTransport "recv" from UGnhyryud5AuBLg-AAAH
+[mediasoup] transport created: d26017b6-efc0-4795-a147-3d9f26e40024 (send)
+[mediasoup] transport created: e06ace9a-a629-4c40-b784-330342b9b4e1 (recv)
+✅ Producer created: 05328ac9-19f3-47fb-966d-2a329ae8eab8 (audio)
+[signaling] talknames from client-0: {"talk1":"Producer","talk2":"Talk 2","talk3":"Talk 3","talk4":"Talk 4"}
+[signaling] producer registered: client-0 → 05328ac9-19f3-47fb-966d-2a329ae8eab8
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+✅ Producer created: 962aee4c-ffda-4648-a9b8-4d8ec452de31 (video)
+[signaling] VIDEO producer registered: video-source-1 → 962aee4c-ffda-4648-a9b8-4d8ec452de31
+✅ Producer created: fed450a2-6759-4498-8587-478f9edb66e4 (video)
+[signaling] VIDEO producer registered: video-source-2 → fed450a2-6759-4498-8587-478f9edb66e4
+✅ Producer created: 68cbd88d-0eee-43bc-a5f0-fd57a39dd745 (video)
+[signaling] VIDEO producer registered: video-source-3 → 68cbd88d-0eee-43bc-a5f0-fd57a39dd745
+✅ Producer created: 8d22ed66-53e6-44c6-9077-2f8069adcf73 (video)
+[signaling] VIDEO producer registered: video-source-4 → 8d22ed66-53e6-44c6-9077-2f8069adcf73
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-2 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] video:direct:offer for video-source-3 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-4 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video routing: client-0 → sources [1,0] (prev: [])
+[signaling] socket for client-0: UGnhyryud5AuBLg-AAAH
+[signaling] → host: send offers til UGnhyryud5AuBLg-AAAH for client-0
+[signaling] video routing: client-0 → sources [1,0] (prev: [1,0])
+[signaling] socket for client-0: UGnhyryud5AuBLg-AAAH
+[signaling] video:direct:offer for preview-slot1 → specifik socket UGnhyryud5AuBLg-AAAH
+[signaling] video routing: client-0 → sources [1,2] (prev: [1,0])
+[signaling] socket for client-0: UGnhyryud5AuBLg-AAAH
+[signaling] → host: send offers til UGnhyryud5AuBLg-AAAH for client-0
+[signaling] video routing: client-0 → sources [1,2] (prev: [1,2])
+[signaling] socket for client-0: UGnhyryud5AuBLg-AAAH
+[signaling] video:direct:offer for preview-slot1 → specifik socket UGnhyryud5AuBLg-AAAH
+[signaling] video:direct:offer for preview-slot2 → specifik socket UGnhyryud5AuBLg-AAAH
+✅ Producer created: 4c1cc2e0-5993-499b-9273-e00f50b16ccd (video)
+✅ Producer created: 886a0b89-f136-40e1-8a19-2b4e8b868ec3 (audio)
+[signaling] VIDEO producer registered: video-source-1 → 4c1cc2e0-5993-499b-9273-e00f50b16ccd
+[signaling] producer registered: video-audio-source-1 → 886a0b89-f136-40e1-8a19-2b4e8b868ec3
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[consume:request] UGnhyryud5AuBLg-AAAH → "bridge-ch1" (audio)
+✅ Consumer created: adce2a8d-57d3-4384-88c1-542a457c626e → producer 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+[signaling] consumer resumed: adce2a8d-57d3-4384-88c1-542a457c626e
+[consume:request] UGnhyryud5AuBLg-AAAH → "video-source-1" (video)
+✅ Consumer created: 42641f9b-4f09-48c8-9172-5a2286651321 → producer 4c1cc2e0-5993-499b-9273-e00f50b16ccd
+[signaling] video consumer created (paused, waiting for client ready): 42641f9b-4f09-48c8-9172-5a2286651321
+[consume:request] UGnhyryud5AuBLg-AAAH → "bridge-ch1" (audio)
+✅ Consumer created: a9897fb6-7659-4357-81ee-f49ea22bcf4d → producer 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+[signaling] consumer resumed: a9897fb6-7659-4357-81ee-f49ea22bcf4d
+[consume:request] UGnhyryud5AuBLg-AAAH → "bridge-ch1" (audio)
+✅ Consumer created: 9eaef20e-932e-4e6c-80e1-0526baaa1a58 → producer 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+[signaling] consumer resumed: 9eaef20e-932e-4e6c-80e1-0526baaa1a58
+[consume:request] UGnhyryud5AuBLg-AAAH → "video-source-1" (video)
+[consume:request] closed stale video consumer 42641f9b-4f09-48c8-9172-5a2286651321 for "video-source-1"
+✅ Consumer created: bb0c439a-92b6-4e3c-8e07-61b9a226eb19 → producer 4c1cc2e0-5993-499b-9273-e00f50b16ccd
+[signaling] video consumer created (paused, waiting for client ready): bb0c439a-92b6-4e3c-8e07-61b9a226eb19
+[consume:request] UGnhyryud5AuBLg-AAAH → "bridge-ch1" (audio)
+✅ Consumer created: 27a89f1e-edf7-4632-a822-39a95f7c6654 → producer 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+[signaling] consumer resumed: 27a89f1e-edf7-4632-a822-39a95f7c6654
+[consume:request] UGnhyryud5AuBLg-AAAH → "video-source-1" (video)
+[consume:request] closed stale video consumer bb0c439a-92b6-4e3c-8e07-61b9a226eb19 for "video-source-1"
+✅ Consumer created: ebb053e5-1ad9-47d7-a70a-b721d452286c → producer 4c1cc2e0-5993-499b-9273-e00f50b16ccd
+[signaling] video consumer created (paused, waiting for client ready): ebb053e5-1ad9-47d7-a70a-b721d452286c
+[consume:request] UGnhyryud5AuBLg-AAAH → "bridge-ch1" (audio)
+✅ Consumer created: 1ff14af4-db17-4f34-9d47-0c326ac7c5db → producer 5c44e7a3-67a5-420f-8a0c-5906cc2e155e
+[signaling] consumer resumed: 1ff14af4-db17-4f34-9d47-0c326ac7c5db
+[socket] disconnected: UGnhyryud5AuBLg-AAAH, reason: ping timeout
+[socket] closed recv transport e06ace9a-a629-4c40-b784-330342b9b4e1 for UGnhyryud5AuBLg-AAAH
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[tunnel] process exited (code 11)
+[socket] disconnected: 5-4bjQohy-0VLiwlAAAF, reason: ping timeout
+[socket] closed recv transport 72919df3-4e73-421f-8651-245ae5b441ad for 5-4bjQohy-0VLiwlAAAF
+⏹️  Capture stopped: 5-4bjQohy-0VLiwlAAAF
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] routing broadcast: 0 effective / 1 total
+[signaling] all blocked by TB gating – stored: [{"from":"producer-65","to":"bridge-ch19","channel":1,"toChannel":1}]
+[socket] disconnected: QiHrtVIUb24QfGpPAAAK, reason: transport close
+[mediasoup] createTransport "send" from IEColV2SVFMdnODAAAAM
+[mediasoup] transport created: e15fea7d-0335-4f22-8840-7e505d8e7b9f (send)
+[mediasoup] createTransport "recv" from IEColV2SVFMdnODAAAAM
+[mediasoup] transport created: c0941761-cdd2-4b2b-9935-4e20a7575e1a (recv)
+🎛️  Lydenheder: [1] Unknown USB Audio Device (1ch), [3] Mikrofon i PEter Sandager - iPhone 🤩 (1ch)
+🎙️  Starter capture: device 1 (Unknown USB Audio Device) @ 48000Hz
+[signaling] default IFB: bridge-ch1 → host-ui ch1
+[signaling] routing sent to "host-ui" on register: 1 connections
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 2 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-0 ch1
+[signaling] routing sent to "client-1786052854690-0" on register: 3 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-1 ch1
+[signaling] routing sent to "client-1786052854690-1" on register: 4 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-2 ch1
+[signaling] routing sent to "client-1786052854690-2" on register: 5 connections
+[signaling] replicated IFB: bridge-ch1 → client-1786052854690-3 ch1
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+🎙️  1 kanaler – 1 inputs, 0 outputs
+[signaling] output bridge channels: []
+✅ Producer created: dd924ac4-941c-46e2-8e30-05436a1f2ba5 (audio)
+[signaling] bridge producer registered: bridge-ch1 → dd924ac4-941c-46e2-8e30-05436a1f2ba5
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[mediasoup] createTransport "send" from ZNUpJAPxNTuQB7FpAAAO
+[mediasoup] transport created: a3a1e445-0395-4253-b83a-40cee233b3e5 (send)
+[mediasoup] createTransport "recv" from ZNUpJAPxNTuQB7FpAAAO
+[mediasoup] transport created: d9a69272-7ef8-45c2-8140-3744131b8e46 (recv)
+✅ Producer created: 2eab1265-cb16-476f-a0b8-8c8b99860849 (audio)
+[signaling] talknames from client-0: {"talk1":"Producer","talk2":"Talk 2","talk3":"Talk 3","talk4":"Talk 4"}
+[signaling] producer registered: client-0 → 2eab1265-cb16-476f-a0b8-8c8b99860849
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[consume:request] ZNUpJAPxNTuQB7FpAAAO → "bridge-ch1" (audio)
+✅ Consumer created: b9bb0946-b5fd-4ce6-bfeb-3fec09d9cd6e → producer dd924ac4-941c-46e2-8e30-05436a1f2ba5
+[signaling] consumer resumed: b9bb0946-b5fd-4ce6-bfeb-3fec09d9cd6e
+✅ Producer created: 83b15e0d-f2d6-4a05-8f78-97e3f4e24d01 (video)
+[signaling] VIDEO producer registered: video-source-1 → 83b15e0d-f2d6-4a05-8f78-97e3f4e24d01
+✅ Producer created: 2eb65080-cc83-44c6-8216-ad023f873c7b (video)
+[signaling] VIDEO producer registered: video-source-2 → 2eb65080-cc83-44c6-8216-ad023f873c7b
+✅ Producer created: b52e873a-4be1-4b7e-b75a-984b4690cbb2 (video)
+[signaling] VIDEO producer registered: video-source-3 → b52e873a-4be1-4b7e-b75a-984b4690cbb2
+✅ Producer created: 4118e0d3-4e45-4956-b5fd-e43f3896f155 (video)
+[signaling] VIDEO producer registered: video-source-4 → 4118e0d3-4e45-4956-b5fd-e43f3896f155
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-2 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 2 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-3 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 3 i routing [1,2] – springer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-4 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 4 i routing [1,2] – springer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+✅ Producer created: 652a862a-ff11-42e8-a779-014726366bcc (video)
+✅ Producer created: c2526782-9139-49fd-ab08-fd28282f1e95 (audio)
+[signaling] VIDEO producer registered: video-source-1 → 652a862a-ff11-42e8-a779-014726366bcc
+[signaling] producer registered: video-audio-source-1 → c2526782-9139-49fd-ab08-fd28282f1e95
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[consume:request] ZNUpJAPxNTuQB7FpAAAO → "video-source-1" (video)
+✅ Consumer created: 48497250-46b2-4416-a41e-249035638fbc → producer 652a862a-ff11-42e8-a779-014726366bcc
+[signaling] video consumer created (paused, waiting for client ready): 48497250-46b2-4416-a41e-249035638fbc
+[socket] disconnected: ZNUpJAPxNTuQB7FpAAAO, reason: ping timeout
+[socket] closed recv transport d9a69272-7ef8-45c2-8140-3744131b8e46 for ZNUpJAPxNTuQB7FpAAAO
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[mediasoup] createTransport "recv" from 98JQh7PBuLcf_2BsAAAR
+[mediasoup] transport created: 3be30977-139b-4f94-b307-bd86b763a2d4 (recv)
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 6 connections
+[consume:request] 98JQh7PBuLcf_2BsAAAR → "bridge-ch1" (audio)
+✅ Consumer created: c53581e7-5024-48f6-8b50-2c822bd98dda → producer dd924ac4-941c-46e2-8e30-05436a1f2ba5
+[signaling] consumer resumed: c53581e7-5024-48f6-8b50-2c822bd98dda
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[consume:request] 98JQh7PBuLcf_2BsAAAR → "video-source-1" (video)
+[consume:request] 98JQh7PBuLcf_2BsAAAR → "video-source-2" (video)
+✅ Consumer created: c1fc5dd2-5372-4510-9860-b7626f8001cb → producer 652a862a-ff11-42e8-a779-014726366bcc
+✅ Consumer created: 909a8acc-2bd6-4184-ad0b-3999205260fc → producer 2eb65080-cc83-44c6-8216-ad023f873c7b
+[signaling] video consumer created (paused, waiting for client ready): c1fc5dd2-5372-4510-9860-b7626f8001cb
+[signaling] video consumer created (paused, waiting for client ready): 909a8acc-2bd6-4184-ad0b-3999205260fc
+[signaling] consumer resumed: c1fc5dd2-5372-4510-9860-b7626f8001cb (kind: video)
+[signaling] consumer resumed: 909a8acc-2bd6-4184-ad0b-3999205260fc (kind: video)
+[consume:request] 98JQh7PBuLcf_2BsAAAR → "video-audio-source-1" (audio)
+✅ Consumer created: 494a3753-8b50-49d9-8386-7c995c6b0039 → producer c2526782-9139-49fd-ab08-fd28282f1e95
+[signaling] consumer resumed: 494a3753-8b50-49d9-8386-7c995c6b0039
+[consume:request] 98JQh7PBuLcf_2BsAAAR → "video-audio-source-2" (audio)
+[signaling] no producer for "video-audio-source-2" – queuing consume:request (5 s)
+[signaling] consumer resumed: 494a3753-8b50-49d9-8386-7c995c6b0039 (kind: audio)
+[socket] disconnected: 98JQh7PBuLcf_2BsAAAR, reason: transport error
+[socket] closed recv transport 3be30977-139b-4f94-b307-bd86b763a2d4 for 98JQh7PBuLcf_2BsAAAR
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[mediasoup] createTransport "recv" from KM2M7cs5zcd_Y2MfAAAT
+[mediasoup] transport created: d25a7ca5-af2e-49d9-9b7d-d403c95b880e (recv)
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[consume:request] KM2M7cs5zcd_Y2MfAAAT → "video-source-1" (video)
+[consume:request] KM2M7cs5zcd_Y2MfAAAT → "video-source-2" (video)
+[consume:request] KM2M7cs5zcd_Y2MfAAAT → "bridge-ch1" (audio)
+✅ Consumer created: 24ebe564-97bc-47c7-8eba-a70442ddb416 → producer 652a862a-ff11-42e8-a779-014726366bcc
+✅ Consumer created: d6dafd5c-11d2-49a8-89c3-5eb65d130883 → producer 2eb65080-cc83-44c6-8216-ad023f873c7b
+✅ Consumer created: 24cd3b5f-22fb-47ed-8ffb-6df0bf7ded15 → producer dd924ac4-941c-46e2-8e30-05436a1f2ba5
+[signaling] video consumer created (paused, waiting for client ready): 24ebe564-97bc-47c7-8eba-a70442ddb416
+[signaling] video consumer created (paused, waiting for client ready): d6dafd5c-11d2-49a8-89c3-5eb65d130883
+[signaling] consumer resumed: 24cd3b5f-22fb-47ed-8ffb-6df0bf7ded15
+[signaling] consumer resumed: 24ebe564-97bc-47c7-8eba-a70442ddb416 (kind: video)
+[signaling] consumer resumed: d6dafd5c-11d2-49a8-89c3-5eb65d130883 (kind: video)
+[consume:request] KM2M7cs5zcd_Y2MfAAAT → "video-audio-source-1" (audio)
+✅ Consumer created: 76c9052c-d2c5-4703-bc7c-595019db9e6f → producer c2526782-9139-49fd-ab08-fd28282f1e95
+[signaling] consumer resumed: 76c9052c-d2c5-4703-bc7c-595019db9e6f
+[consume:request] KM2M7cs5zcd_Y2MfAAAT → "video-audio-source-2" (audio)
+[signaling] no producer for "video-audio-source-2" – queuing consume:request (5 s)
+[signaling] consumer resumed: 76c9052c-d2c5-4703-bc7c-595019db9e6f (kind: audio)
+[socket] disconnected: KM2M7cs5zcd_Y2MfAAAT, reason: ping timeout
+[socket] closed recv transport d25a7ca5-af2e-49d9-9b7d-d403c95b880e for KM2M7cs5zcd_Y2MfAAAT
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[socket] disconnected: IEColV2SVFMdnODAAAAM, reason: transport close
+[socket] closed recv transport c0941761-cdd2-4b2b-9935-4e20a7575e1a for IEColV2SVFMdnODAAAAM
+⏹️  Capture stopped: IEColV2SVFMdnODAAAAM
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+🎛️  Lydenheder: [1] HELIX Audio (8ch), [2] Unknown USB Audio Device (1ch), [4] Mikrofon i PEter Sandager - iPhone 🤩 (1ch), [5] Universal Audio Thunderbolt (30ch)
+[mediasoup] createTransport "send" from l3chHn4hwNAr4pzaAAAV
+🎙️  Starter capture: device 5 (Universal Audio Thunderbolt) @ 48000Hz
+[mediasoup] transport created: 34990bd4-4a15-46ff-816c-75198d61df69 (send)
+[mediasoup] createTransport "recv" from l3chHn4hwNAr4pzaAAAV
+[mediasoup] transport created: ac051247-af04-48ce-b7ab-ef15a1fa7a83 (recv)
+[signaling] routing sent to "host-ui" on register: 5 connections
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-1" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-2" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+🎙️  30 kanaler – 22 inputs, 8 outputs
+[audioOutput] registered device 5: max 8 output channels
+[signaling] output bridge channels: [19,20,21,22,23,24,25,26]
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+✅ Producer created: 10ffd1f5-f57b-427d-bcc7-ab0d347d8991 (audio)
+[signaling] bridge producer registered: bridge-ch1 → 10ffd1f5-f57b-427d-bcc7-ab0d347d8991
+✅ Producer created: 7e6c86fb-b3b8-449e-84d1-1b116db1b363 (audio)
+[signaling] bridge producer registered: bridge-ch2 → 7e6c86fb-b3b8-449e-84d1-1b116db1b363
+✅ Producer created: 0c26e92d-9919-4be0-82a6-d883486f5865 (audio)
+[signaling] bridge producer registered: bridge-ch3 → 0c26e92d-9919-4be0-82a6-d883486f5865
+✅ Producer created: 175dcedf-08a7-4d15-88ab-d3b9363dfbf4 (audio)
+[signaling] bridge producer registered: bridge-ch4 → 175dcedf-08a7-4d15-88ab-d3b9363dfbf4
+✅ Producer created: aa54e8ea-d9ab-4422-8b7f-7400ad69b6a4 (audio)
+[signaling] bridge producer registered: bridge-ch5 → aa54e8ea-d9ab-4422-8b7f-7400ad69b6a4
+✅ Producer created: 06e27119-163b-48c1-ab3e-b691b3572be3 (audio)
+[signaling] bridge producer registered: bridge-ch6 → 06e27119-163b-48c1-ab3e-b691b3572be3
+✅ Producer created: 9cab9d8d-c5ad-4877-b1bf-243dcbdf3309 (audio)
+[signaling] bridge producer registered: bridge-ch7 → 9cab9d8d-c5ad-4877-b1bf-243dcbdf3309
+✅ Producer created: 2820566e-8485-403f-9c8e-8552a6d363d2 (audio)
+[signaling] bridge producer registered: bridge-ch8 → 2820566e-8485-403f-9c8e-8552a6d363d2
+✅ Producer created: e8768409-3bab-4d36-9cb7-71415f01110f (audio)
+[signaling] bridge producer registered: bridge-ch9 → e8768409-3bab-4d36-9cb7-71415f01110f
+✅ Producer created: 1786db48-2b37-4664-b3f5-6bb1784bf92f (audio)
+[signaling] bridge producer registered: bridge-ch10 → 1786db48-2b37-4664-b3f5-6bb1784bf92f
+✅ Producer created: f4d1206e-f66b-40f1-a1e3-1ffecd7769a3 (audio)
+[signaling] bridge producer registered: bridge-ch11 → f4d1206e-f66b-40f1-a1e3-1ffecd7769a3
+✅ Producer created: 05024765-754d-40fa-8526-c09467835bb2 (audio)
+[signaling] bridge producer registered: bridge-ch12 → 05024765-754d-40fa-8526-c09467835bb2
+✅ Producer created: b8a5eb4b-6e1a-46fc-88a7-3e0eb0b50995 (audio)
+[signaling] bridge producer registered: bridge-ch13 → b8a5eb4b-6e1a-46fc-88a7-3e0eb0b50995
+✅ Producer created: d625bea8-a737-45f5-8d98-89705a45d909 (audio)
+[signaling] bridge producer registered: bridge-ch14 → d625bea8-a737-45f5-8d98-89705a45d909
+✅ Producer created: eae7b3cd-8caa-4d4d-9375-a880a3e83486 (audio)
+[signaling] bridge producer registered: bridge-ch15 → eae7b3cd-8caa-4d4d-9375-a880a3e83486
+✅ Producer created: f32205b3-2ed6-405d-9722-ab4be10d0bf7 (audio)
+[signaling] bridge producer registered: bridge-ch16 → f32205b3-2ed6-405d-9722-ab4be10d0bf7
+✅ Producer created: efa77998-1cad-4a28-ad63-4b04bed8c1c3 (audio)
+[signaling] bridge producer registered: bridge-ch17 → efa77998-1cad-4a28-ad63-4b04bed8c1c3
+✅ Producer created: 3a71a356-c567-4d79-b956-46f86a531a83 (audio)
+[signaling] bridge producer registered: bridge-ch18 → 3a71a356-c567-4d79-b956-46f86a531a83
+✅ Producer created: 540fcab8-f64c-47f7-8258-c7ece21c2e1e (audio)
+[signaling] bridge producer registered: bridge-ch19 → 540fcab8-f64c-47f7-8258-c7ece21c2e1e
+✅ Producer created: a71bb2c1-d115-4193-b87c-d023619586da (audio)
+[signaling] bridge producer registered: bridge-ch20 → a71bb2c1-d115-4193-b87c-d023619586da
+✅ Producer created: bb89886b-0f12-4737-b7f4-1b081693d1ab (audio)
+[signaling] bridge producer registered: bridge-ch21 → bb89886b-0f12-4737-b7f4-1b081693d1ab
+✅ Producer created: d15b9baf-40e8-4598-a942-748b679009bd (audio)
+[signaling] bridge producer registered: bridge-ch22 → d15b9baf-40e8-4598-a942-748b679009bd
+✅ Producer created: 0f9d9672-1bed-4fc8-b8a6-b425b7f79491 (audio)
+[signaling] bridge producer registered: bridge-ch23 → 0f9d9672-1bed-4fc8-b8a6-b425b7f79491
+✅ Producer created: 8e556d94-613f-49c8-a9ff-af7cba067ee1 (audio)
+[signaling] bridge producer registered: bridge-ch24 → 8e556d94-613f-49c8-a9ff-af7cba067ee1
+✅ Producer created: d1d150ec-7189-4c64-9e6f-363003198730 (audio)
+[signaling] bridge producer registered: bridge-ch25 → d1d150ec-7189-4c64-9e6f-363003198730
+✅ Producer created: 483a22cd-0dee-4ee5-aeec-b74ea57b9863 (audio)
+[signaling] bridge producer registered: bridge-ch26 → 483a22cd-0dee-4ee5-aeec-b74ea57b9863
+✅ Producer created: 70a6d612-6ab8-49f3-95f6-bc012c54e5b1 (audio)
+[signaling] bridge producer registered: bridge-ch27 → 70a6d612-6ab8-49f3-95f6-bc012c54e5b1
+✅ Producer created: 06315b38-d89b-45f8-8f91-adf796e03907 (audio)
+[signaling] bridge producer registered: bridge-ch28 → 06315b38-d89b-45f8-8f91-adf796e03907
+✅ Producer created: 8b1f1817-ef56-40e2-842d-35fbeecfa227 (audio)
+[signaling] bridge producer registered: bridge-ch29 → 8b1f1817-ef56-40e2-842d-35fbeecfa227
+✅ Producer created: 99c6a809-46a3-475c-8d2a-61639eac17b6 (audio)
+[signaling] bridge producer registered: bridge-ch30 → 99c6a809-46a3-475c-8d2a-61639eac17b6
+✅ Producer created: 1123859f-5209-4d2f-95de-deca64ba95f6 (audio)
+[signaling] stereo bridge registered: bridge-stereo-1-2 → 1123859f-5209-4d2f-95de-deca64ba95f6
+✅ Producer created: 1fcf27b5-759f-4fb7-a24d-d757b7b366c0 (audio)
+[signaling] stereo bridge registered: bridge-stereo-3-4 → 1fcf27b5-759f-4fb7-a24d-d757b7b366c0
+✅ Producer created: d13fd86e-0984-4689-b798-1871f0d28785 (audio)
+[signaling] stereo bridge registered: bridge-stereo-5-6 → d13fd86e-0984-4689-b798-1871f0d28785
+✅ Producer created: 19f1a31c-189a-4b28-a66b-da496c171722 (audio)
+[signaling] stereo bridge registered: bridge-stereo-7-8 → 19f1a31c-189a-4b28-a66b-da496c171722
+✅ Producer created: 39dec0b7-0bdf-4603-8401-1efc64a941e7 (audio)
+[signaling] stereo bridge registered: bridge-stereo-9-10 → 39dec0b7-0bdf-4603-8401-1efc64a941e7
+✅ Producer created: 8c77dd6a-d7be-4b60-a289-d1dc6865fe85 (audio)
+[signaling] stereo bridge registered: bridge-stereo-11-12 → 8c77dd6a-d7be-4b60-a289-d1dc6865fe85
+✅ Producer created: 98c8e70f-2748-4e94-8ad1-2ab802e2e6c1 (audio)
+[signaling] stereo bridge registered: bridge-stereo-13-14 → 98c8e70f-2748-4e94-8ad1-2ab802e2e6c1
+✅ Producer created: 99b9a50f-a1d8-4bad-a10a-0f4342f7672a (audio)
+[signaling] stereo bridge registered: bridge-stereo-15-16 → 99b9a50f-a1d8-4bad-a10a-0f4342f7672a
+✅ Producer created: 173c0cbc-f577-4cad-be44-c9cfe8db0619 (audio)
+[signaling] stereo bridge registered: bridge-stereo-17-18 → 173c0cbc-f577-4cad-be44-c9cfe8db0619
+✅ Producer created: 890977a9-a32d-4be9-97c5-5517e5e50bd5 (audio)
+[signaling] stereo bridge registered: bridge-stereo-19-20 → 890977a9-a32d-4be9-97c5-5517e5e50bd5
+✅ Producer created: 7ca1b12e-439e-4b5b-8ee6-0bfbd23ff50e (audio)
+[signaling] stereo bridge registered: bridge-stereo-21-22 → 7ca1b12e-439e-4b5b-8ee6-0bfbd23ff50e
+✅ Producer created: f130fc55-18bb-4697-83c0-2628eb4efc49 (audio)
+[signaling] stereo bridge registered: bridge-stereo-23-24 → f130fc55-18bb-4697-83c0-2628eb4efc49
+✅ Producer created: d353200e-5985-442a-8f12-b696ce332573 (audio)
+[signaling] stereo bridge registered: bridge-stereo-25-26 → d353200e-5985-442a-8f12-b696ce332573
+✅ Producer created: a8720472-aeed-4f3f-aa01-2d13e95773ec (audio)
+[signaling] stereo bridge registered: bridge-stereo-27-28 → a8720472-aeed-4f3f-aa01-2d13e95773ec
+✅ Producer created: 100b4969-ae02-4547-b3db-feb767ad83c3 (audio)
+[signaling] stereo bridge registered: bridge-stereo-29-30 → 100b4969-ae02-4547-b3db-feb767ad83c3
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[mediasoup] createTransport "send" from UiVynN-w2RhIY3IgAAAX
+[mediasoup] transport created: f94e94d3-e425-472f-a66f-662d048c1e4f (send)
+[mediasoup] createTransport "recv" from UiVynN-w2RhIY3IgAAAX
+[mediasoup] transport created: 71e3500c-8862-43ea-ab08-ac9117111357 (recv)
+✅ Producer created: 2f7d50d7-348b-41d0-8fb6-e1568d65db9d (audio)
+[signaling] talknames from client-0: {"talk1":"Producer","talk2":"Talk 2","talk3":"Talk 3","talk4":"Talk 4"}
+[signaling] producer registered: client-0 → 2f7d50d7-348b-41d0-8fb6-e1568d65db9d
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[consume:request] UiVynN-w2RhIY3IgAAAX → "bridge-ch1" (audio)
+✅ Consumer created: 3fb2373e-e718-4561-bbb7-474d15260c0a → producer 10ffd1f5-f57b-427d-bcc7-ab0d347d8991
+[signaling] consumer resumed: 3fb2373e-e718-4561-bbb7-474d15260c0a
+[socket] disconnected: l3chHn4hwNAr4pzaAAAV, reason: transport close
+[socket] closed recv transport ac051247-af04-48ce-b7ab-ef15a1fa7a83 for l3chHn4hwNAr4pzaAAAV
+⏹️  Capture stopped: l3chHn4hwNAr4pzaAAAV
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+🎛️  Lydenheder: [1] Unknown USB Audio Device (1ch), [3] Mikrofon i PEter Sandager - iPhone 🤩 (1ch), [4] Universal Audio Thunderbolt (30ch)
+🎙️  Starter capture: device 4 (Universal Audio Thunderbolt) @ 48000Hz
+[mediasoup] createTransport "send" from q4xmayuVW5W24KnjAAAZ
+[mediasoup] transport created: b9c1f91b-3512-42bd-b6fd-fce75a8f04dc (send)
+[mediasoup] createTransport "recv" from q4xmayuVW5W24KnjAAAZ
+[mediasoup] transport created: 13ccbb42-473f-4e4e-a6f5-934697d166f8 (recv)
+[signaling] routing sent to "host-ui" on register: 6 connections
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-1" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-2" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+🎙️  30 kanaler – 22 inputs, 8 outputs
+[audioOutput] registered device 4: max 8 output channels
+[signaling] output bridge channels: [19,20,21,22,23,24,25,26]
+✅ Producer created: 5521c79d-e3c4-4e19-9fae-aba6ac9ea0bf (audio)
+[signaling] bridge producer registered: bridge-ch1 → 5521c79d-e3c4-4e19-9fae-aba6ac9ea0bf
+✅ Producer created: 5e3f98d9-3b7e-41fe-ad75-10f3258285ca (audio)
+[signaling] bridge producer registered: bridge-ch2 → 5e3f98d9-3b7e-41fe-ad75-10f3258285ca
+✅ Producer created: b58f818e-8f31-44b6-b380-5b15f4176d79 (audio)
+[signaling] bridge producer registered: bridge-ch3 → b58f818e-8f31-44b6-b380-5b15f4176d79
+✅ Producer created: 2a57ff5e-150f-4ddf-8175-0e506708e5bf (audio)
+[signaling] bridge producer registered: bridge-ch4 → 2a57ff5e-150f-4ddf-8175-0e506708e5bf
+✅ Producer created: ecb83091-c850-45cc-b7c5-e9f8fc121e62 (audio)
+[signaling] bridge producer registered: bridge-ch5 → ecb83091-c850-45cc-b7c5-e9f8fc121e62
+✅ Producer created: e309c659-2603-4bca-b878-4daf947c66fe (audio)
+[signaling] bridge producer registered: bridge-ch6 → e309c659-2603-4bca-b878-4daf947c66fe
+✅ Producer created: d3acc512-3571-4a76-b7a6-8d7f5da30bb1 (audio)
+[signaling] bridge producer registered: bridge-ch7 → d3acc512-3571-4a76-b7a6-8d7f5da30bb1
+✅ Producer created: 0d57f471-358d-4502-99d7-cfb0e99247a8 (audio)
+[signaling] bridge producer registered: bridge-ch8 → 0d57f471-358d-4502-99d7-cfb0e99247a8
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+✅ Producer created: 12ff50cc-dd79-4306-99a2-d926704effcc (audio)
+[signaling] bridge producer registered: bridge-ch9 → 12ff50cc-dd79-4306-99a2-d926704effcc
+✅ Producer created: 6450c83b-a7d0-47b0-b9fa-f5aebbd42938 (audio)
+[signaling] bridge producer registered: bridge-ch10 → 6450c83b-a7d0-47b0-b9fa-f5aebbd42938
+✅ Producer created: 97e5bdb9-858c-435c-8d02-17ebbca4b353 (audio)
+[signaling] bridge producer registered: bridge-ch11 → 97e5bdb9-858c-435c-8d02-17ebbca4b353
+✅ Producer created: ce158f58-2f21-4166-bbad-8df4b7a692d5 (audio)
+[signaling] bridge producer registered: bridge-ch12 → ce158f58-2f21-4166-bbad-8df4b7a692d5
+✅ Producer created: f20b3eb4-295b-470c-a5a8-5f3c1766be7b (audio)
+[signaling] bridge producer registered: bridge-ch13 → f20b3eb4-295b-470c-a5a8-5f3c1766be7b
+✅ Producer created: 8536bb01-6cda-42fb-8441-10c3641fa358 (audio)
+[signaling] bridge producer registered: bridge-ch14 → 8536bb01-6cda-42fb-8441-10c3641fa358
+✅ Producer created: 6fb3ec23-6452-4a42-878e-7a75cc20f3fb (audio)
+[signaling] bridge producer registered: bridge-ch15 → 6fb3ec23-6452-4a42-878e-7a75cc20f3fb
+✅ Producer created: 83bb7ef7-eb3e-4b5c-ae82-9edd7d4754bf (audio)
+[signaling] bridge producer registered: bridge-ch16 → 83bb7ef7-eb3e-4b5c-ae82-9edd7d4754bf
+✅ Producer created: 4fd9753e-06c3-43e8-98eb-0601b5020157 (audio)
+[signaling] bridge producer registered: bridge-ch17 → 4fd9753e-06c3-43e8-98eb-0601b5020157
+✅ Producer created: 6c42fc8d-863b-4efd-a640-92d67248bb6b (audio)
+[signaling] bridge producer registered: bridge-ch18 → 6c42fc8d-863b-4efd-a640-92d67248bb6b
+✅ Producer created: d8fa345c-3591-4925-8e1d-976a06e91c2e (audio)
+[signaling] bridge producer registered: bridge-ch19 → d8fa345c-3591-4925-8e1d-976a06e91c2e
+✅ Producer created: 9755ae38-383e-4b9b-9e32-13594acb6237 (audio)
+[signaling] bridge producer registered: bridge-ch20 → 9755ae38-383e-4b9b-9e32-13594acb6237
+✅ Producer created: f0e0646c-1ee3-4ab9-aa90-ec259fdb2987 (audio)
+[signaling] bridge producer registered: bridge-ch21 → f0e0646c-1ee3-4ab9-aa90-ec259fdb2987
+✅ Producer created: 5f7ea2bb-aaa5-4543-ad5f-a00ee4d4f1e7 (audio)
+[signaling] bridge producer registered: bridge-ch22 → 5f7ea2bb-aaa5-4543-ad5f-a00ee4d4f1e7
+✅ Producer created: 48c6ba25-b69e-4408-ad9b-b4379d75a5fe (audio)
+[signaling] bridge producer registered: bridge-ch23 → 48c6ba25-b69e-4408-ad9b-b4379d75a5fe
+✅ Producer created: 67b8b168-1dba-4465-b462-d5071b935452 (audio)
+[signaling] bridge producer registered: bridge-ch24 → 67b8b168-1dba-4465-b462-d5071b935452
+✅ Producer created: 0de50ee6-ad58-44b4-9485-7dda2b532f71 (audio)
+[signaling] bridge producer registered: bridge-ch25 → 0de50ee6-ad58-44b4-9485-7dda2b532f71
+✅ Producer created: 9111d32d-8577-4f35-8299-f0293a950dfc (audio)
+[signaling] bridge producer registered: bridge-ch26 → 9111d32d-8577-4f35-8299-f0293a950dfc
+✅ Producer created: 37879580-8161-4981-a2e4-5fbd5d9494c5 (audio)
+[signaling] bridge producer registered: bridge-ch27 → 37879580-8161-4981-a2e4-5fbd5d9494c5
+✅ Producer created: eb79acec-1b9f-40ab-a2e5-1817a30cde36 (audio)
+[signaling] bridge producer registered: bridge-ch28 → eb79acec-1b9f-40ab-a2e5-1817a30cde36
+✅ Producer created: cd5c4ef3-5fe2-480f-a4e4-d324575f5bc4 (audio)
+[signaling] bridge producer registered: bridge-ch29 → cd5c4ef3-5fe2-480f-a4e4-d324575f5bc4
+✅ Producer created: df221329-5551-4059-9a5d-873de48fb214 (audio)
+[signaling] bridge producer registered: bridge-ch30 → df221329-5551-4059-9a5d-873de48fb214
+✅ Producer created: e1660d2b-0a54-417f-a97e-b37a6df6d09e (audio)
+[signaling] stereo bridge registered: bridge-stereo-1-2 → e1660d2b-0a54-417f-a97e-b37a6df6d09e
+✅ Producer created: b05d972a-1eeb-4f63-987e-51e124f74064 (audio)
+[signaling] stereo bridge registered: bridge-stereo-3-4 → b05d972a-1eeb-4f63-987e-51e124f74064
+✅ Producer created: ffcf1bb5-e8e6-4fee-877b-e5469081c015 (audio)
+[signaling] stereo bridge registered: bridge-stereo-5-6 → ffcf1bb5-e8e6-4fee-877b-e5469081c015
+✅ Producer created: a436ebe8-0f16-4827-a308-6bfdb681c327 (audio)
+[signaling] stereo bridge registered: bridge-stereo-7-8 → a436ebe8-0f16-4827-a308-6bfdb681c327
+✅ Producer created: 21bfb938-6486-4de4-8005-dd08e18a852e (audio)
+[signaling] stereo bridge registered: bridge-stereo-9-10 → 21bfb938-6486-4de4-8005-dd08e18a852e
+✅ Producer created: 3c752181-aef7-4ebf-a588-b8745fec6bbd (audio)
+[signaling] stereo bridge registered: bridge-stereo-11-12 → 3c752181-aef7-4ebf-a588-b8745fec6bbd
+✅ Producer created: 297a4738-69b2-4804-92aa-8f3a891de73c (audio)
+[signaling] stereo bridge registered: bridge-stereo-13-14 → 297a4738-69b2-4804-92aa-8f3a891de73c
+✅ Producer created: 16d85c9f-6217-4d90-89f8-28dc43027911 (audio)
+[signaling] stereo bridge registered: bridge-stereo-15-16 → 16d85c9f-6217-4d90-89f8-28dc43027911
+✅ Producer created: a80e2214-d257-40ee-89e3-194d0e3e8a7e (audio)
+[signaling] stereo bridge registered: bridge-stereo-17-18 → a80e2214-d257-40ee-89e3-194d0e3e8a7e
+✅ Producer created: 7c2f8ba8-c16b-4d34-8f0b-de68cadff55b (audio)
+[signaling] stereo bridge registered: bridge-stereo-19-20 → 7c2f8ba8-c16b-4d34-8f0b-de68cadff55b
+✅ Producer created: e4f53ba1-dc03-473b-8657-a64a81136551 (audio)
+[signaling] stereo bridge registered: bridge-stereo-21-22 → e4f53ba1-dc03-473b-8657-a64a81136551
+✅ Producer created: bae7953e-6a0b-4320-b16b-5c20afc3b6bf (audio)
+[signaling] stereo bridge registered: bridge-stereo-23-24 → bae7953e-6a0b-4320-b16b-5c20afc3b6bf
+✅ Producer created: d56e2c8c-c92e-4b9d-a2eb-fe827c77ce0b (audio)
+[signaling] stereo bridge registered: bridge-stereo-25-26 → d56e2c8c-c92e-4b9d-a2eb-fe827c77ce0b
+✅ Producer created: f13f11c8-fce1-4321-abf6-d343235ccd9e (audio)
+[signaling] stereo bridge registered: bridge-stereo-27-28 → f13f11c8-fce1-4321-abf6-d343235ccd9e
+✅ Producer created: e64294f4-33d2-4048-b1a6-8e13730ad9fb (audio)
+[signaling] stereo bridge registered: bridge-stereo-29-30 → e64294f4-33d2-4048-b1a6-8e13730ad9fb
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+[socket] disconnected: UiVynN-w2RhIY3IgAAAX, reason: transport close
+[socket] closed recv transport 71e3500c-8862-43ea-ab08-ac9117111357 for UiVynN-w2RhIY3IgAAAX
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[mediasoup] createTransport "send" from Y4UU4s2pCBrjBGMDAAAb
+[mediasoup] createTransport "recv" from Y4UU4s2pCBrjBGMDAAAb
+[mediasoup] transport created: 031aaf8b-1f06-4f42-bfa1-aeb8d95a60ac (send)
+[mediasoup] transport created: 2bcffa05-cd6b-43a6-98ee-2a9da255be31 (recv)
+✅ Producer created: a42e1999-b3b5-4180-b28f-b0cf66dfce82 (audio)
+[signaling] talknames from client-0: {"talk1":"Producer","talk2":"Talk 2","talk3":"Talk 3","talk4":"Talk 4"}
+[signaling] producer registered: client-0 → a42e1999-b3b5-4180-b28f-b0cf66dfce82
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "bridge-ch1" (audio)
+✅ Consumer created: b5996104-77b4-4552-bb03-4a9604e44c71 → producer 5521c79d-e3c4-4e19-9fae-aba6ac9ea0bf
+[signaling] consumer resumed: b5996104-77b4-4552-bb03-4a9604e44c71
+✅ Producer created: 1c7d964f-1dba-43a4-9434-4e68fbc60894 (video)
+[signaling] VIDEO producer registered: video-source-1 → 1c7d964f-1dba-43a4-9434-4e68fbc60894
+✅ Producer created: 5527087a-64a5-4b55-849e-b7dd011ad22a (video)
+[signaling] VIDEO producer registered: video-source-2 → 5527087a-64a5-4b55-849e-b7dd011ad22a
+✅ Producer created: 2c87521c-6ebd-4e0e-88ee-c1105a0ed31f (video)
+[signaling] VIDEO producer registered: video-source-3 → 2c87521c-6ebd-4e0e-88ee-c1105a0ed31f
+✅ Producer created: 36c232e7-83df-4434-afb9-226a93095c6b (video)
+[signaling] VIDEO producer registered: video-source-4 → 36c232e7-83df-4434-afb9-226a93095c6b
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-2 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 2 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] video:direct:offer for video-source-3 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 3 i routing [1,2] – springer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-4 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 4 i routing [1,2] – springer over
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+✅ Producer created: 82a07826-fb70-45aa-9a71-2f050e9152e3 (video)
+✅ Producer created: d239cbce-913a-4d75-8f61-86ad4350e048 (audio)
+[signaling] VIDEO producer registered: video-source-1 → 82a07826-fb70-45aa-9a71-2f050e9152e3
+[signaling] producer registered: video-audio-source-1 → d239cbce-913a-4d75-8f61-86ad4350e048
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ingen routing – springer offer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-source-1" (video)
+✅ Consumer created: f7749112-9367-47f0-aa80-660d1bfb371e → producer 82a07826-fb70-45aa-9a71-2f050e9152e3
+[signaling] video consumer created (paused, waiting for client ready): f7749112-9367-47f0-aa80-660d1bfb371e
+[signaling] consumer resumed: f7749112-9367-47f0-aa80-660d1bfb371e (kind: video)
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-audio-source-1" (audio)
+✅ Consumer created: 8c67f396-a9bc-4f42-853b-022388c81cee → producer d239cbce-913a-4d75-8f61-86ad4350e048
+[signaling] consumer resumed: 8c67f396-a9bc-4f42-853b-022388c81cee
+[signaling] consumer resumed: 8c67f396-a9bc-4f42-853b-022388c81cee (kind: audio)
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-source-2" (video)
+✅ Consumer created: 6aba06e7-31e5-4cb0-be79-003a4cfea76f → producer 5527087a-64a5-4b55-849e-b7dd011ad22a
+[signaling] video consumer created (paused, waiting for client ready): 6aba06e7-31e5-4cb0-be79-003a4cfea76f
+[signaling] consumer resumed: 6aba06e7-31e5-4cb0-be79-003a4cfea76f (kind: video)
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-audio-source-2" (audio)
+[signaling] no producer for "video-audio-source-2" – queuing consume:request (5 s)
+[signaling] video routing: client-0 → sources [0,2] (prev: [1,2])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] video source 1 fjernet fra slot 1 for client-0
+[signaling] video routing: client-0 → sources [0,2] (prev: [0,2])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] video routing: client-1786052854690-0 → sources [0,2] (prev: [])
+[signaling] socket for client-1786052854690-0: q4xmayuVW5W24KnjAAAZ
+[signaling] → host: send offers til q4xmayuVW5W24KnjAAAZ for client-1786052854690-0
+[signaling] video routing: client-1786052854690-0 → sources [0,2] (prev: [0,2])
+[signaling] socket for client-1786052854690-0: q4xmayuVW5W24KnjAAAZ
+[signaling] video:direct:offer for preview-slot2 → specifik socket q4xmayuVW5W24KnjAAAZ
+[signaling] video routing: client-0 → sources [0,0] (prev: [0,2])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] video source 2 fjernet fra slot 2 for client-0
+[signaling] video routing: client-0 → sources [0,0] (prev: [0,0])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] cleared slot 2 til client-0
+[signaling] video routing: client-1786052854690-0 → sources [0,0] (prev: [0,2])
+[signaling] socket for client-1786052854690-0: q4xmayuVW5W24KnjAAAZ
+[signaling] video source 2 fjernet fra slot 2 for client-1786052854690-0
+[signaling] video routing: client-1786052854690-0 → sources [0,0] (prev: [0,0])
+[signaling] socket for client-1786052854690-0: q4xmayuVW5W24KnjAAAZ
+[signaling] cleared slot 2 til client-1786052854690-0
+[signaling] video routing: client-0 → sources [1,0] (prev: [0,0])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] → host: send offers til Y4UU4s2pCBrjBGMDAAAb for client-0
+[signaling] video routing: client-0 → sources [1,0] (prev: [1,0])
+[signaling] socket for client-0: Y4UU4s2pCBrjBGMDAAAb
+[signaling] video:direct:offer for preview-slot1 → specifik socket Y4UU4s2pCBrjBGMDAAAb
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-source-1" (video)
+[consume:request] closed stale video consumer f7749112-9367-47f0-aa80-660d1bfb371e for "video-source-1"
+✅ Consumer created: b9d70dcd-d1af-4d38-9a62-e9bea5164711 → producer 82a07826-fb70-45aa-9a71-2f050e9152e3
+[signaling] video consumer created (paused, waiting for client ready): b9d70dcd-d1af-4d38-9a62-e9bea5164711
+[signaling] consumer resumed: b9d70dcd-d1af-4d38-9a62-e9bea5164711 (kind: video)
+[consume:request] Y4UU4s2pCBrjBGMDAAAb → "video-audio-source-1" (audio)
+✅ Consumer created: 1133e89a-ec9e-436d-aae6-474cbcfd278d → producer d239cbce-913a-4d75-8f61-86ad4350e048
+[signaling] consumer resumed: 1133e89a-ec9e-436d-aae6-474cbcfd278d
+[signaling] consumer resumed: 1133e89a-ec9e-436d-aae6-474cbcfd278d (kind: audio)
+[socket] disconnected: Y4UU4s2pCBrjBGMDAAAb, reason: transport error
+[socket] closed recv transport 2bcffa05-cd6b-43a6-98ee-2a9da255be31 for Y4UU4s2pCBrjBGMDAAAb
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[mediasoup] createTransport "recv" from hkMCi-2aqOfp6DY-AAAd
+[mediasoup] transport created: 562fbd90-ba99-4bda-b5d2-e8c7c60a6311 (recv)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[consume:request] hkMCi-2aqOfp6DY-AAAd → "bridge-ch1" (audio)
+✅ Consumer created: 4a01a13d-0654-4de3-b9e8-7bb0771cee69 → producer 5521c79d-e3c4-4e19-9fae-aba6ac9ea0bf
+[signaling] consumer resumed: 4a01a13d-0654-4de3-b9e8-7bb0771cee69
+[consume:request] hkMCi-2aqOfp6DY-AAAd → "video-source-1" (video)
+✅ Consumer created: df484d2c-7b1e-4373-85d8-e83b0a1e1020 → producer 82a07826-fb70-45aa-9a71-2f050e9152e3
+[signaling] video consumer created (paused, waiting for client ready): df484d2c-7b1e-4373-85d8-e83b0a1e1020
+[signaling] consumer resumed: df484d2c-7b1e-4373-85d8-e83b0a1e1020 (kind: video)
+[consume:request] hkMCi-2aqOfp6DY-AAAd → "video-audio-source-1" (audio)
+✅ Consumer created: 11ccdb92-c495-423a-9997-9d7e3e2c177e → producer d239cbce-913a-4d75-8f61-86ad4350e048
+[signaling] consumer resumed: 11ccdb92-c495-423a-9997-9d7e3e2c177e
+[socket] disconnected: hkMCi-2aqOfp6DY-AAAd, reason: ping timeout
+[socket] closed recv transport 562fbd90-ba99-4bda-b5d2-e8c7c60a6311 for hkMCi-2aqOfp6DY-AAAd
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+[socket] disconnected: q4xmayuVW5W24KnjAAAZ, reason: transport close
+[socket] closed recv transport 13ccbb42-473f-4e4e-a6f5-934697d166f8 for q4xmayuVW5W24KnjAAAZ
+⏹️  Capture stopped: q4xmayuVW5W24KnjAAAZ
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+🎛️  Lydenheder: [1] Unknown USB Audio Device (1ch), [3] Mikrofon i PEter Sandager - iPhone 🤩 (1ch), [4] Universal Audio Thunderbolt (30ch)
+🎙️  Starter capture: device 4 (Universal Audio Thunderbolt) @ 48000Hz
+[mediasoup] createTransport "send" from TQ8Pj6Iv4TJ1fQtlAAAf
+[mediasoup] transport created: 3406f0c5-46e4-476e-91a5-4cadeb055144 (send)
+[mediasoup] createTransport "recv" from TQ8Pj6Iv4TJ1fQtlAAAf
+[mediasoup] transport created: 3881f8aa-b1c9-4213-9627-08f8e417ab40 (recv)
+🎙️  30 kanaler – 22 inputs, 8 outputs
+[audioOutput] registered device 4: max 8 output channels
+[signaling] routing sent to "host-ui" on register: 5 connections
+[signaling] replicated IFB: bridge-ch1 → client-0 ch1
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-0" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-1" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-2" on register: 6 connections
+[signaling] routing sent to "client-1786052854690-3" on register: 6 connections
+[signaling] output bridge channels: [19,20,21,22,23,24,25,26]
+✅ Producer created: b55a6b14-aee3-47a0-84c9-094ae8e35cc2 (audio)
+[signaling] bridge producer registered: bridge-ch1 → b55a6b14-aee3-47a0-84c9-094ae8e35cc2
+✅ Producer created: 748ef491-2187-47c7-9918-d4f91aa0d7a1 (audio)
+[signaling] bridge producer registered: bridge-ch2 → 748ef491-2187-47c7-9918-d4f91aa0d7a1
+✅ Producer created: 2d071679-c447-4df5-b182-53a326b9bee9 (audio)
+[signaling] bridge producer registered: bridge-ch3 → 2d071679-c447-4df5-b182-53a326b9bee9
+✅ Producer created: bcf7bbc6-bdd7-4e87-b97b-b0639c10f1dd (audio)
+[signaling] bridge producer registered: bridge-ch4 → bcf7bbc6-bdd7-4e87-b97b-b0639c10f1dd
+✅ Producer created: 190247cc-66c1-4a5f-97fe-e3bff988a069 (audio)
+[signaling] bridge producer registered: bridge-ch5 → 190247cc-66c1-4a5f-97fe-e3bff988a069
+✅ Producer created: 8f7c7fc9-5144-4eb3-bdf0-0a05c48b477d (audio)
+[signaling] bridge producer registered: bridge-ch6 → 8f7c7fc9-5144-4eb3-bdf0-0a05c48b477d
+✅ Producer created: e89b8ac6-5c69-4da8-8762-5e4f1727cc46 (audio)
+[signaling] bridge producer registered: bridge-ch7 → e89b8ac6-5c69-4da8-8762-5e4f1727cc46
+✅ Producer created: e58e3c4f-15aa-492a-a49d-a7c52f3832e3 (audio)
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] bridge producer registered: bridge-ch8 → e58e3c4f-15aa-492a-a49d-a7c52f3832e3
+✅ Producer created: f609b63f-5b5f-4b67-8359-6fcd2c2d00fd (audio)
+[signaling] bridge producer registered: bridge-ch9 → f609b63f-5b5f-4b67-8359-6fcd2c2d00fd
+✅ Producer created: f5e86c2a-4c80-4218-a7e1-b18201a92e2a (audio)
+[signaling] bridge producer registered: bridge-ch10 → f5e86c2a-4c80-4218-a7e1-b18201a92e2a
+✅ Producer created: 1c8d1165-1032-4134-98bf-0b626d8bf3ba (audio)
+[signaling] bridge producer registered: bridge-ch11 → 1c8d1165-1032-4134-98bf-0b626d8bf3ba
+✅ Producer created: 564f975c-f7ac-497d-9b66-2cf6d2007118 (audio)
+[signaling] bridge producer registered: bridge-ch12 → 564f975c-f7ac-497d-9b66-2cf6d2007118
+✅ Producer created: bfad5170-e75f-4a8b-85d9-ee6764b26619 (audio)
+[signaling] bridge producer registered: bridge-ch13 → bfad5170-e75f-4a8b-85d9-ee6764b26619
+✅ Producer created: 347a9d96-2148-4417-baae-0b9fbe4022bc (audio)
+[signaling] bridge producer registered: bridge-ch14 → 347a9d96-2148-4417-baae-0b9fbe4022bc
+✅ Producer created: 5d9efcd7-11f1-4705-8927-daf25876b882 (audio)
+[signaling] bridge producer registered: bridge-ch15 → 5d9efcd7-11f1-4705-8927-daf25876b882
+✅ Producer created: 0135f6c9-8302-48b2-b2a9-43719fbf2fed (audio)
+[signaling] bridge producer registered: bridge-ch16 → 0135f6c9-8302-48b2-b2a9-43719fbf2fed
+✅ Producer created: 7c029d83-32b9-480b-93e3-18432d9ba6e5 (audio)
+[signaling] bridge producer registered: bridge-ch17 → 7c029d83-32b9-480b-93e3-18432d9ba6e5
+✅ Producer created: 0c2ce4ac-b8f2-45d0-8a3b-52fb0c8c94c3 (audio)
+[signaling] bridge producer registered: bridge-ch18 → 0c2ce4ac-b8f2-45d0-8a3b-52fb0c8c94c3
+✅ Producer created: bb777922-4824-4985-838c-e5918f0d7a25 (audio)
+[signaling] bridge producer registered: bridge-ch19 → bb777922-4824-4985-838c-e5918f0d7a25
+✅ Producer created: b244733a-e5d8-420d-ad6d-468cea21a8f2 (audio)
+[signaling] bridge producer registered: bridge-ch20 → b244733a-e5d8-420d-ad6d-468cea21a8f2
+✅ Producer created: 2de84a50-be81-49f6-b4e3-8f86acd53328 (audio)
+[signaling] bridge producer registered: bridge-ch21 → 2de84a50-be81-49f6-b4e3-8f86acd53328
+✅ Producer created: 87d1bc75-ca6e-44f3-a47e-ee292f0d3c04 (audio)
+[signaling] bridge producer registered: bridge-ch22 → 87d1bc75-ca6e-44f3-a47e-ee292f0d3c04
+✅ Producer created: 85f4535d-6862-4f7f-ab28-52f698b44a21 (audio)
+[signaling] bridge producer registered: bridge-ch23 → 85f4535d-6862-4f7f-ab28-52f698b44a21
+✅ Producer created: 8b4cec28-f514-41f5-9c59-aa5e3cfb042c (audio)
+[signaling] bridge producer registered: bridge-ch24 → 8b4cec28-f514-41f5-9c59-aa5e3cfb042c
+✅ Producer created: aedee71c-d0bd-40e2-9ba9-8e76e8a97ad7 (audio)
+[signaling] bridge producer registered: bridge-ch25 → aedee71c-d0bd-40e2-9ba9-8e76e8a97ad7
+✅ Producer created: fa3a7299-ba87-4086-a231-da7cb958f09f (audio)
+[signaling] bridge producer registered: bridge-ch26 → fa3a7299-ba87-4086-a231-da7cb958f09f
+✅ Producer created: 4031976e-3f58-440f-9e19-ba1f921a4fdb (audio)
+[signaling] bridge producer registered: bridge-ch27 → 4031976e-3f58-440f-9e19-ba1f921a4fdb
+✅ Producer created: 525de130-c584-4d38-a987-b65eb526ff9c (audio)
+[signaling] bridge producer registered: bridge-ch28 → 525de130-c584-4d38-a987-b65eb526ff9c
+✅ Producer created: 70848013-d07e-482b-9858-ca8e84f2d5b4 (audio)
+[signaling] bridge producer registered: bridge-ch29 → 70848013-d07e-482b-9858-ca8e84f2d5b4
+✅ Producer created: 9d75eb7f-d151-44e2-bd5a-a4dc150916d8 (audio)
+[signaling] bridge producer registered: bridge-ch30 → 9d75eb7f-d151-44e2-bd5a-a4dc150916d8
+✅ Producer created: aeae1c4c-758b-4edc-8b84-dfb42110c564 (audio)
+[signaling] stereo bridge registered: bridge-stereo-1-2 → aeae1c4c-758b-4edc-8b84-dfb42110c564
+✅ Producer created: 29efcf4c-4ac5-4a42-9ec9-f0b8a25a573d (audio)
+[signaling] stereo bridge registered: bridge-stereo-3-4 → 29efcf4c-4ac5-4a42-9ec9-f0b8a25a573d
+✅ Producer created: 7e3d710d-bbde-4860-a627-4d3d03d2200a (audio)
+[signaling] stereo bridge registered: bridge-stereo-5-6 → 7e3d710d-bbde-4860-a627-4d3d03d2200a
+✅ Producer created: 8b1a2b5e-11af-44c0-8c3d-ba3e6e82d1e8 (audio)
+[signaling] stereo bridge registered: bridge-stereo-7-8 → 8b1a2b5e-11af-44c0-8c3d-ba3e6e82d1e8
+✅ Producer created: 720e6f04-f40f-46d8-a627-23a92df460cf (audio)
+[signaling] stereo bridge registered: bridge-stereo-9-10 → 720e6f04-f40f-46d8-a627-23a92df460cf
+✅ Producer created: 5f38e2a0-8a7f-4de2-adbf-9432065f5698 (audio)
+[signaling] stereo bridge registered: bridge-stereo-11-12 → 5f38e2a0-8a7f-4de2-adbf-9432065f5698
+✅ Producer created: d5ed8287-1cb3-4bd0-bd29-92919041294f (audio)
+[signaling] stereo bridge registered: bridge-stereo-13-14 → d5ed8287-1cb3-4bd0-bd29-92919041294f
+✅ Producer created: e12c3fdd-4373-49cd-abb1-9a4ffa92bffe (audio)
+[signaling] stereo bridge registered: bridge-stereo-15-16 → e12c3fdd-4373-49cd-abb1-9a4ffa92bffe
+✅ Producer created: 9859292e-b83b-4332-884a-1e5214b3d25f (audio)
+[signaling] stereo bridge registered: bridge-stereo-17-18 → 9859292e-b83b-4332-884a-1e5214b3d25f
+✅ Producer created: ccd2a62e-1b67-4af9-8cb2-848c43f382ef (audio)
+[signaling] stereo bridge registered: bridge-stereo-19-20 → ccd2a62e-1b67-4af9-8cb2-848c43f382ef
+✅ Producer created: 6dddef27-76e0-4ee8-b863-955ed772ea28 (audio)
+[signaling] stereo bridge registered: bridge-stereo-21-22 → 6dddef27-76e0-4ee8-b863-955ed772ea28
+✅ Producer created: d31a4f52-fbd4-453b-b00e-6dedf2076c00 (audio)
+[signaling] stereo bridge registered: bridge-stereo-23-24 → d31a4f52-fbd4-453b-b00e-6dedf2076c00
+✅ Producer created: d8c27ec3-6acb-4041-aaef-465d9e1fdb0f (audio)
+[signaling] stereo bridge registered: bridge-stereo-25-26 → d8c27ec3-6acb-4041-aaef-465d9e1fdb0f
+✅ Producer created: ccf618ab-0408-4d21-a6e1-0f8cf3b3d3c5 (audio)
+[signaling] stereo bridge registered: bridge-stereo-27-28 → ccf618ab-0408-4d21-a6e1-0f8cf3b3d3c5
+✅ Producer created: 4c71eb8c-a15c-4620-a614-5d74c2e296b4 (audio)
+[signaling] stereo bridge registered: bridge-stereo-29-30 → 4c71eb8c-a15c-4620-a614-5d74c2e296b4
+[signaling] ✅ 30 bridge producers klar og tilgængelige
+✅ Producer created: 0025eed3-721a-4131-afe0-e22561014f4a (video)
+[signaling] VIDEO producer registered: video-source-1 → 0025eed3-721a-4131-afe0-e22561014f4a
+✅ Producer created: ce1fdf81-5f8b-4a7a-b22b-d5a8892f1e70 (video)
+[signaling] VIDEO producer registered: video-source-2 → ce1fdf81-5f8b-4a7a-b22b-d5a8892f1e70
+✅ Producer created: 3290d23c-0e75-48d9-a652-fbfdfe098e8d (video)
+[signaling] VIDEO producer registered: video-source-3 → 3290d23c-0e75-48d9-a652-fbfdfe098e8d
+✅ Producer created: b813170c-7a99-4bcc-ab4f-2bf2a1f632c2 (video)
+[signaling] VIDEO producer registered: video-source-4 → b813170c-7a99-4bcc-ab4f-2bf2a1f632c2
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ikke source 1 i routing [0,0] – springer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-2 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 2 i routing [1,0] – springer over
+[signaling] client-1786052854690-0 har ikke source 2 i routing [0,0] – springer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] video:direct:offer for video-source-3 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 3 i routing [1,0] – springer over
+[signaling] client-1786052854690-0 har ikke source 3 i routing [0,0] – springer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] video:direct:offer for video-source-4 – cacher + sender kun til klienter med routing
+[signaling] client-0 har ikke source 4 i routing [1,0] – springer over
+[signaling] client-1786052854690-0 har ikke source 4 i routing [0,0] – springer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+✅ Producer created: 5541ce93-6c29-4b88-b342-2a716ac62c59 (video)
+✅ Producer created: 40f15f03-a43d-41f9-86bf-c7323f44856d (audio)
+[signaling] VIDEO producer registered: video-source-1 → 5541ce93-6c29-4b88-b342-2a716ac62c59
+[signaling] producer registered: video-audio-source-1 → 40f15f03-a43d-41f9-86bf-c7323f44856d
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] video:direct:offer for video-source-1 – cacher + sender kun til klienter med routing
+[signaling] client-0 har source 1 i routing – sender offer
+[signaling] client-1786052854690-0 har ikke source 1 i routing [0,0] – springer over
+[signaling] client-1786052854690-1 har ingen routing – springer offer over
+[signaling] client-1786052854690-2 har ingen routing – springer offer over
+[signaling] client-1786052854690-3 har ingen routing – springer offer over
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] routing sent to "client-0" on register: 6 connections
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[mediasoup] createTransport "send" from sCNeno235En3fYZ7AAAh
+[mediasoup] transport created: 8c4f704a-012c-4838-8191-1a0a42d68486 (send)
+[mediasoup] createTransport "recv" from sCNeno235En3fYZ7AAAh
+[mediasoup] transport created: 139937e5-49d1-475e-99fb-5cead3e5873d (recv)
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[signaling] auth client-0: ✅ (entered: 0000, stored: 0000)
+[socket] disconnected: sCNeno235En3fYZ7AAAh, reason: ping timeout
+[socket] closed recv transport 139937e5-49d1-475e-99fb-5cead3e5873d for sCNeno235En3fYZ7AAAh
+[signaling] routing broadcast: 6 effective / 7 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1},{"from":"bridge-ch1","to":"client-0","channel":1}]
+[signaling] routing broadcast: 5 effective / 6 total
+[signaling] effective: [{"from":"bridge-ch1","to":"host-ui","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-0","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-1","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-2","channel":1},{"from":"bridge-ch1","to":"client-1786052854690-3","channel":1}]
+🛑 Terminated

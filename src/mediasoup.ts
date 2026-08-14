@@ -186,10 +186,3 @@ export function getConsumer(consumerId: string) {
 export function getTransport(transportId: string) {
   return transports.get(transportId)
 }
-
-export async function restartIce(transportId: string) {
-  const transport = transports.get(transportId)
-  if (!transport) throw new Error(`restartIce: transport not found ${transportId}`)
-  const iceParameters = await transport.restartIce()
-  return iceParameters
-}

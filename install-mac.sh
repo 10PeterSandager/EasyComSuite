@@ -121,6 +121,22 @@ for APP_DIR in "$SCRIPT_DIR/../../easycom-broadcast-intercom"; do
 done
 cd "$SCRIPT_DIR"
 
+# ── Install Electron ───────────────────────────────────────────────────────────
+ELECTRON_WRAPPER="$SCRIPT_DIR/../electron-wrapper"
+if [ -d "$ELECTRON_WRAPPER" ]; then
+  echo "Installing Electron (can take a minute)..."
+  cd "$ELECTRON_WRAPPER"
+  sudo -u "$GUI_USER" npm install 2>&1 | grep -v "^npm warn" | tail -3
+  if [ -f "$ELECTRON_WRAPPER/node_modules/.bin/electron" ]; then
+    log "Electron installed"
+  else
+    warn "Electron install fejlede — kør manuelt: cd $ELECTRON_WRAPPER && npm install"
+  fi
+  cd "$SCRIPT_DIR"
+else
+  warn "Electron-wrapper ikke fundet — springer over"
+fi
+
 # ── launchd service ───────────────────────────────────────────────────────────
 cat > "$PLIST_PATH" << EOF
 <?xml version="1.0" encoding="UTF-8"?>

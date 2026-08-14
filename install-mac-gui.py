@@ -564,7 +564,15 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == "/open":
-            subprocess.Popen(["open", get_host_url()])
+            electron_bin = os.path.join(
+                os.path.dirname(SCRIPT_DIR), "electron-wrapper",
+                "node_modules", ".bin", "electron"
+            )
+            wrapper_dir = os.path.join(os.path.dirname(SCRIPT_DIR), "electron-wrapper")
+            if os.path.exists(electron_bin):
+                subprocess.Popen([electron_bin, wrapper_dir])
+            else:
+                subprocess.Popen(["open", get_host_url()])
             self.send_response(200); self.end_headers()
         else:
             self.send_response(404); self.end_headers()
