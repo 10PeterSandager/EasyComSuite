@@ -210,8 +210,7 @@ const App: React.FC = () => {
     }
   }
 
-  // 🔥 Produce video streams via WebRTC direkte fra App.tsx – uafhængigt af tab
-  const videoProduced = React.useRef<Record<number, boolean>>({})
+  // 🔥 Direct WebRTC video – one RTCPeerConnection per slot per client
   const directPCs = React.useRef<Record<string, RTCPeerConnection>>({})
 
   // 🔥 Direct WebRTC video helper – bypasser mediasoup delivery
@@ -260,69 +259,11 @@ const App: React.FC = () => {
     return () => { socket.off("clients:update", handler) }
   }, [view])
 
-  // Reset guard når streams skifter så nye offers kan sendes
-  React.useEffect(() => {
-    directVideoSent.current['video-source-1'] = false
-    videoProduced.current[1] = false
-  }, [videoStream1])
-  React.useEffect(() => {
-    directVideoSent.current['video-source-2'] = false
-    videoProduced.current[2] = false
-  }, [videoStream2])
-  React.useEffect(() => {
-    directVideoSent.current['video-source-3'] = false
-    videoProduced.current[3] = false
-  }, [videoStream3])
-  React.useEffect(() => {
-    directVideoSent.current['video-source-4'] = false
-    videoProduced.current[4] = false
-  }, [videoStream4])
-
-  // 🔥 WebCodecs encoder – proper video chunks til mobil (ingen player bugs)
-  const encodeStream = React.useCallback((stream: MediaStream, sourceId: string) => {
-    const track = stream.getVideoTracks()[0]
-    if (!track) return () => {}
-    if (typeof (window as any).VideoEncoder !== 'function') {
-      console.warn('[WebCodecs] VideoEncoder not available in this environment – skipping encode for', sourceId)
-      return () => {}
-    }
-    let running = true
-    let frameNum = 0
-    const W = 320, H = 180
-
-    const enc = new (window as any).VideoEncoder({
-      output: (chunk: any) => {
-        const buf = new Uint8Array(chunk.byteLength)
-        chunk.copyTo(buf)
-        socket.emit('video:chunk', {
-          sourceId, data: buf, type: chunk.type, timestamp: chunk.timestamp
-        })
-        if (frameNum === 1) console.log(`[WebCodecs] ✅ Sender chunks for ${sourceId}`)
-      },
-      error: (e: any) => console.error('[WebCodecs]', e)
-    })
-    enc.configure({ codec: 'vp8', width: W, height: H, bitrate: 600_000, framerate: 25 })
-
-    const ic = new (window as any).ImageCapture(track)
-    ;(async () => {
-      while (running) {
-        try {
-          const bmp = await ic.grabFrame()
-          if (!running) { bmp.close(); break }
-          const vf = new (window as any).VideoFrame(bmp, { timestamp: frameNum * 40000 })
-          enc.encode(vf, { keyFrame: true })
-          vf.close(); bmp.close(); frameNum++
-        } catch(e) {}
-        await new Promise(r => setTimeout(r, 40))
-      }
-      try { await enc.flush(); enc.close() } catch(e) {}
-    })()
-    console.log(`[WebCodecs] Starter for ${sourceId}`)
-    return () => { running = false }
-  }, [])
-
-  React.useEffect(() => { if (videoStream1) return encodeStream(videoStream1, 'video-source-1') }, [videoStream1, encodeStream])
-  React.useEffect(() => { if (videoStream2) return encodeStream(videoStream2, 'video-source-2') }, [videoStream2, encodeStream])
+  // Reset guard when stream changes so a new offer is sent
+  React.useEffect(() => { directVideoSent.current['video-source-1'] = false }, [videoStream1])
+  React.useEffect(() => { directVideoSent.current['video-source-2'] = false }, [videoStream2])
+  React.useEffect(() => { directVideoSent.current['video-source-3'] = false }, [videoStream3])
+  React.useEffect(() => { directVideoSent.current['video-source-4'] = false }, [videoStream4])
   const startDirectVideo = React.useCallback(async (channel: number, stream: MediaStream) => {
     const sourceId = `video-source-${channel}`
     if (directVideoSent.current[sourceId]) return  // undgå duplikat
@@ -400,123 +341,19 @@ const App: React.FC = () => {
     return () => { socket.off('video:direct:request-from-client', handler) }
   }, [socket, videoStream1, videoStream2, videoStream3, videoStream4])
 
-  useEffect(() => {
-    const produce = async (ch: number, stream: MediaStream | null) => {
-      if (!stream) return
-      console.log(`[App] produce ch${ch} – videoProduced:`, videoProduced.current[ch])
-      try {
-        const { produceVideoStream, closeVideoProducer, isMediasoupReady, initMediasoup } = await import('./client/webrtc/mediasoupClient')
-        if (videoProduced.current[ch]) {
-          closeVideoProducer(ch)
-          videoProduced.current[ch] = false
-        }
-        let waited = 0
-        while (!isMediasoupReady() && waited < 15000) {
-          await new Promise(r => setTimeout(r, 300))
-          waited += 300
-        }
-        if (!isMediasoupReady()) await initMediasoup()
-        const { videoId, audioId } = await produceVideoStream(stream, ch)
-        videoProduced.current[ch] = true
-        socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
-        if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
-        console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
-      } catch (e) {
-        console.warn(`[App] video produce fejl ch${ch}:`, e)
-      }
-    }
-    if (videoStream1) produce(1, videoStream1)
-  }, [videoStream1, startDirectVideo])
-
-  useEffect(() => {
-    const produce = async (ch: number, stream: MediaStream | null) => {
-      if (!stream) return
-      console.log(`[App] produce ch${ch} – videoProduced:`, videoProduced.current[ch])
-      try {
-        const { produceVideoStream, closeVideoProducer, isMediasoupReady, initMediasoup } = await import('./client/webrtc/mediasoupClient')
-        if (videoProduced.current[ch]) {
-          closeVideoProducer(ch)
-          videoProduced.current[ch] = false
-        }
-        let waited = 0
-        while (!isMediasoupReady() && waited < 15000) {
-          await new Promise(r => setTimeout(r, 300))
-          waited += 300
-        }
-        if (!isMediasoupReady()) await initMediasoup()
-        const { videoId, audioId } = await produceVideoStream(stream, ch)
-        videoProduced.current[ch] = true
-        socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
-        if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
-        console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
-      } catch (e) {
-        console.warn(`[App] video produce fejl ch${ch}:`, e)
-      }
-    }
-    if (videoStream2) produce(2, videoStream2)
-  }, [videoStream2, startDirectVideo])
-
-  useEffect(() => {
-    const produce = async (ch: number, stream: MediaStream | null) => {
-      if (!stream) return
-      console.log(`[App] produce ch${ch} – videoProduced:`, videoProduced.current[ch])
-      try {
-        const { produceVideoStream, closeVideoProducer, isMediasoupReady, initMediasoup } = await import('./client/webrtc/mediasoupClient')
-        if (videoProduced.current[ch]) {
-          closeVideoProducer(ch)
-          videoProduced.current[ch] = false
-        }
-        let waited = 0
-        while (!isMediasoupReady() && waited < 15000) {
-          await new Promise(r => setTimeout(r, 300)); waited += 300
-        }
-        if (!isMediasoupReady()) await initMediasoup()
-        const { videoId, audioId } = await produceVideoStream(stream, ch)
-        videoProduced.current[ch] = true
-        socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
-        if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
-        console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
-      } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
-    }
-    if (videoStream3) produce(3, videoStream3)
-  }, [videoStream3, startDirectVideo])
-
-  useEffect(() => {
-    const produce = async (ch: number, stream: MediaStream | null) => {
-      if (!stream) return
-      console.log(`[App] produce ch${ch} – videoProduced:`, videoProduced.current[ch])
-      try {
-        const { produceVideoStream, closeVideoProducer, isMediasoupReady, initMediasoup } = await import('./client/webrtc/mediasoupClient')
-        if (videoProduced.current[ch]) {
-          closeVideoProducer(ch)
-          videoProduced.current[ch] = false
-        }
-        let waited = 0
-        while (!isMediasoupReady() && waited < 15000) {
-          await new Promise(r => setTimeout(r, 300)); waited += 300
-        }
-        if (!isMediasoupReady()) await initMediasoup()
-        const { videoId, audioId } = await produceVideoStream(stream, ch)
-        videoProduced.current[ch] = true
-        socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
-        if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
-        console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
-      } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
-    }
-    if (videoStream4) produce(4, videoStream4)
-  }, [videoStream4, startDirectVideo])
+  useEffect(() => { if (videoStream1) startDirectVideo(1, videoStream1) }, [videoStream1, startDirectVideo])
+  useEffect(() => { if (videoStream2) startDirectVideo(2, videoStream2) }, [videoStream2, startDirectVideo])
+  useEffect(() => { if (videoStream3) startDirectVideo(3, videoStream3) }, [videoStream3, startDirectVideo])
+  useEffect(() => { if (videoStream4) startDirectVideo(4, videoStream4) }, [videoStream4, startDirectVideo])
 
   const stopVideoStream = (channel: number) => {
-    // Close mediasoup producers first so the mobile's consumer fires producerclose
-    import('./client/webrtc/mediasoupClient').then(({ closeVideoProducer }) => {
-      closeVideoProducer(channel)
-    }).catch(() => {})
-    // Allow the channel to be re-produced when restarted
-    videoProduced.current[channel] = false
+    const sourceId = `video-source-${channel}`
+    // Close the direct WebRTC PC for this source
+    if (directPCs.current[sourceId]) {
+      directPCs.current[sourceId].close()
+      delete directPCs.current[sourceId]
+    }
+    directVideoSent.current[sourceId] = false
     const stop = (stream: MediaStream | null, setter: (s: MediaStream | null) => void) => {
       stream?.getTracks().forEach(t => t.stop())
       setter(null)
@@ -645,7 +482,7 @@ const App: React.FC = () => {
                 <Radio size={18} className="text-white"/>
               </div>
 
-              <span className="font-black text-white uppercase tracking-tight text-[30px] leading-none">
+              <span className="font-black text-white uppercase tracking-tight">
                 EASYC<span className={`text-${themeColor}-500`}>O</span>M
               </span>
             </div>

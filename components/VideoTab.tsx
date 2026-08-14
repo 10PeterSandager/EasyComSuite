@@ -434,15 +434,9 @@ const VideoTab: React.FC<VideoTabProps> = ({
     }
   }
 
-  const toggleAudioMute = async (ch: number) => {
+  const toggleAudioMute = (ch: number) => {
     const newMuted = !audioMuted[ch]
     setAudioMuted(prev => ({ ...prev, [ch]: newMuted }))
-    try {
-      const { setVideoAudioMute } = await import('../client/webrtc/mediasoupClient')
-      setVideoAudioMute(ch, newMuted)
-    } catch (e) {
-      console.warn('[VideoTab] audio mute fejl:', e)
-    }
   }
   const [enabled, setEnabled] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true })
 
