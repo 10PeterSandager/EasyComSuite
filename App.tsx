@@ -438,13 +438,12 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
       } catch (e) {
         console.warn(`[App] video produce fejl ch${ch}:`, e)
       }
     }
     if (videoStream1) produce(1, videoStream1)
-  }, [videoStream1, startDirectVideo])
+  }, [videoStream1])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -467,13 +466,12 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
       } catch (e) {
         console.warn(`[App] video produce fejl ch${ch}:`, e)
       }
     }
     if (videoStream2) produce(2, videoStream2)
-  }, [videoStream2, startDirectVideo])
+  }, [videoStream2])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -495,11 +493,10 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
       } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
     }
     if (videoStream3) produce(3, videoStream3)
-  }, [videoStream3, startDirectVideo])
+  }, [videoStream3])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -521,11 +518,10 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
-        await startDirectVideo(ch, stream)
       } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
     }
     if (videoStream4) produce(4, videoStream4)
-  }, [videoStream4, startDirectVideo])
+  }, [videoStream4])
 
   const stopVideoStream = (channel: number) => {
     // Close mediasoup producers first so the mobile's consumer fires producerclose
