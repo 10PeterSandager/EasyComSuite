@@ -840,4 +840,28 @@ const App: React.FC = () => {
 
 }
 
-export default App
+const DuplicateGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isDuplicate, setIsDuplicate] = React.useState(false)
+  React.useEffect(() => {
+    const ch = new BroadcastChannel('easycom-host-lock')
+    let settled = false
+    ch.onmessage = (e) => {
+      if (e.data === 'ping' && !isDuplicate) ch.postMessage('pong')
+      if (e.data === 'pong' && !settled) { settled = true; setIsDuplicate(true) }
+    }
+    ch.postMessage('ping')
+    const t = setTimeout(() => { settled = true }, 400)
+    return () => { clearTimeout(t); ch.close() }
+  }, [])
+  if (isDuplicate) return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <div style={{ fontSize: 48 }}>⚠️</div>
+      <div style={{ color: '#fff', fontSize: 20, fontWeight: 600 }}>EasyCom Host kører allerede</div>
+      <div style={{ color: '#aaa', fontSize: 14 }}>Luk dette vindue og brug det eksisterende.</div>
+    </div>
+  )
+  return <>{children}</>
+}
+
+const AppWithGuard: React.FC = () => (<DuplicateGuard><App /></DuplicateGuard>)
+export default AppWithGuard

@@ -211,6 +211,53 @@ export async function stopProducing() {
   }
 }
 
+/* ---------- VIDEO PRODUCE ---------- */
+
+const videoProducersByChannel = new Map<number, any>()
+const videoAudioProducers = new Map<number, any>()
+
+export async function produceVideoStream(stream: MediaStream, channel?: number): Promise<{ videoId: string; audioId: string | null }> {
+  if (!sendTransport) throw new Error("sendTransport not ready")
+  const videoTrack = stream.getVideoTracks()[0]
+  if (!videoTrack) throw new Error("no video track")
+  const cloned = videoTrack.clone()
+  let codecOptions: any = { videoGoogleStartBitrate: 2000 }
+  let codec: any = undefined
+  try {
+    const routerCodecs = (sendTransport as any).handler?.router?.rtpCapabilities?.codecs
+    const h264 = routerCodecs?.find((c: any) => c.mimeType?.toLowerCase() === 'video/h264')
+    if (h264) { codec = h264 }
+  } catch {}
+  const producer = await sendTransport.produce({
+    track: cloned,
+    encodings: [{ maxBitrate: 3000000 }],
+    codecOptions,
+    ...(codec ? { codec } : {})
+  })
+  if (channel !== undefined) videoProducersByChannel.set(channel, producer)
+  let audioId: string | null = null
+  const audioTrack = stream.getAudioTracks()[0]
+  if (audioTrack && channel !== undefined) {
+    try {
+      const audioCloned = audioTrack.clone()
+      const audioProducer = await sendTransport.produce({
+        track: audioCloned,
+        codecOptions: { opusFec: true, opusDtx: true, opusMaxPlaybackRate: 48000 }
+      })
+      videoAudioProducers.set(channel, audioProducer)
+      audioId = audioProducer.id
+    } catch {}
+  }
+  return { videoId: producer.id, audioId }
+}
+
+export function closeVideoProducer(channel: number) {
+  const vp = videoProducersByChannel.get(channel)
+  if (vp) { try { vp.close() } catch {} videoProducersByChannel.delete(channel) }
+  const ap = videoAudioProducers.get(channel)
+  if (ap) { try { ap.close() } catch {} videoAudioProducers.delete(channel) }
+}
+
 /* ---------- GETTERS ---------- */
 
 let _clientId = ""

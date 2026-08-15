@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/host/',
   build: {
-    outDir: '../easycom-host/server/public',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   server: {
