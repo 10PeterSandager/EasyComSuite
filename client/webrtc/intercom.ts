@@ -47,26 +47,6 @@ socket.on("client:gain", ({ clientId, channel, gain, bridgeId }: { clientId: str
     })
   }
 })
-// 🔥 Pan control from mobile clients
-socket.on("client:pan", ({ clientId, channel, pan, bridgeId }: { clientId: string; channel: number; pan: number; bridgeId?: string }) => {
-  const setPan = (bridgeCh: number) => {
-    const fn = (window as any).__setChannelPan
-    if (fn) {
-      fn(bridgeCh, pan)
-      console.log(`[pan] ${clientId} ch${channel} → bridge-ch${bridgeCh}: ${pan}`)
-    }
-  }
-  if (bridgeId) {
-    const match = bridgeId.match(/bridge-ch(\d+)/)
-    setPan(match ? parseInt(match[1]) : channel)
-  } else {
-    socket.emit("connections:list", (conns: any[]) => {
-      const conn = conns.find((c: any) => c.to === clientId && c.channel === channel)
-      const match = conn?.from?.match(/bridge-ch(\d+)/)
-      setPan(match ? parseInt(match[1]) : channel)
-    })
-  }
-})
 socket.on("disconnect", () => console.log("[socket] disconnected"))
 
 // Clean up stale consumer when a remote producer closes (e.g. phone releases TB).
@@ -438,19 +418,6 @@ function disconnectStereoNodes(stereoId: string) {
   }
 }
 
-function disconnectStereoSourceNodes(stereoId: string) {
-  const nodes = stereoSourceNodes.get(stereoId)
-  if (nodes) {
-    try { nodes.panL.disconnect() } catch {}
-    try { nodes.panR.disconnect() } catch {}
-    try { nodes.gainL.disconnect() } catch {}
-    try { nodes.gainR.disconnect() } catch {}
-    try { nodes.splitter.disconnect() } catch {}
-    try { nodes.src.disconnect() } catch {}
-    stereoSourceNodes.delete(stereoId)
-  }
-}
-
 // Sets up the Web Audio graph for a consumed track.
 //
 // Non-bridge (phone): MASN from track + vol=0 driver <audio> element (added by caller).
@@ -573,11 +540,6 @@ let currentStereoPairs = new Map<number, number>()       // chL → chR
 const pendingConsumes = new Set<string>()                // in-flight consume keys
 ;(window as any).__consumers = consumers
 const pendingStereo = new Set<string>()
-// bridge-stereo-* sources assigned to a specific client receive channel (new dedicated path)
-const stereoSourceConsumers = new Map<string, any>()
-type StereoSourceNodes = { src: MediaStreamAudioSourceNode; splitter: ChannelSplitterNode; gainL: GainNode; gainR: GainNode; panL: StereoPannerNode; panR: StereoPannerNode; channel: number }
-const stereoSourceNodes = new Map<string, StereoSourceNodes>()
-const pendingStereoSources = new Set<string>()
 // clientId → channel for non-bridge sources with stored connections to us.
 // Persists across producer:closed events so producer:ready can pre-consume immediately
 // (producer:ready fires before routing:update due to 100ms debounce on broadcastRouting).
@@ -772,39 +734,19 @@ export function initRouting(clientId: string) {
       stereoChannels.add(chL); stereoChannels.add(chR)
     }
 
-    // Track active bridge-stereo-* source IDs (dedicated stereo channel assignments)
-    const activeStereoSrcIds = new Set<string>()
-
     for (const [ch, sources] of Object.entries(newRouting)) {
       const chNum = Number(ch)
       for (const src of sources) {
-        if (src.startsWith("bridge-stereo-")) {
-          // Dedicated stereo: route through ChannelSplitter → L+R panners on same mixer
-          activeStereoSrcIds.add(src)
-          await consumeStereoSource(src, chNum)
-        } else {
-          const isBridge = src.startsWith("bridge-")
-          if (stereoChannels.has(chNum) && isBridge) continue
-          await consume(src, chNum)
-        }
+        const isBridge = src.startsWith("bridge-")
+        if (stereoChannels.has(chNum) && isBridge) continue
+        await consume(src, chNum)
       }
     }
 
-    // Close dedicated stereo consumers no longer in routing
-    for (const [stereoId, consumer] of stereoSourceConsumers.entries()) {
-      if (!activeStereoSrcIds.has(stereoId)) {
-        disconnectStereoSourceNodes(stereoId)
-        detachOutputAudio(stereoId)
-        try { consumer.close() } catch {}
-        stereoSourceConsumers.delete(stereoId)
-        resetLevel(`recv_${stereoId}`)
-      }
-    }
-
-    // Legacy: upgrade bridge channels to stereo where available (old host-side stereo pair system)
+    // Upgrade bridge channels to stereo where available
     for (const [chL, chR] of currentStereoPairs.entries()) {
-      const hasBridgeL = (newRouting[chL] || []).some(s => s.startsWith("bridge-") && !s.startsWith("bridge-stereo-"))
-      const hasBridgeR = (newRouting[chR] || []).some(s => s.startsWith("bridge-") && !s.startsWith("bridge-stereo-"))
+      const hasBridgeL = (newRouting[chL] || []).some(s => s.startsWith("bridge-"))
+      const hasBridgeR = (newRouting[chR] || []).some(s => s.startsWith("bridge-"))
       if (hasBridgeL || hasBridgeR) {
         consumeStereo(chL, chR)
       }
@@ -815,8 +757,6 @@ export function initRouting(clientId: string) {
 /* ── CONSUME ── */
 
 async function consume(sourceId: string, channel: number) {
-  // bridge-stereo-* sources must go through consumeStereoSource — guard against mis-routing
-  if (sourceId.startsWith("bridge-stereo-")) return
   const existing = consumers.get(sourceId)
   if (existing && consumerChannels.get(sourceId) === channel) {
     // Only skip if track is still live — ended track means server restarted
@@ -974,91 +914,6 @@ async function consumeStereo(chL: number, chR: number) {
     console.error(`[STEREO] ❌ exception "${stereoId}":`, e)
   } finally {
     pendingStereo.delete(stereoId)
-  }
-}
-
-/* ── DEDICATED STEREO SOURCE CONSUME ── */
-
-// Consumes a bridge-stereo-{chL}-{chR} producer and routes it as true stereo
-// to the client's receive channel using L→pan(-1) and R→pan(+1) both into getMixer(channel).
-// Volume is controlled by setReceiverGain(channel, v) — both L and R scale together.
-async function consumeStereoSource(stereoId: string, channel: number) {
-  if (pendingStereoSources.has(stereoId)) return
-
-  // Already live at same channel — skip
-  const existingNodes = stereoSourceNodes.get(stereoId)
-  if (existingNodes && existingNodes.channel === channel) {
-    const c = stereoSourceConsumers.get(stereoId)
-    if (c?.track?.readyState === 'live') return
-    // Stale — tear down before recreating
-    disconnectStereoSourceNodes(stereoId)
-    detachOutputAudio(stereoId)
-    try { c?.close() } catch {}
-    stereoSourceConsumers.delete(stereoId)
-  }
-
-  pendingStereoSources.add(stereoId)
-  const device = getDevice()
-  const recvTransport = getRecvTransport()
-  if (!device || !recvTransport) { pendingStereoSources.delete(stereoId); return }
-
-  try {
-    const result = await new Promise<any>((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error(`timeout ${stereoId}`)), 8000)
-      socket.emit("consume:request", {
-        targetId: stereoId,
-        rtpCapabilities: device.rtpCapabilities,
-        transportId: recvTransport.id
-      }, (res: any) => { clearTimeout(t); resolve(res) })
-    })
-
-    if (!result || result.error) {
-      console.warn(`[STEREO-SRC] ❌ "${stereoId}": ${result?.error}`)
-      return
-    }
-
-    const { id, producerId, kind, rtpParameters } = result
-    if (!id || !producerId || !rtpParameters) return
-
-    const consumer = await recvTransport.consume({ id, producerId, kind, rtpParameters })
-    if (consumer.resume) await consumer.resume()
-
-    stereoSourceConsumers.set(stereoId, consumer)
-
-    // Vol=0 silent driver keeps RTP decoder alive; audio goes exclusively through MASN → ChannelSplitter → panners
-    // (attachOutputAudio sets volume=1 for bridge-* sources which would bypass the stereo split path)
-    detachOutputAudio(stereoId)
-    const driverEl = document.createElement('audio')
-    driverEl.srcObject = new MediaStream([consumer.track])
-    driverEl.volume = 0
-    driverEl.autoplay = true
-    driverEl.play().catch(() => {})
-    outputAudios.set(stereoId, driverEl)
-
-    disconnectStereoSourceNodes(stereoId)
-    const stream = new MediaStream([consumer.track])
-    const src = audioCtx.createMediaStreamSource(stream)
-    const splitter = audioCtx.createChannelSplitter(2)
-    src.connect(splitter)
-
-    const gainL = audioCtx.createGain()
-    const gainR = audioCtx.createGain()
-    splitter.connect(gainL, 0)
-    splitter.connect(gainR, 1)
-
-    // L panned hard-left, R panned hard-right → both mix into the same channel mixer
-    // setReceiverGain(channel, v) controls overall stereo volume
-    const panL = audioCtx.createStereoPanner(); panL.pan.value = -1
-    const panR = audioCtx.createStereoPanner(); panR.pan.value = 1
-    gainL.connect(panL); panL.connect(getMixer(channel))
-    gainR.connect(panR); panR.connect(getMixer(channel))
-
-    stereoSourceNodes.set(stereoId, { src, splitter, gainL, gainR, panL, panR, channel })
-    console.log(`[STEREO-SRC] ✅ "${stereoId}" → ch${channel} L+R | track: ${consumer.track.readyState}`)
-  } catch (e) {
-    console.error(`[STEREO-SRC] ❌ exception "${stereoId}":`, e)
-  } finally {
-    pendingStereoSources.delete(stereoId)
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Server, RefreshCw, AlertCircle, Loader, Settings, Check, X, Save, Volume2, Terminal, Trash2, Plus, Link2 } from "lucide-react"
+import { Server, RefreshCw, AlertCircle, Loader, Settings, Check, X, Save, Volume2, Terminal, Trash2 } from "lucide-react"
 import { socket, setAudioOutputDevice } from "../client/webrtc/intercom"
 import { subscribeBridge, startBridgeCapture } from "../client/audio/audioBridgeStore"
 
@@ -9,19 +9,12 @@ type ServerDevice = {
   index: number; name: string; channels: number; sampleRate: number
   isApollo: boolean; channelInfo?: ChannelInfo[]
 }
-type StereoPair = { id: string; name: string; chL: number; chR: number }
-type Props = {
-  onStreamReady?: (stream: MediaStream, channel: number) => void
-  stereoPairs?: StereoPair[]
-  onStereoPairsChange?: (pairs: StereoPair[]) => void
-}
+type Props = { onStreamReady?: (stream: MediaStream, channel: number) => void }
 
 const IN_COLOR = "#22c55e"
 const OUT_COLOR = "#3b82f6"
 
-const STEREO_COLOR = "#a855f7"
-
-export default function ServerCapturePanel({ onStreamReady, stereoPairs = [], onStereoPairsChange }: Props) {
+export default function ServerCapturePanel({ onStreamReady }: Props) {
   const [serverStatus, setServerStatus] = useState<"checking" | "unavailable" | "ready">("checking")
   const [serverError, setServerError] = useState("")
   const [devices, setDevices] = useState<ServerDevice[]>([])
@@ -44,12 +37,6 @@ export default function ServerCapturePanel({ onStreamReady, stereoPairs = [], on
 
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedOutputId, setSelectedOutputId] = useState<string>("default")
-
-  // Stereo pair creation UI state
-  const [stereoChL, setStereoChL] = useState<number | null>(null)
-  const [stereoChR, setStereoChR] = useState<number | null>(null)
-  const [stereoName, setStereoName] = useState("")
-  const [showStereoCreate, setShowStereoCreate] = useState(false)
 
   // Debug log panel
   const [logLines, setLogLines] = useState<{ t: string; msg: string; level: "log" | "warn" | "error" }[]>([])
@@ -469,103 +456,6 @@ export default function ServerCapturePanel({ onStreamReady, stereoPairs = [], on
                     </div>
                   )
                 })}
-
-                {/* ── STEREO PAIRS (only on inputs tab) ── */}
-                {activeTab === "input" && onStereoPairsChange && (
-                  <div className="mt-3 space-y-1.5">
-                    <div className="flex items-center justify-between px-1">
-                      <div className="flex items-center gap-1.5">
-                        <Link2 size={10} style={{ color: STEREO_COLOR }} />
-                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: STEREO_COLOR }}>Stereo Pairs</span>
-                      </div>
-                      <button onClick={() => setShowStereoCreate(p => !p)}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black"
-                        style={{ background: `${STEREO_COLOR}20`, color: STEREO_COLOR, border: `1px solid ${STEREO_COLOR}40` }}>
-                        <Plus size={8} /> {showStereoCreate ? "Luk" : "Nyt par"}
-                      </button>
-                    </div>
-
-                    {/* Existing pairs */}
-                    {stereoPairs.map(pair => {
-                      const lInfo = getChInfo(pair.chL)
-                      const rInfo = getChInfo(pair.chR)
-                      return (
-                        <div key={pair.id} className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                          style={{ background: `${STEREO_COLOR}10`, border: `1px solid ${STEREO_COLOR}25` }}>
-                          <Link2 size={9} style={{ color: STEREO_COLOR }} className="shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-white truncate">{pair.name}</p>
-                            <p className="text-[8px] font-mono" style={{ color: `${STEREO_COLOR}99` }}>
-                              L: CH{pair.chL} {lInfo.name !== `CH${pair.chL}` ? `(${lInfo.name})` : ""} · R: CH{pair.chR} {rInfo.name !== `CH${pair.chR}` ? `(${rInfo.name})` : ""}
-                            </p>
-                          </div>
-                          <button onClick={() => {
-                              socket.emit("bridge:stereo:deregister", { chL: pair.chL, chR: pair.chR })
-                              onStereoPairsChange(stereoPairs.filter(p => p.id !== pair.id))
-                            }}
-                            className="shrink-0 text-white/20 hover:text-red-400 transition-colors">
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      )
-                    })}
-                    {stereoPairs.length === 0 && !showStereoCreate && (
-                      <p className="text-[9px] text-white/20 italic px-2">Ingen stereo par oprettet endnu</p>
-                    )}
-
-                    {/* Create pair form */}
-                    {showStereoCreate && (() => {
-                      const inputChs = inputChannels
-                      return (
-                        <div className="rounded-lg p-3 space-y-2"
-                          style={{ background: `${STEREO_COLOR}10`, border: `1px solid ${STEREO_COLOR}30` }}>
-                          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: STEREO_COLOR }}>Nyt stereo par</p>
-                          <input
-                            value={stereoName}
-                            onChange={e => setStereoName(e.target.value.toUpperCase())}
-                            placeholder="NAVN (f.eks. MAIN STEREO)"
-                            className="w-full bg-black/50 border border-white/10 rounded px-2 py-1.5 text-[10px] font-bold text-white uppercase outline-none placeholder:text-white/20"
-                          />
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-[8px] text-white/40 mb-1">L (venstre)</p>
-                              <select value={stereoChL ?? ""} onChange={e => setStereoChL(Number(e.target.value) || null)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded px-2 py-1.5 text-[10px] text-white appearance-none">
-                                <option value="">— vælg —</option>
-                                {inputChs.map(c => {
-                                  const inf = getChInfo(c.channel)
-                                  return <option key={c.channel} value={c.channel}>CH{c.channel} {inf.name !== `CH${c.channel}` ? inf.name : ""}</option>
-                                })}
-                              </select>
-                            </div>
-                            <div>
-                              <p className="text-[8px] text-white/40 mb-1">R (højre)</p>
-                              <select value={stereoChR ?? ""} onChange={e => setStereoChR(Number(e.target.value) || null)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded px-2 py-1.5 text-[10px] text-white appearance-none">
-                                <option value="">— vælg —</option>
-                                {inputChs.map(c => {
-                                  const inf = getChInfo(c.channel)
-                                  return <option key={c.channel} value={c.channel}>CH{c.channel} {inf.name !== `CH${c.channel}` ? inf.name : ""}</option>
-                                })}
-                              </select>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (!stereoName.trim() || stereoChL === null || stereoChR === null || stereoChL === stereoChR) return
-                              onStereoPairsChange([...stereoPairs, { id: crypto.randomUUID(), name: stereoName.trim(), chL: stereoChL, chR: stereoChR }])
-                              setStereoName(""); setStereoChL(null); setStereoChR(null); setShowStereoCreate(false)
-                            }}
-                            disabled={!stereoName.trim() || stereoChL === null || stereoChR === null || stereoChL === stereoChR}
-                            className="w-full py-1.5 rounded text-[10px] font-black uppercase disabled:opacity-30 flex items-center justify-center gap-1"
-                            style={{ background: STEREO_COLOR, color: "white" }}>
-                            <Plus size={10} /> Opret par
-                          </button>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                )}
               </div>
             )}
           </>

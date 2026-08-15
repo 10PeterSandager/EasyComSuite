@@ -84,20 +84,7 @@ function startBatchLevelReporting() {
         levels[`bridge-ch${ch.channel}`] = ch.level > 0.5 ? ch.level : 0
       }
     }
-
-    // Emit stereo pair levels (same pairing as phase 4 in startBridgeCapture)
-    const activeChNums = state.channels
-      .filter(c => c.status === "active")
-      .map(c => c.channel)
-      .sort((a, b) => a - b)
-    for (let i = 0; i + 1 < activeChNums.length; i += 2) {
-      const chL = activeChNums[i]
-      const chR = activeChNums[i + 1]
-      const levL = levels[`bridge-ch${chL}`] ?? 0
-      const levR = levels[`bridge-ch${chR}`] ?? 0
-      levels[`bridge-stereo-${chL}-${chR}`] = Math.max(levL, levR)
-    }
-
+    
     if (Object.keys(levels).length > 0) {
       socket.emit("bridge:levels", levels)
     }

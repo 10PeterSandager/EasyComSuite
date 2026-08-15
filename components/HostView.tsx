@@ -18,7 +18,7 @@ import GroupStrip, { Group as GroupType } from "./GroupStrip"
 import SignalChainDebugger from "./SignalChainDebugger"
 
 import { socket } from "../client/webrtc/intercom"
-import { setChannelGain, startStereoTestTone, stopStereoTestTone } from "../client/audio/AudioBridge"
+import { setChannelGain } from "../client/audio/AudioBridge"
 import { subscribeBridge } from "../client/audio/audioBridgeStore"
 import { ChannelMixerSettings, Client } from "../types"
 
@@ -210,7 +210,6 @@ const HostView = (props: any) => {
   const [editingNameValue, setEditingNameValue] = useState("")
   const [mixerClientId, setMixerClientId] = useState<string | null>(null)
   const [showSignalDebug, setShowSignalDebug] = useState(false)
-  const [stereoTestActive, setStereoTestActive] = useState(false)
   const [showBulkPanel, setShowBulkPanel] = useState(false)
   const [bulkColor, setBulkColor] = useState("#71717a")
 
@@ -221,14 +220,6 @@ const HostView = (props: any) => {
   useEffect(() => {
     try { localStorage.setItem('easycom:roles', JSON.stringify(roles)) } catch {}
   }, [roles])
-
-  // ── Stereo Pairs ─────────────────────────────────────────────────────────────
-  const [stereoPairs, setStereoPairs] = useState<{ id: string; name: string; chL: number; chR: number }[]>(() => {
-    try { return JSON.parse(localStorage.getItem('easycom:stereoPairs') ?? '[]') } catch { return [] }
-  })
-  useEffect(() => {
-    try { localStorage.setItem('easycom:stereoPairs', JSON.stringify(stereoPairs)) } catch {}
-  }, [stereoPairs])
 
   // ── Groups ──────────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState<GroupType[]>([])
@@ -245,10 +236,9 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
-    socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number; tunnelUrl: string }) => {
+    socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
       if (info?.lanIp) setQrLanIp(info.lanIp)
       if (info?.lanPort) setQrLanPort(info.lanPort)
-      if (info?.tunnelUrl) setQrTunnelUrl(info.tunnelUrl)
     })
   }, [])
 
@@ -331,15 +321,12 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     setGridOrder(prev => {
-      const ids = [
-        ...regularClients.map((c: Client) => c.id),
-        ...groups.map(g => g.id)
-      ]
+      const ids = regularClients.map((c: Client) => c.id)
       const existing = prev.filter(id => ids.includes(id))
       const added = ids.filter((id: string) => !prev.includes(id))
       return [...existing, ...added]
     })
-  }, [regularClients.length, groups.length])
+  }, [regularClients.length])
 
   const orderedRegularClients = gridOrder
     .map(id => regularClients.find((c: Client) => c.id === id))
@@ -513,16 +500,7 @@ const HostView = (props: any) => {
               </button>
               <span className="text-[10px] text-white/30">{Math.round(cardScale * 100)}%</span>
 
-              <button
-                onClick={() => {
-                  const next = !stereoTestActive
-                  setStereoTestActive(next)
-                  next ? startStereoTestTone(17, 18) : stopStereoTestTone()
-                }}
-                className={`ml-2 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${stereoTestActive ? 'bg-cyan-600 text-white shadow shadow-cyan-900/50' : 'bg-white/5 text-white/30 hover:bg-white/10'}`}
-              >
-                {stereoTestActive ? '◀ L/R ▶ AKTIV' : 'STEREO TEST'}
-              </button>
+              {/* Signal debug removed */}
 
               {selectedIds.length > 1 && (
                 <span className={`ml-1 text-[10px] px-2 py-0.5 rounded bg-${themeColor}-600/30 text-${themeColor}-400`}>
@@ -582,74 +560,62 @@ const HostView = (props: any) => {
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(92 * cardScale)}px, ${Math.round(92 * cardScale)}px))` }}
               onClick={e => { if (e.target === e.currentTarget) setSelectedIds([]) }}
             >
-              {gridOrder.map(id => {
-                const group = groups.find(g => g.id === id)
-                if (group) {
-                  return (
-                    <div
-                      key={group.id}
-                      draggable
-                      onDragStart={() => handleGridDragStart(group.id)}
-                      onDragEnter={() => handleGridDragEnter(group.id)}
-                      onDragEnd={handleGridDragEnd}
-                      onDragOver={e => e.preventDefault()}
-                      style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                      className="active:cursor-grabbing"
-                    >
-                      <GroupStrip
-                        group={group}
-                        clients={[producerClient, ...regularClients]}
-                        isActive={activeGroupIds.has(group.id)}
-                        onActivate={() => activateGroup(group)}
-                        onDeactivate={() => deactivateGroup(group)}
-                        onDelete={() => deleteGroup(group.id)}
-                        onUpdate={updateGroup}
-                      />
-                    </div>
-                  )
-                }
-
-                const c = regularClients.find((c: Client) => c.id === id)
-                if (!c || c.hidden) return null
-
+              {orderedRegularClients.filter((c: Client) => !c.hidden).map((c: Client) => {
                 const bridgeSources: FeedSource[] = activeBridgeChannels.map(ch => ({
                   id: `bridge-ch${ch}`,
                   label: `Bridge CH${ch}`
                 }))
+
                 const clientSources: FeedSource[] = regularClients
                   .filter((x: Client) => x.id !== c.id && x.status === "online")
                   .map((x: Client) => ({ id: x.id, label: x.name }))
+
                 const feedSources: FeedSource[] = [...clientSources, ...bridgeSources]
 
                 return (
-                  <div
-                    key={c.id}
-                    draggable
-                    onDragStart={() => handleGridDragStart(c.id)}
-                    onDragEnter={() => handleGridDragEnter(c.id)}
-                    onDragEnd={handleGridDragEnd}
-                    onDragOver={e => e.preventDefault()}
-                    onClick={e => handleClientSelect(c.id, e)}
-                    onContextMenu={e => handleRightClick(e, c.id)}
-                    style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                    className="active:cursor-grabbing"
-                  >
-                    <ClientStrip
-                      client={c}
-                      isSelected={selectedIds.includes(c.id)}
-                      onUpdate={(u: any) => handleUpdateClient(c.id, u)}
-                      onHijack={() => {}}
-                      onMapKey={() => setMappingClientId(c.id)}
-                      theme={theme}
-                      isMixerOpen={mixerClientId === c.id}
-                      onToggleMixer={() => toggleMixer(c.id)}
-                      feedSources={feedSources}
-                      allClients={regularClients}
-                      roles={roles}
-                    />
-                  </div>
+                <div
+                  key={c.id}
+                  draggable
+                  onDragStart={() => handleGridDragStart(c.id)}
+                  onDragEnter={() => handleGridDragEnter(c.id)}
+                  onDragEnd={handleGridDragEnd}
+                  onDragOver={e => e.preventDefault()}
+                  onClick={e => handleClientSelect(c.id, e)}
+                  onContextMenu={e => handleRightClick(e, c.id)}
+                  style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                  className="active:cursor-grabbing"
+                >
+                  <ClientStrip
+                    client={c}
+                    isSelected={selectedIds.includes(c.id)}
+                    onUpdate={(u: any) => handleUpdateClient(c.id, u)}
+                    onHijack={() => {}}
+                    onMapKey={() => setMappingClientId(c.id)}
+                    theme={theme}
+                    isMixerOpen={mixerClientId === c.id}
+                    onToggleMixer={() => toggleMixer(c.id)}
+                    feedSources={feedSources}
+                    allClients={regularClients}
+                    roles={roles}
+                  />
+                </div>
                 )
               })}
+
+              {/* GROUP CARDS */}
+              {groups.map(g => (
+                <div key={g.id} style={{ width: `${Math.round(92 * cardScale)}px` }}>
+                  <GroupStrip
+                    group={g}
+                    clients={regularClients}
+                    isActive={activeGroupIds.has(g.id)}
+                    onActivate={() => activateGroup(g)}
+                    onDeactivate={() => deactivateGroup(g)}
+                    onDelete={() => deleteGroup(g.id)}
+                    onUpdate={updateGroup}
+                  />
+                </div>
+              ))}
             </div>
 
             {/* FLOATING MIXER */}
@@ -823,10 +789,7 @@ const HostView = (props: any) => {
                   }}
                 />
               ) : (
-                <ServerCapturePanel
-                  stereoPairs={stereoPairs}
-                  onStereoPairsChange={setStereoPairs}
-                />
+                <ServerCapturePanel />
               )}
             </div>
           </div>
@@ -1019,31 +982,6 @@ const HostView = (props: any) => {
               </div>
             )
           })}
-
-          {groups.length > 0 && (
-            <div className="mt-2 space-y-1">
-              <div className="px-3 pt-1 text-[8px] font-bold uppercase tracking-widest text-white/20">Groups</div>
-              {groups.map(g => (
-                <div key={g.id}
-                  className="flex items-center justify-between px-3 py-1.5 rounded bg-white/5 hover:bg-white/8"
-                  style={{ borderLeft: `2px solid ${g.color}60` }}
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: g.color }} />
-                    <span className="text-xs font-bold truncate flex-1">{g.name}</span>
-                    <span className="text-[8px] text-white/30 shrink-0">{g.members.length}m</span>
-                    {activeGroupIds.has(g.id) && (
-                      <span className="text-[7px] font-bold uppercase" style={{ color: g.color }}>ON</span>
-                    )}
-                  </div>
-                  <button onClick={e => { e.stopPropagation(); deleteGroup(g.id) }}
-                    className="text-white/20 hover:text-red-400 shrink-0 ml-1">
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1130,7 +1068,6 @@ const HostView = (props: any) => {
           clients={clients}
           onUpdateClient={updateClient}
           clientTalkNames={clientTalkNames[popupClient.id] || {}}
-          stereoPairs={stereoPairs}
         />
       )}
 

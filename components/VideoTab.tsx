@@ -1,17 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { socket, subscribeToLevels } from '../client/webrtc/intercom'
+import { socket } from '../client/webrtc/intercom'
 import { Client } from '../types'
 import { Play, Square, AlertCircle, Trash2, Check, X, Pencil, Tv, Video, Monitor, Volume2, VolumeX } from 'lucide-react'
-
-function SlotMeter({ clientId, color }: { clientId: string; color: string }) {
-  const [rcv, setRcv] = React.useState(0)
-  React.useEffect(() => subscribeToLevels(l => setRcv(l[`recv_${clientId}`] ?? 0)), [clientId])
-  return (
-    <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, marginTop: 3 }}>
-      <div style={{ width: `${Math.min(1, rcv / 100) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 80ms linear' }} />
-    </div>
-  )
-}
 
 interface VideoTabProps {
   clients: Client[]
@@ -444,8 +434,15 @@ const VideoTab: React.FC<VideoTabProps> = ({
     }
   }
 
-  const toggleAudioMute = (ch: number) => {
-    setAudioMuted(prev => ({ ...prev, [ch]: !prev[ch] }))
+  const toggleAudioMute = async (ch: number) => {
+    const newMuted = !audioMuted[ch]
+    setAudioMuted(prev => ({ ...prev, [ch]: newMuted }))
+    try {
+      const { setVideoAudioMute } = await import('../client/webrtc/mediasoupClient')
+      setVideoAudioMute(ch, newMuted)
+    } catch (e) {
+      console.warn('[VideoTab] audio mute fejl:', e)
+    }
   }
   const [enabled, setEnabled] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true })
 
@@ -896,11 +893,10 @@ const VideoTab: React.FC<VideoTabProps> = ({
                           </td>
                         ) : null}
 
-                        {/* Slot label + level meter */}
+                        {/* Slot label */}
                         <td className="py-1.5 px-2 text-[9px] font-bold text-center"
                           style={{ color: slot === 0 ? '#ef4444' : '#3b82f6', opacity: 0.9, borderRight: "1px solid rgba(255,255,255,0.04)" }}>
                           V{slot + 1}
-                          <SlotMeter clientId={c.id} color={slot === 0 ? '#ef4444' : '#3b82f6'} />
                         </td>
 
                         {/* OFF */}

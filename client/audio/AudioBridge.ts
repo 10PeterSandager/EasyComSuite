@@ -13,7 +13,6 @@ type BridgeInstance = {
   eqHigh: BiquadFilterNode
   analyser: AnalyserNode
   gateNode: GainNode
-  panNode: StereoPannerNode
   destination: MediaStreamAudioDestinationNode
   stream: MediaStream
   channel: number
@@ -41,8 +40,6 @@ const eqFiltersMid = new Map<number, BiquadFilterNode>()
 const eqFiltersHigh = new Map<number, BiquadFilterNode>()
 const eqValues = new Map<number, { low: number; mid: number; high: number }>()
 const bridgeGateNodes = new Map<number, GainNode>()
-const panNodes = new Map<number, StereoPannerNode>()
-const panValues = new Map<number, number>()
 const gateSettings = new Map<number, { enabled: boolean; threshold: number }>()
 const muteValues = new Map<number, boolean>()
 const levelCallbacks = new Map<number, (level: number) => void>()
@@ -186,20 +183,15 @@ export async function startChannelBridge(channel: number, sampleRate: number): P
   gateNode.gain.value = muteValues.get(channel) ? 0 : 1
   bridgeGateNodes.set(channel, gateNode)
 
-  const panNode = ctx.createStereoPanner()
-  panNode.pan.value = panValues.get(channel) ?? 0
-  panNodes.set(channel, panNode)
-
   const destination = ctx.createMediaStreamDestination()
 
-  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → panNode → destination
+  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → destination
   gainNode.connect(eqLow)
   eqLow.connect(eqMid)
   eqMid.connect(eqHigh)
   eqHigh.connect(analyser)
   analyser.connect(gateNode)
-  gateNode.connect(panNode)
-  panNode.connect(destination)
+  gateNode.connect(destination)
 
   const buf = new Float32Array(analyser.fftSize)
   let gateOpen: boolean | null = null  // null = first run, force initial set
@@ -223,7 +215,7 @@ export async function startChannelBridge(channel: number, sampleRate: number): P
   requestAnimationFrame(tick)
 
   const instance: BridgeInstance = {
-    gainNode, eqLow, eqMid, eqHigh, analyser, gateNode, panNode,
+    gainNode, eqLow, eqMid, eqHigh, analyser, gateNode,
     destination,
     stream: destination.stream,
     channel,
@@ -246,14 +238,12 @@ export function stopChannelBridge(channel: number) {
   try { bridge.eqHigh.disconnect() } catch {}
   try { bridge.analyser.disconnect() } catch {}
   try { bridge.gateNode.disconnect() } catch {}
-  try { bridge.panNode.disconnect() } catch {}
   try { bridge.destination.disconnect() } catch {}
   gainNodes.delete(channel)
   eqFiltersLow.delete(channel)
   eqFiltersMid.delete(channel)
   eqFiltersHigh.delete(channel)
   bridgeGateNodes.delete(channel)
-  panNodes.delete(channel)
   bridges.delete(channel)
   console.log(`⏹ Bridge ch${channel} stopped`)
 }
@@ -275,7 +265,12 @@ export function setChannelGain(channel: number, gain: number) {
   gainValues.set(channel, gain)
   const gainNode = gainNodes.get(channel)
   if (gainNode && sharedCtx) {
-    gainNode.gain.setTargetAtTime(gain, sharedCtx.currentTime, 0.012)
+    gainNode.gain.cancelScheduledValues(sharedCtx.currentTime)
+    if (gain === 0) {
+      gainNode.gain.setValueAtTime(0, sharedCtx.currentTime)
+    } else {
+      gainNode.gain.setTargetAtTime(gain, sharedCtx.currentTime, 0.012)
+    }
     console.log(`[AudioBridge] setChannelGain ch${channel} → ${gain.toFixed(2)}`)
   }
 }
@@ -299,17 +294,7 @@ export function setChannelMute(channel: number, muted: boolean) {
   if (gateNode && sharedCtx && muted) gateNode.gain.setTargetAtTime(0, sharedCtx.currentTime, 0.005)
 }
 
-export function setChannelPan(channel: number, pan: number) {
-  panValues.set(channel, pan)
-  const panNode = panNodes.get(channel)
-  if (panNode && sharedCtx) {
-    panNode.pan.setTargetAtTime(pan, sharedCtx.currentTime, 0.012)
-    console.log(`[AudioBridge] setChannelPan ch${channel} → ${pan.toFixed(2)}`)
-  }
-}
-
 ;(window as any).__setChannelGain = setChannelGain
-;(window as any).__setChannelPan = setChannelPan
 
 export function setChannelLevelCallback(channel: number, cb: (level: number) => void) {
   levelCallbacks.set(channel, cb)
@@ -360,53 +345,6 @@ export async function getStereoStream(chL: number, chR: number): Promise<MediaSt
 
   console.log(`🎙 Stereo merge ch${chL}+ch${chR} → live (shared ctx)`)
   return dest.stream
-}
-
-// ─── Stereo test tone ─────────────────────────────────────────────────────────
-// Injects a 440 Hz sine that alternates L↔R every 2 s into the existing gainNodes
-// for chL and chR. Summed with real audio from those channels (zero during testing).
-let _stereoTestOsc:  OscillatorNode | null = null
-let _stereoTestGainL: GainNode | null = null
-let _stereoTestGainR: GainNode | null = null
-let _stereoTestTimer: ReturnType<typeof setInterval> | null = null
-
-export function startStereoTestTone(chL = 17, chR = 18) {
-  stopStereoTestTone()
-  const ctx = sharedCtx
-  const gL  = gainNodes.get(chL)
-  const gR  = gainNodes.get(chR)
-  if (!ctx || !gL || !gR) { console.warn('[StereoTest] gainNodes not ready — start bridge first'); return }
-
-  const osc = ctx.createOscillator()
-  osc.type = 'sine'; osc.frequency.value = 440
-
-  const tL = ctx.createGain(); tL.gain.value = 0.5
-  const tR = ctx.createGain(); tR.gain.value = 0.0
-
-  osc.connect(tL); osc.connect(tR)
-  tL.connect(gL); tR.connect(gR)
-  osc.start()
-
-  _stereoTestOsc = osc; _stereoTestGainL = tL; _stereoTestGainR = tR
-
-  let leftActive = true
-  _stereoTestTimer = setInterval(() => {
-    leftActive = !leftActive
-    const t = ctx.currentTime
-    tL.gain.setTargetAtTime(leftActive ? 0.5 : 0, t, 0.04)
-    tR.gain.setTargetAtTime(leftActive ? 0 : 0.5, t, 0.04)
-    console.log(`[StereoTest] → ${leftActive ? 'LEFT' : 'RIGHT'}`)
-  }, 2000)
-
-  console.log('[StereoTest] ▶ started on ch', chL, '+', chR)
-}
-
-export function stopStereoTestTone() {
-  if (_stereoTestTimer)  { clearInterval(_stereoTestTimer); _stereoTestTimer = null }
-  if (_stereoTestOsc)    { try { _stereoTestOsc.stop() } catch {}; _stereoTestOsc = null }
-  try { _stereoTestGainL?.disconnect() } catch {}; _stereoTestGainL = null
-  try { _stereoTestGainR?.disconnect() } catch {}; _stereoTestGainR = null
-  console.log('[StereoTest] ■ stopped')
 }
 
 // Backward-compat

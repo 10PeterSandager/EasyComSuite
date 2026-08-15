@@ -51,7 +51,6 @@ const ClientStrip: React.FC<Props> = ({
 
   const [snd, setSnd] = useState(0)
   const [rcv, setRcv] = useState(0)
-  const [stereo, setStereo] = useState(0)
   const [phoneRoutes, setPhoneRoutes] = useState<Array<{ from: string; name: string }>>([])
   const [disabledPhoneIds, setDisabledPhoneIds] = useState<Set<string>>(new Set())
   const [isTalkPressed, setIsTalkPressed] = useState(false)
@@ -73,7 +72,6 @@ const ClientStrip: React.FC<Props> = ({
     return subscribeToLevels(levels => {
       setSnd(levels[client.id] ?? 0)
       setRcv(levels[`recv_${client.id}`] ?? 0)
-      setStereo(levels[`recv_stereo_${client.id}`] ?? 0)
     })
   }, [client.id])
 
@@ -274,29 +272,22 @@ const ClientStrip: React.FC<Props> = ({
         <div className="flex-1 p-1.5 flex flex-col gap-1">
 
           {/* METERS */}
-          <div className="flex items-end gap-1">
-            <div className="flex-1 flex flex-col gap-0.5">
-              <div className="h-2 bg-black rounded overflow-hidden">
-                <div className="h-full rounded"
-                  style={{ width: `${Math.min(100,snd)}%`, background: snd > 75 ? "#ef4444" : snd > 40 ? "#eab308" : "#22c55e", transition: "width 50ms" }} />
-              </div>
+          <div className="flex items-center gap-1">
+            <div className="flex-1 h-2 bg-black rounded overflow-hidden">
+              <div className="h-full rounded"
+                style={{ width: `${Math.min(100,snd)}%`, background: snd > 75 ? "#ef4444" : snd > 40 ? "#eab308" : "#22c55e", transition: "width 50ms" }} />
             </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Bar level={snd} color="#22c55e" />
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 opacity-60" />
-              <span className="text-[6px] text-white/30 leading-none">SND</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Bar level={rcv} color="#3b82f6" />
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 opacity-60" />
-              <span className="text-[6px] text-white/30 leading-none">RCV</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Bar level={stereo} color="#a855f7" />
-              <div className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: "#a855f7" }} />
-              <span className="text-[6px] text-white/30 leading-none">ST</span>
-            </div>
+            <Bar level={snd} color="#22c55e" />
+            <Bar level={rcv} color="#3b82f6" />
           </div>
+
+          <div className="flex gap-2 px-0.5">
+            <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-sm bg-green-500 opacity-50" /><span className="text-[7px] text-white/30">SEND</span></div>
+            <div className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-sm bg-blue-500 opacity-50" /><span className="text-[7px] text-white/30">RECV</span></div>
+          </div>
+
+
+
 
 
           {/* TALK */}

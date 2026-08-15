@@ -213,21 +213,26 @@ export async function stopProducing() {
 
 /* ---------- VIDEO PRODUCE ---------- */
 
+// Map channel → video/audio producers so we can close them on stream stop
 const videoProducersByChannel = new Map<number, any>()
 const videoAudioProducers = new Map<number, any>()
 
 export async function produceVideoStream(stream: MediaStream, channel?: number): Promise<{ videoId: string; audioId: string | null }> {
   if (!sendTransport) throw new Error("sendTransport not ready")
+
   const videoTrack = stream.getVideoTracks()[0]
   if (!videoTrack) throw new Error("no video track")
+
   const cloned = videoTrack.clone()
+
   let codecOptions: any = { videoGoogleStartBitrate: 2000 }
   let codec: any = undefined
   try {
-    const routerCodecs = (sendTransport as any).handler?.router?.rtpCapabilities?.codecs
+    const routerCodecs = sendTransport.handler?.router?.rtpCapabilities?.codecs
     const h264 = routerCodecs?.find((c: any) => c.mimeType?.toLowerCase() === 'video/h264')
-    if (h264) { codec = h264 }
+    if (h264) { codec = h264; console.log('[mediasoup] using H264 codec') }
   } catch {}
+
   const producer = await sendTransport.produce({
     track: cloned,
     encodings: [{ maxBitrate: 3000000 }],
@@ -235,6 +240,9 @@ export async function produceVideoStream(stream: MediaStream, channel?: number):
     ...(codec ? { codec } : {})
   })
   if (channel !== undefined) videoProducersByChannel.set(channel, producer)
+  console.log(`[mediasoup] ✅ video producing: ${producer.id}`)
+
+  // Produce embedded audio track if present
   let audioId: string | null = null
   const audioTrack = stream.getAudioTracks()[0]
   if (audioTrack && channel !== undefined) {
@@ -246,9 +254,25 @@ export async function produceVideoStream(stream: MediaStream, channel?: number):
       })
       videoAudioProducers.set(channel, audioProducer)
       audioId = audioProducer.id
-    } catch {}
+      console.log(`[mediasoup] ✅ video embedded audio ch${channel}: ${audioProducer.id}`)
+    } catch (e) {
+      console.warn('[mediasoup] embedded audio produce fejl:', e)
+    }
   }
+
   return { videoId: producer.id, audioId }
+}
+
+export function setVideoAudioMute(channel: number, muted: boolean) {
+  const ap = videoAudioProducers.get(channel)
+  if (!ap) return
+  if (muted) ap.pause()
+  else ap.resume()
+  console.log(`[mediasoup] video ch${channel} audio ${muted ? 'muted' : 'unmuted'}`)
+}
+
+export function getVideoHasAudio(channel: number): boolean {
+  return videoAudioProducers.has(channel)
 }
 
 export function closeVideoProducer(channel: number) {
@@ -256,6 +280,12 @@ export function closeVideoProducer(channel: number) {
   if (vp) { try { vp.close() } catch {} videoProducersByChannel.delete(channel) }
   const ap = videoAudioProducers.get(channel)
   if (ap) { try { ap.close() } catch {} videoAudioProducers.delete(channel) }
+  console.log(`[mediasoup] video ch${channel} producers closed`)
+}
+
+export async function stopVideoProducing() {
+  videoProducersByChannel.forEach(p => { try { p.close() } catch {} })
+  videoProducersByChannel.clear()
 }
 
 /* ---------- GETTERS ---------- */

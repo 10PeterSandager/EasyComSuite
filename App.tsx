@@ -218,19 +218,6 @@ const App: React.FC = () => {
   const directVideoSent = React.useRef<Record<string, boolean>>({})
   // 🔥 Host-side routing: clientId → allowed source numbers
   const videoRouting = React.useRef<Record<string, number[]>>({})
-  // Always-current clients ref — used in socket handlers to avoid stale closures
-  const clientsRef = React.useRef<Client[]>(clients)
-  React.useEffect(() => { clientsRef.current = clients }, [clients])
-
-  // Seed videoRouting from localStorage clients on mount (restored after Cmd+R)
-  React.useEffect(() => {
-    clients.forEach(c => {
-      if (c.videoSources && (c.videoSources as number[]).some(s => s > 0)) {
-        videoRouting.current[c.id] = c.videoSources as number[]
-      }
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Lyt på routing-opdateringer fra VideoTab
   React.useEffect(() => {
@@ -376,11 +363,7 @@ const App: React.FC = () => {
   // 🔥 Send streams til klient baseret på routing
   React.useEffect(() => {
     const handler = async ({ toSocketId, clientId }: { toSocketId: string, clientId?: string }) => {
-      // Fall back to clients state (loaded from localStorage) if routing ref not yet populated
-      const fallback = clientId !== undefined
-        ? clientsRef.current.find(c => c.id === clientId)?.videoSources
-        : undefined
-      const allowed = (clientId !== undefined ? videoRouting.current[clientId] : undefined) ?? fallback
+      const allowed = clientId !== undefined ? videoRouting.current[clientId] : undefined
       console.log(`[DirectVideo] Klient ${toSocketId} (${clientId}), routing: ${allowed === undefined ? 'INGEN' : `[${allowed}]`}`)
       if (!allowed || allowed.every((s: number) => s === 0)) return
       const allStreams: Record<number, MediaStream | null> = {
@@ -438,12 +421,13 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
+        await startDirectVideo(ch, stream)
       } catch (e) {
         console.warn(`[App] video produce fejl ch${ch}:`, e)
       }
     }
     if (videoStream1) produce(1, videoStream1)
-  }, [videoStream1])
+  }, [videoStream1, startDirectVideo])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -466,12 +450,13 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
+        await startDirectVideo(ch, stream)
       } catch (e) {
         console.warn(`[App] video produce fejl ch${ch}:`, e)
       }
     }
     if (videoStream2) produce(2, videoStream2)
-  }, [videoStream2])
+  }, [videoStream2, startDirectVideo])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -493,10 +478,11 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
+        await startDirectVideo(ch, stream)
       } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
     }
     if (videoStream3) produce(3, videoStream3)
-  }, [videoStream3])
+  }, [videoStream3, startDirectVideo])
 
   useEffect(() => {
     const produce = async (ch: number, stream: MediaStream | null) => {
@@ -518,10 +504,11 @@ const App: React.FC = () => {
         socket.emit('producer:register', { clientId: `video-source-${ch}`, producerId: videoId, kind: 'video' })
         if (audioId) socket.emit('producer:register', { clientId: `video-audio-source-${ch}`, producerId: audioId, kind: 'audio' })
         console.log(`[App] ✅ video-source-${ch} produceret: ${videoId} (audio: ${audioId})`)
+        await startDirectVideo(ch, stream)
       } catch (e) { console.warn(`[App] video produce fejl ch${ch}:`, e) }
     }
     if (videoStream4) produce(4, videoStream4)
-  }, [videoStream4])
+  }, [videoStream4, startDirectVideo])
 
   const stopVideoStream = (channel: number) => {
     // Close mediasoup producers first so the mobile's consumer fires producerclose
@@ -840,28 +827,4 @@ const App: React.FC = () => {
 
 }
 
-const DuplicateGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDuplicate, setIsDuplicate] = React.useState(false)
-  React.useEffect(() => {
-    const ch = new BroadcastChannel('easycom-host-lock')
-    let settled = false
-    ch.onmessage = (e) => {
-      if (e.data === 'ping' && !isDuplicate) ch.postMessage('pong')
-      if (e.data === 'pong' && !settled) { settled = true; setIsDuplicate(true) }
-    }
-    ch.postMessage('ping')
-    const t = setTimeout(() => { settled = true }, 400)
-    return () => { clearTimeout(t); ch.close() }
-  }, [])
-  if (isDuplicate) return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-      <div style={{ fontSize: 48 }}>⚠️</div>
-      <div style={{ color: '#fff', fontSize: 20, fontWeight: 600 }}>EasyCom Host kører allerede</div>
-      <div style={{ color: '#aaa', fontSize: 14 }}>Luk dette vindue og brug det eksisterende.</div>
-    </div>
-  )
-  return <>{children}</>
-}
-
-const AppWithGuard: React.FC = () => (<DuplicateGuard><App /></DuplicateGuard>)
-export default AppWithGuard
+export default App

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { socket, setAudioOutputDevice } from "../client/webrtc/intercom"
 import { Client } from "../types"
-import { Unlink, RefreshCw, ChevronRight, ChevronLeft, Check, X, Wifi, WifiOff, Server, Users, ArrowUpRight, ArrowRight, ArrowLeft, GripHorizontal, Headphones } from "lucide-react"
+import { Unlink, RefreshCw, ChevronRight, ChevronLeft, Check, X, Wifi, WifiOff, Server, Users, ArrowUpRight, ArrowRight, ArrowLeft, GripHorizontal } from "lucide-react"
 import { useDraggable } from "../hooks/useDraggable"
 
 type Connection = { from: string; to: string; channel: number; toChannel?: number }
@@ -28,8 +28,6 @@ type Step =
   | "output-pick-soundcard"
   | "output-pick-device"
 
-type StereoPair = { id: string; name: string; chL: number; chR: number }
-
 type Props = {
   open: boolean
   onClose: () => void
@@ -37,7 +35,6 @@ type Props = {
   clients: Client[]
   onUpdateClient: (id: string, updates: Partial<Client>) => void
   clientTalkNames?: Record<string, string>
-  stereoPairs?: StereoPair[]
 }
 
 const CH_COLORS = [
@@ -49,10 +46,8 @@ const TALK_CH = 4
 const RECV_CH = 16
 const BASE_ID = "producer-65"
 
-const STEREO_COLOR = "#a855f7"
-
 export default function ConnectionsPopup({
-  open, onClose, sourceClient, clients, onUpdateClient, clientTalkNames = {}, stereoPairs = [],
+  open, onClose, sourceClient, clients, onUpdateClient, clientTalkNames = {},
 }: Props) {
   const { pos, onMouseDown } = useDraggable()
   const [connections, setConnections] = useState<Connection[]>([])
@@ -70,7 +65,6 @@ export default function ConnectionsPopup({
   const [scSrcId, setScSrcId] = useState<string | null>(null)
   const [scSrcName, setScSrcName] = useState("")
   const [scRecvCh, setScRecvCh] = useState<number | null>(null)
-  const [scIsStereo, setScIsStereo] = useState(false)
   // output flow
   const [selectedMyOutputChs, setSelectedMyOutputChs] = useState<number[]>([])
   const [selectedSoundcardCh, setSelectedSoundcardCh] = useState<number | null>(null)
@@ -157,7 +151,7 @@ export default function ConnectionsPopup({
     setSelectedDestIds([])
     setTalkSrcCh(null); setTalkDestCh(null)
     setRecvMyCh(null); setRecvDestCh(null)
-    setScSrcId(null); setScSrcName(""); setScRecvCh(null); setScIsStereo(false)
+    setScSrcId(null); setScSrcName(""); setScRecvCh(null)
     setSelectedMyOutputChs([]); setSelectedSoundcardCh(null)
     setSelectedServerDevice(-1); setSelectedDeviceChannels(2)
   }
@@ -212,18 +206,6 @@ export default function ConnectionsPopup({
     if (!scSrcId || scRecvCh === null) return
     socket.emit("connection:create", {
       from: scSrcId, to: sourceClient.id, channel: scRecvCh, bidirectional: false,
-    })
-    resetFlow()
-  }
-
-  const confirmConnectStereoInput = (pair: StereoPair) => {
-    if (scRecvCh === null) return
-    // Single connection from the stereo bridge producer — carries true stereo WebRTC track
-    socket.emit("connection:create", {
-      from: `bridge-stereo-${pair.chL}-${pair.chR}`,
-      to: sourceClient.id,
-      channel: scRecvCh,
-      bidirectional: false,
     })
     resetFlow()
   }
@@ -308,11 +290,13 @@ export default function ConnectionsPopup({
                 {isActive ? (
                   <div className="space-y-0.5 mt-0.5">
                     {active.map(({ conn, name }, idx) => (
-                      <button key={idx} onClick={() => disconnect(conn)}
-                        className="w-full flex items-center gap-1 rounded px-1 -mx-1 hover:bg-red-500/15 transition-colors group">
-                        <span className="text-[7px] text-white/55 truncate flex-1 text-left">{name}</span>
-                        <X size={9} className="text-white/20 group-hover:text-red-400 shrink-0 transition-colors" />
-                      </button>
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="text-[7px] text-white/55 truncate flex-1">{name}</span>
+                        <button onClick={() => disconnect(conn)}
+                          className="p-0.5 hover:text-red-400 text-white/25 shrink-0">
+                          <Unlink size={8} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -334,41 +318,35 @@ export default function ConnectionsPopup({
             const recvIn = incoming.filter(c => c.channel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
             // outgoing non-talk: I send to someone on toChannel ch
             const recvOut = outgoing.filter(c => c.toChannel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
-            type Entry = { conn: Connection; name: string; isStereo?: boolean }
+            type Entry = { conn: Connection; name: string }
             const active: Entry[] = [
               ...recvIn.map(c => {
                 const src = clients.find(x => x.id === c.from)
                 const bch = bridgeChannels.find(x => `bridge-ch${x.channel}` === c.from)
-                const sp = stereoPairs.find(p => `bridge-stereo-${p.chL}-${p.chR}` === c.from)
-                return { conn: c, name: src?.name ?? bch?.name ?? sp?.name ?? c.from, isStereo: !!sp }
+                return { conn: c, name: src?.name ?? bch?.name ?? c.from }
               }),
               ...recvOut.map(c => ({ conn: c, name: clients.find(x => x.id === c.to)?.name ?? c.to })),
             ]
             const isActive = active.length > 0
-            const hasStereo = active.some(a => a.isStereo)
             return (
               <div key={ch}
                 className="rounded-lg p-2 space-y-0.5"
                 style={isActive
-                  ? hasStereo
-                    ? { background: `${STEREO_COLOR}20`, border: `1px solid ${STEREO_COLOR}55` }
-                    : { background: chColor(ch) + "25", border: `1px solid ${chColor(ch)}60` }
+                  ? { background: chColor(ch) + "25", border: `1px solid ${chColor(ch)}60` }
                   : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="text-xs font-black flex items-center gap-1"
-                  style={{ color: isActive ? (hasStereo ? STEREO_COLOR : chColor(ch)) : "rgba(255,255,255,0.2)" }}>
-                  {hasStereo && <Headphones size={9} />}
+                <div className="text-xs font-black" style={{ color: isActive ? chColor(ch) : "rgba(255,255,255,0.2)" }}>
                   {ch}
                 </div>
                 {isActive ? (
                   <div className="space-y-0.5 mt-0.5">
-                    {active.map(({ conn, name, isStereo }, idx) => (
-                      <button key={idx} onClick={() => disconnect(conn)}
-                        className="w-full flex items-center gap-1 rounded px-1 -mx-1 hover:bg-red-500/15 transition-colors group">
-                        {isStereo && <Headphones size={7} style={{ color: STEREO_COLOR, flexShrink: 0 }} />}
-                        <span className="text-[7px] truncate flex-1 text-left"
-                          style={{ color: isStereo ? STEREO_COLOR : "rgba(255,255,255,0.55)" }}>{name}</span>
-                        <X size={9} className="text-white/20 group-hover:text-red-400 shrink-0 transition-colors" />
-                      </button>
+                    {active.map(({ conn, name }, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="text-[7px] text-white/55 truncate flex-1">{name}</span>
+                        <button onClick={() => disconnect(conn)}
+                          className="p-0.5 hover:text-red-400 text-white/25 shrink-0">
+                          <Unlink size={8} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -640,47 +618,7 @@ export default function ConnectionsPopup({
     <div className="space-y-3">
       <BackBtn to="reset" />
       <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SELECT AUDIO INTERFACE INPUT</p>
-
-      {/* Stereo pairs — shown at top in purple */}
-      {stereoPairs.length > 0 && (
-        <>
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="flex-1 h-px" style={{ background: `${STEREO_COLOR}30` }} />
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: `${STEREO_COLOR}99` }}>Stereo</span>
-            <div className="flex-1 h-px" style={{ background: `${STEREO_COLOR}30` }} />
-          </div>
-          {stereoPairs.map(pair => {
-            const assignedStereo = incoming.find(c => c.from === `bridge-stereo-${pair.chL}-${pair.chR}`)
-            return (
-              <button key={pair.id}
-                onClick={() => { setScSrcId(`bridge-stereo-${pair.chL}-${pair.chR}`); setScSrcName(pair.name); setScIsStereo(true); setStep("sc-pick-recv-ch") }}
-                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all"
-                style={assignedStereo
-                  ? { background: `${STEREO_COLOR}15`, border: `1px solid ${STEREO_COLOR}50`, color: "rgba(255,255,255,0.9)" }
-                  : { background: `${STEREO_COLOR}08`, border: `1px solid ${STEREO_COLOR}25`, color: "rgba(255,255,255,0.8)" }}>
-                <span className="text-[8px] font-black px-1.5 py-0.5 rounded shrink-0"
-                  style={{ background: `${STEREO_COLOR}25`, color: STEREO_COLOR, border: `1px solid ${STEREO_COLOR}50` }}>
-                  L+R
-                </span>
-                <span className="text-sm font-bold flex-1 text-left">{pair.name}</span>
-                <span className="text-[9px] font-mono shrink-0" style={{ color: `${STEREO_COLOR}70` }}>
-                  CH{pair.chL}+{pair.chR}
-                </span>
-                {assignedStereo
-                  ? <span className="text-[9px] font-bold ml-1" style={{ color: STEREO_COLOR }}>CH{assignedStereo.channel} ✓</span>
-                  : <ChevronRight size={12} className="text-white/25 ml-1" />}
-              </button>
-            )
-          })}
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="flex-1 h-px bg-white/5" />
-            <span className="text-[8px] font-black uppercase tracking-widest text-white/20">Mono</span>
-            <div className="flex-1 h-px bg-white/5" />
-          </div>
-        </>
-      )}
-
-      {inputBridgeChs.length === 0 && stereoPairs.length === 0 && (
+      {inputBridgeChs.length === 0 && (
         <p className="text-[11px] text-white/50 italic text-center py-4">
           No audio interface inputs – start Audio Bridge
         </p>
@@ -689,7 +627,7 @@ export default function ConnectionsPopup({
         const assigned = incoming.find(c => c.from === `bridge-ch${ch.channel}`)
         return (
           <button key={ch.channel}
-            onClick={() => { setScSrcId(`bridge-ch${ch.channel}`); setScSrcName(ch.name); setScIsStereo(false); setStep("sc-pick-recv-ch") }}
+            onClick={() => { setScSrcId(`bridge-ch${ch.channel}`); setScSrcName(ch.name); setStep("sc-pick-recv-ch") }}
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all"
             style={assigned
               ? { background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", color: "rgba(255,255,255,0.9)" }
@@ -710,37 +648,17 @@ export default function ConnectionsPopup({
   )
 
   // ── SOUNDCARD: PICK RECEIVE CHANNEL ──
-  const renderScPickRecvCh = () => {
-    const activePair = scIsStereo ? stereoPairs.find(p => scSrcId === `bridge-stereo-${p.chL}-${p.chR}`) : null
-    return (
+  const renderScPickRecvCh = () => (
     <div className="space-y-3">
       <BackBtn to="sc-pick-src" />
       <div className="px-3 py-2 rounded-lg"
-        style={scIsStereo
-          ? { background: `${STEREO_COLOR}12`, border: `1px solid ${STEREO_COLOR}40` }
-          : { background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
-        <p className="text-[9px] text-white/50 uppercase tracking-widest">{scIsStereo ? "Stereo source" : "Source"}</p>
+        style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
+        <p className="text-[9px] text-white/50 uppercase tracking-widest">Source</p>
         <p className="text-sm font-bold text-white">{scSrcName}</p>
-        {scIsStereo && activePair && (
-          <p className="text-[9px] font-mono mt-0.5" style={{ color: `${STEREO_COLOR}90` }}>
-            L: CH{activePair.chL} · R: CH{activePair.chR} · true stereo WebRTC
-          </p>
-        )}
       </div>
-      {scIsStereo ? (
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: STEREO_COLOR }}>
-            <Headphones size={11} /> VÆLG DEDIKERET STEREOKANAL
-          </p>
-          <p className="text-[9px] text-white/35 leading-tight">
-            Den valgte kanal reserveres til L+R stereo — klik for at bekræfte.
-          </p>
-        </div>
-      ) : (
-        <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
-          SELECT RECEIVE CHANNEL
-        </p>
-      )}
+      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
+        SELECT RECEIVE CHANNEL
+      </p>
       <div className="grid grid-cols-4 gap-1.5">
         {Array.from({ length: clientRecvChCount(sourceClient.id) }, (_, i) => {
           const ch = i + 1
@@ -749,31 +667,14 @@ export default function ConnectionsPopup({
             <button key={ch} onClick={() => setScRecvCh(sel ? null : ch)}
               className="rounded-lg p-2.5 transition-all"
               style={sel
-                ? { background: (scIsStereo ? STEREO_COLOR : chColor(ch)) + "40", border: `2px solid ${scIsStereo ? STEREO_COLOR : chColor(ch)}`, color: scIsStereo ? STEREO_COLOR : chColor(ch) }
-                : { background: scIsStereo ? `${STEREO_COLOR}08` : "rgba(255,255,255,0.03)", border: `1px solid ${scIsStereo ? STEREO_COLOR + "25" : "rgba(255,255,255,0.07)"}`, color: scIsStereo ? `${STEREO_COLOR}70` : "rgba(255,255,255,0.3)" }}>
-              {scIsStereo ? (
-                <div className="flex flex-col items-center gap-0.5">
-                  <Headphones size={12} />
-                  <div className="text-[10px] font-black">CH{ch}</div>
-                  <div className="text-[7px] font-bold opacity-70 tracking-wider">L+R</div>
-                </div>
-              ) : (
-                <div className="text-sm font-black">CH{ch}</div>
-              )}
+                ? { background: chColor(ch) + "40", border: `2px solid ${chColor(ch)}`, color: chColor(ch) }
+                : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)" }}>
+              <div className="text-sm font-black">CH{ch}</div>
             </button>
           )
         })}
       </div>
-      {scRecvCh !== null && activePair && (
-        <button onClick={() => confirmConnectStereoInput(activePair)} disabled={!socketOk}
-          className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-          style={socketOk
-            ? { background: STEREO_COLOR, color: "white" }
-            : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
-          <Check size={14} /> {scSrcName} (L+R) → CH{scRecvCh}
-        </button>
-      )}
-      {scRecvCh !== null && !activePair && (
+      {scRecvCh !== null && (
         <button onClick={confirmConnectSoundcardInput} disabled={!socketOk}
           className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
           style={socketOk
@@ -784,7 +685,6 @@ export default function ConnectionsPopup({
       )}
     </div>
   )
-  }
 
   // ── OUTPUT: PICK MY CHANNEL ──
   const renderOutputPickMyCh = () => {
