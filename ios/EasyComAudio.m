@@ -7,30 +7,59 @@
 
 RCT_EXPORT_MODULE();
 
-// Overrides react-native-webrtc's own default audio configuration.
-//
-// react-native-webrtc internally calls [RTCAudioSessionConfiguration setWebRTCConfiguration:]
-// with AVAudioSessionModeVoiceChat (→ VoiceProcessingIO, mono) and AllowBluetooth (→ AirPods
-// in HFP = mono 8-16kHz). This fires when WebRTC activates audio and overrides direct AVAudioSession calls.
-//
-// Fix: call [RTCAudioSessionConfiguration setWebRTCConfiguration:] ourselves BEFORE WebRTC does,
-// with Default mode + A2DP only + DefaultToSpeaker.
-RCT_EXPORT_METHOD(configureForStereo) {
-  RTCAudioSessionConfiguration *config = [[RTCAudioSessionConfiguration alloc] init];
-  config.category = AVAudioSessionCategoryPlayAndRecord;
-  config.categoryOptions = AVAudioSessionCategoryOptionDefaultToSpeaker |
-                           AVAudioSessionCategoryOptionAllowBluetoothA2DP;
-  config.mode = AVAudioSessionModeDefault;
-  [RTCAudioSessionConfiguration setWebRTCConfiguration:config];
+static RTCAudioSessionConfiguration *_stereoConfig = nil;
 
++ (RTCAudioSessionConfiguration *)stereoConfig {
+  if (!_stereoConfig) {
+    _stereoConfig = [[RTCAudioSessionConfiguration alloc] init];
+    _stereoConfig.category = AVAudioSessionCategoryPlayAndRecord;
+    // AllowBluetooth: lets AirPods connect (HFP handshake required by iOS)
+    // AllowBluetoothA2DP: iOS then uses A2DP (stereo) for output instead of HFP (mono)
+    // DefaultToSpeaker: routes to speaker when no Bluetooth connected
+    _stereoConfig.categoryOptions = AVAudioSessionCategoryOptionDefaultToSpeaker |
+                                    AVAudioSessionCategoryOptionAllowBluetooth |
+                                    AVAudioSessionCategoryOptionAllowBluetoothA2DP;
+    _stereoConfig.mode = AVAudioSessionModeDefault;
+  }
+  return _stereoConfig;
+}
+
++ (void)applyConfig {
   RTCAudioSession *audioSession = [RTCAudioSession sharedInstance];
   [audioSession lockForConfiguration];
   NSError *error = nil;
-  [audioSession setConfiguration:config active:YES error:&error];
-  if (error) { NSLog(@"[EasyComAudio] setConfiguration: %@", error); }
+  [audioSession setConfiguration:[self stereoConfig] active:YES error:&error];
+  if (error) { NSLog(@"[EasyComAudio] setConfiguration error: %@", error); }
   [audioSession unlockForConfiguration];
+}
 
-  NSLog(@"[EasyComAudio] ✅ stereo session locked in: Default mode, A2DP only, 48kHz");
++ (void)handleRouteChange:(NSNotification *)notification {
+  NSInteger reason = [notification.userInfo[AVAudioSessionRouteChangeReasonKey] integerValue];
+  if (reason == AVAudioSessionRouteChangeReasonNewDeviceAvailable ||
+      reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable ||
+      reason == AVAudioSessionRouteChangeReasonCategoryChange) {
+    [self applyConfig];
+    NSLog(@"[EasyComAudio] 🔄 route change (reason %ld) — config re-applied", (long)reason);
+  }
+}
+
+RCT_EXPORT_METHOD(configureForStereo) {
+  // 1. Set as WebRTC's global default so it survives WebRTC session reactivation
+  [RTCAudioSessionConfiguration setWebRTCConfiguration:[EasyComAudio stereoConfig]];
+
+  // 2. Apply immediately
+  [EasyComAudio applyConfig];
+
+  // 3. Observe route changes (AirPods connecting after session is already active)
+  [[NSNotificationCenter defaultCenter] removeObserver:[EasyComAudio class]
+                                                  name:AVAudioSessionRouteChangeNotification
+                                                object:nil];
+  [[NSNotificationCenter defaultCenter] addObserver:[EasyComAudio class]
+                                           selector:@selector(handleRouteChange:)
+                                               name:AVAudioSessionRouteChangeNotification
+                                             object:nil];
+
+  NSLog(@"[EasyComAudio] ✅ configured: Default mode, HFP+A2DP, DefaultToSpeaker, route observer active");
 }
 
 @end
