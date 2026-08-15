@@ -8,6 +8,7 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
+import os from "os"
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
@@ -427,6 +428,23 @@ export function setupSignaling(io: Server) {
       }
 
       cb(list)
+    })
+
+    socket.on("server:network:info", (cb) => {
+      if (typeof cb !== "function") return
+      const PORT = parseInt(process.env.PORT ?? "3000")
+      const LAN_PORT = parseInt(process.env.LAN_PORT ?? String(PORT + 1))
+      // Prefer explicit LAN_IP from .env, fall back to auto-detect
+      let lanIp = process.env.LAN_IP ?? ""
+      if (!lanIp) {
+        for (const iface of Object.values(os.networkInterfaces())) {
+          for (const addr of iface ?? []) {
+            if (addr.family === "IPv4" && !addr.internal) { lanIp = addr.address; break }
+          }
+          if (lanIp) break
+        }
+      }
+      cb({ lanIp, lanPort: LAN_PORT, port: PORT })
     })
 
     socket.on("producer:closed", ({ clientId, producerId }: { clientId: string; producerId: string }) => {
@@ -916,23 +934,17 @@ export function setupSignaling(io: Server) {
     /* ---------- MEDIASOUP ---------- */
 
     socket.on("mediasoup:getRouterRtpCapabilities", (cb) => {
-      console.log(`[mediasoup] getRouterRtpCapabilities fra ${socket.id}`)
       if (typeof cb === "function") cb(router.rtpCapabilities)
     })
 
     socket.on("mediasoup:createTransport", async ({ direction }, cb) => {
-      console.log(`[mediasoup] createTransport "${direction}" fra ${socket.id}`)
       try {
         const t = await createTransport(direction)
-        console.log(`[mediasoup] transport oprettet: ${t.id} (${direction})`)
         if (typeof cb === "function") cb({
           id: t.id, iceParameters: t.iceParameters,
           iceCandidates: t.iceCandidates, dtlsParameters: t.dtlsParameters
         })
-      } catch (e) {
-        console.error(`[mediasoup] createTransport FEJL (${direction}):`, e)
-        cb?.({ error: String(e) })
-      }
+      } catch (e) { cb?.({ error: String(e) }) }
     })
 
     socket.on("mediasoup:connectTransport", async ({ transportId, dtlsParameters }, cb) => {
@@ -990,41 +1002,6 @@ export function setupSignaling(io: Server) {
           kind: consumer.kind, rtpParameters: consumer.rtpParameters
         })
       } catch (e) { cb?.({ error: String(e) }) }
-    })
-
-    // Push-based consume — mobile uses this instead of consume:request so the
-    // server can push params as a direct event (survives iOS AVAudioSession TCP freeze).
-    socket.on("consume:subscribe", async ({ targetId, rtpCapabilities, transportId }: { targetId: string, rtpCapabilities: any, transportId: string }) => {
-      const pushEvent = `mediasoup:consumer:push:${targetId}`
-      const producerId = producers.get(targetId)
-      if (!producerId) {
-        console.log(`[signaling] consume:subscribe no producer "${targetId}" – queuing (5 s)`)
-        const timer = setTimeout(() => {
-          const arr = pendingConsumeQueue.get(targetId)
-          if (arr) {
-            const i = arr.findIndex(r => r.transportId === transportId)
-            if (i >= 0) { arr.splice(i, 1); if (!arr.length) pendingConsumeQueue.delete(targetId) }
-          }
-          socket.emit(pushEvent, { error: 'no producer (timeout)' })
-        }, 5000)
-        const arr = pendingConsumeQueue.get(targetId) ?? []
-        const pushCb = (params: any) => socket.emit(pushEvent, params)
-        arr.push({ transportId, rtpCapabilities, cb: pushCb, kind: 'audio', timer })
-        pendingConsumeQueue.set(targetId, arr)
-        return
-      }
-      try {
-        const consumer = await consume(transportId, producerId, rtpCapabilities)
-        await consumer.resume()
-        console.log(`[signaling] consume:subscribe ✅ "${targetId}" → consumer ${consumer.id}`)
-        socket.emit(pushEvent, {
-          producerId, id: consumer.id,
-          kind: consumer.kind, rtpParameters: consumer.rtpParameters
-        })
-      } catch (e) {
-        console.error(`[signaling] consume:subscribe FEJL "${targetId}":`, e)
-        socket.emit(pushEvent, { error: String(e) })
-      }
     })
 
     // 🔥 Eksplicit resume endpoint hvis client kalder det
@@ -1459,14 +1436,11 @@ export function setupSignaling(io: Server) {
       cb?.({ ok: true })
     })
 
-    socket.on("disconnect", (reason) => {
+    socket.on("disconnect", () => {
       // Find ALL clients registered on this socket (not just the first one)
       const disconnectedIds = [...clients.entries()]
         .filter(([, v]) => v.socketId === socket.id)
         .map(([id]) => id)
-
-      if (disconnectedIds.length > 0)
-        console.log(`[socket] disconnected: ${socket.id}, årsag: ${reason}, klienter: [${disconnectedIds}]`)
 
       if (disconnectedIds.length === 0) return
 
