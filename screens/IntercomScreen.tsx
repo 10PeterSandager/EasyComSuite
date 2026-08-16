@@ -711,6 +711,8 @@ interface FaderProps {
 function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, channelIndex, routing }: FaderProps) {
   const startY   = useRef(0)
   const startVal = useRef(80)
+  const containerRef = useRef<any>(null)
+  const containerTop = useRef(-1)
   const gain = gains[idx]
   const pan  = pans[idx]
   const FH = 160, TH = 32, TRACK = FH - TH
@@ -745,18 +747,34 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
       <Text style={lc.dbText}>{dbLabel}</Text>
 
       <View
+        ref={containerRef}
         style={{ width: 60, height: FH, position: 'relative', alignItems: 'center' }}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
+        onLayout={() => {
+          containerRef.current?.measureInWindow((_x: number, y: number) => {
+            containerTop.current = y
+          })
+        }}
         onResponderGrant={e => {
           startY.current   = e.nativeEvent.pageY
           startVal.current = gains[idx]
+          if (containerTop.current >= 0) {
+            const relY = e.nativeEvent.pageY - containerTop.current
+            const v = Math.round(Math.max(0, Math.min(100, (1 - Math.max(0, Math.min(TRACK, relY)) / TRACK) * 100)))
+            setGains(prev => { const n = [...prev]; n[idx] = v; return n })
+          }
         }}
         onResponderMove={e => {
-          const dy = startY.current - e.nativeEvent.pageY
-          const pct = dy / TRACK
-          const v = Math.max(0, Math.min(100, startVal.current + pct * 100))
-          setGains(prev => { const n = [...prev]; n[idx] = Math.round(v); return n })
+          if (containerTop.current >= 0) {
+            const relY = e.nativeEvent.pageY - containerTop.current
+            const v = Math.round(Math.max(0, Math.min(100, (1 - Math.max(0, Math.min(TRACK, relY)) / TRACK) * 100)))
+            setGains(prev => { const n = [...prev]; n[idx] = v; return n })
+          } else {
+            const dy = startY.current - e.nativeEvent.pageY
+            const v = Math.max(0, Math.min(100, startVal.current + (dy / TRACK) * 100))
+            setGains(prev => { const n = [...prev]; n[idx] = Math.round(v); return n })
+          }
         }}
         onResponderRelease={() => { emitGain(gains[idx]) }}
       >
