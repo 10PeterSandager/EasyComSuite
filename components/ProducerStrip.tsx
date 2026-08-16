@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 
 type TalkGroup = {
-  id: string; name: string; members: string[]; color: string; keyTrigger?: string
+  id: string; name: string; members: string[]; color: string; keyTrigger?: string; tbChannel?: number
 }
 
 type Props = {
@@ -72,7 +72,10 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [newName, setNewName] = useState("")
   const [newColor, setNewColor] = useState(GROUP_COLORS[0])
   const [newMembers, setNewMembers] = useState<string[]>([])
+  const [newTbChannel, setNewTbChannel] = useState<number | undefined>(undefined)
   const [mappingGroupId, setMappingGroupId] = useState<string | null>(null)
+  const [channelEditGroupId, setChannelEditGroupId] = useState<string | null>(null)
+  const [baseTbChannel, setBaseTbChannel] = useState<number>(1)
   const [editingName, setEditingName] = useState(false)
   const [tempName, setTempName] = useState(client.name)
 
@@ -93,6 +96,16 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const otherClients = clients.filter(c => c.id !== client.id && !c.hidden && c.status === 'online')
   const isAllActive = allTalkPTT || allTalkLatched
   const isTalking = isAllActive || latchedGroups.size > 0 || pttGroups.size > 0
+
+  useEffect(() => {
+    const activeChannels: number[] = []
+    if (isAllActive) activeChannels.push(baseTbChannel)
+    for (const gId of [...pttGroups, ...latchedGroups]) {
+      const g = talkGroups.find(x => x.id === gId)
+      if (g?.tbChannel && !activeChannels.includes(g.tbChannel)) activeChannels.push(g.tbChannel)
+    }
+    socket.emit("host:producer:channels", { producerId: PRODUCER_ID, channels: activeChannels })
+  }, [isAllActive, baseTbChannel, pttGroups, latchedGroups, talkGroups])
 
   /* ---- Init ---- */
   useEffect(() => {
@@ -373,8 +386,8 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   }
   const createGroup = () => {
     if (!newName.trim() || newMembers.length === 0) return
-    setTalkGroups(prev => [...prev, { id: crypto.randomUUID(), name: newName.trim(), members: newMembers, color: newColor }])
-    setNewName(""); setNewMembers([]); setNewColor(GROUP_COLORS[0]); setShowCreate(false)
+    setTalkGroups(prev => [...prev, { id: crypto.randomUUID(), name: newName.trim(), members: newMembers, color: newColor, tbChannel: newTbChannel }])
+    setNewName(""); setNewMembers([]); setNewColor(GROUP_COLORS[0]); setNewTbChannel(undefined); setShowCreate(false)
   }
 
   /* ---- Keyboard ---- */
@@ -450,7 +463,16 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
 
             {/* TALK ALL + METERS */}
             <div className="flex flex-col gap-2 shrink-0 w-48">
-              <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold">Talk All</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold">Talk All</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] text-white/20">CH 65 TB:</span>
+                  <input type="number" min={1} max={16}
+                    value={baseTbChannel}
+                    onChange={e => setBaseTbChannel(parseInt(e.target.value) || 1)}
+                    className="w-9 px-1 py-0.5 bg-black border border-white/10 rounded text-[9px] text-white text-center font-mono" />
+                </div>
+              </div>
               <div className="flex gap-1.5">
                 <button
                   onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); startAllTalk() }}
@@ -553,6 +575,14 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                         style={{ background: c, borderColor: newColor === c ? "white" : "transparent" }} />
                     ))}
                   </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-white/40 shrink-0">CH 65 TB:</span>
+                    <input type="number" min={1} max={16} placeholder="—"
+                      value={newTbChannel ?? ""}
+                      onChange={e => setNewTbChannel(e.target.value ? parseInt(e.target.value) : undefined)}
+                      className="w-12 px-1.5 py-1 bg-black border border-white/10 rounded text-xs text-white text-center" />
+                    <span className="text-[9px] text-white/20">activates on talk</span>
+                  </div>
                   <div className="flex gap-1.5 flex-wrap max-h-24 overflow-auto">
                     {otherClients.map(c => (
                       <button key={c.id}
@@ -588,6 +618,7 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                   const isLatched = latchedGroups.has(group.id)
                   const isActive = isLatched || pttGroups.has(group.id)
                   const isMappingThis = mappingGroupId === group.id
+                  const isEditingChannel = channelEditGroupId === group.id
                   return (
                     <div key={group.id} className="flex flex-col gap-1">
                       {group.keyTrigger && (
@@ -596,6 +627,17 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                           <span className="text-[7px] text-white/30 font-mono flex-1">{group.keyTrigger}</span>
                           <button onClick={() => setTalkGroups(prev => prev.map(g => g.id === group.id ? { ...g, keyTrigger: undefined } : g))}
                             className="text-white/20 hover:text-red-400"><X size={7} /></button>
+                        </div>
+                      )}
+                      {isEditingChannel && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                          <span className="text-[7px] text-white/30 shrink-0">CH 65 TB:</span>
+                          <input autoFocus type="number" min={1} max={16}
+                            defaultValue={group.tbChannel ?? ""}
+                            onBlur={e => { setTalkGroups(prev => prev.map(g => g.id === group.id ? { ...g, tbChannel: e.target.value ? parseInt(e.target.value) : undefined } : g)); setChannelEditGroupId(null) }}
+                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
+                            className="w-10 bg-black border border-white/10 rounded px-1 text-[9px] text-white text-center" />
                         </div>
                       )}
                       <div className="flex gap-1">
@@ -609,6 +651,7 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                             ? { background: group.color + "30", border: `1px solid ${group.color}`, color: group.color }
                             : { background: group.color + "15", border: `1px solid ${group.color}40`, borderLeft: `3px solid ${group.color}`, color: group.color }}>
                           <Mic size={11} /> {group.name} <span className="opacity-50 text-[8px]">{group.members.length}</span>
+                          {group.tbChannel && <span className="text-[7px] opacity-60 font-mono">ch{group.tbChannel}</span>}
                         </button>
                         <button onClick={() => toggleGroupLatch(group)} className="px-2 py-2 rounded-xl"
                           style={isLatched ? { background: group.color, color: "white" } : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
@@ -619,6 +662,13 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                             : group.keyTrigger ? { background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }
                               : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
                           <Keyboard size={11} />
+                        </button>
+                        <button onClick={() => setChannelEditGroupId(isEditingChannel ? null : group.id)}
+                          className="px-2 py-2 rounded-xl text-[8px] font-mono font-bold"
+                          style={isEditingChannel ? { background: accentColor, color: "white" }
+                            : group.tbChannel ? { background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }
+                              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
+                          {group.tbChannel ?? "—"}
                         </button>
                         <button onClick={() => deleteGroup(group.id)}
                           className="px-1.5 py-2 rounded-xl hover:bg-red-600/20 text-white/15 hover:text-red-400">

@@ -321,16 +321,16 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     setGridOrder(prev => {
-      const ids = regularClients.map((c: Client) => c.id)
-      const existing = prev.filter(id => ids.includes(id))
-      const added = ids.filter((id: string) => !prev.includes(id))
+      const allIds = [
+        ...regularClients.map((c: Client) => c.id),
+        ...groups.map(g => g.id),
+      ]
+      const existing = prev.filter(id => allIds.includes(id))
+      const added = allIds.filter(id => !prev.includes(id))
       return [...existing, ...added]
     })
-  }, [regularClients.length])
-
-  const orderedRegularClients = gridOrder
-    .map(id => regularClients.find((c: Client) => c.id === id))
-    .filter(Boolean) as Client[]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regularClients.map((c: Client) => c.id).join(','), groups.map(g => g.id).join(',')])
 
   const handleGridDragStart = (id: string) => { dragItem.current = id }
   const handleGridDragEnter = (id: string) => { dragOverItem.current = id }
@@ -560,62 +560,70 @@ const HostView = (props: any) => {
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(92 * cardScale)}px, ${Math.round(92 * cardScale)}px))` }}
               onClick={e => { if (e.target === e.currentTarget) setSelectedIds([]) }}
             >
-              {orderedRegularClients.filter((c: Client) => !c.hidden).map((c: Client) => {
-                const bridgeSources: FeedSource[] = activeBridgeChannels.map(ch => ({
-                  id: `bridge-ch${ch}`,
-                  label: `Bridge CH${ch}`
-                }))
-
-                const clientSources: FeedSource[] = regularClients
-                  .filter((x: Client) => x.id !== c.id && x.status === "online")
-                  .map((x: Client) => ({ id: x.id, label: x.name }))
-
-                const feedSources: FeedSource[] = [...clientSources, ...bridgeSources]
-
-                return (
-                <div
-                  key={c.id}
-                  draggable
-                  onDragStart={() => handleGridDragStart(c.id)}
-                  onDragEnter={() => handleGridDragEnter(c.id)}
-                  onDragEnd={handleGridDragEnd}
-                  onDragOver={e => e.preventDefault()}
-                  onClick={e => handleClientSelect(c.id, e)}
-                  onContextMenu={e => handleRightClick(e, c.id)}
-                  style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
-                  className="active:cursor-grabbing"
-                >
-                  <ClientStrip
-                    client={c}
-                    isSelected={selectedIds.includes(c.id)}
-                    onUpdate={(u: any) => handleUpdateClient(c.id, u)}
-                    onHijack={() => {}}
-                    onMapKey={() => setMappingClientId(c.id)}
-                    theme={theme}
-                    isMixerOpen={mixerClientId === c.id}
-                    onToggleMixer={() => toggleMixer(c.id)}
-                    feedSources={feedSources}
-                    allClients={regularClients}
-                    roles={roles}
-                  />
-                </div>
+              {gridOrder.map(id => {
+                const c = regularClients.find((x: Client) => x.id === id)
+                if (c && !c.hidden) {
+                  const bridgeSources: FeedSource[] = activeBridgeChannels.map(ch => ({
+                    id: `bridge-ch${ch}`,
+                    label: `Bridge CH${ch}`
+                  }))
+                  const clientSources: FeedSource[] = regularClients
+                    .filter((x: Client) => x.id !== c.id && x.status === "online")
+                    .map((x: Client) => ({ id: x.id, label: x.name }))
+                  return (
+                    <div
+                      key={c.id}
+                      draggable
+                      onDragStart={() => handleGridDragStart(c.id)}
+                      onDragEnter={() => handleGridDragEnter(c.id)}
+                      onDragEnd={handleGridDragEnd}
+                      onDragOver={e => e.preventDefault()}
+                      onClick={e => handleClientSelect(c.id, e)}
+                      onContextMenu={e => handleRightClick(e, c.id)}
+                      style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                      className="active:cursor-grabbing"
+                    >
+                      <ClientStrip
+                        client={c}
+                        isSelected={selectedIds.includes(c.id)}
+                        onUpdate={(u: any) => handleUpdateClient(c.id, u)}
+                        onHijack={() => {}}
+                        onMapKey={() => setMappingClientId(c.id)}
+                        theme={theme}
+                        isMixerOpen={mixerClientId === c.id}
+                        onToggleMixer={() => toggleMixer(c.id)}
+                        feedSources={[...clientSources, ...bridgeSources]}
+                        allClients={regularClients}
+                        roles={roles}
+                      />
+                    </div>
+                  )
+                }
+                const g = groups.find(x => x.id === id)
+                if (g) return (
+                  <div
+                    key={g.id}
+                    draggable
+                    onDragStart={() => handleGridDragStart(g.id)}
+                    onDragEnter={() => handleGridDragEnter(g.id)}
+                    onDragEnd={handleGridDragEnd}
+                    onDragOver={e => e.preventDefault()}
+                    style={{ width: `${Math.round(92 * cardScale)}px`, cursor: "grab" }}
+                    className="active:cursor-grabbing"
+                  >
+                    <GroupStrip
+                      group={g}
+                      clients={[producerClient, ...regularClients]}
+                      isActive={activeGroupIds.has(g.id)}
+                      onActivate={() => activateGroup(g)}
+                      onDeactivate={() => deactivateGroup(g)}
+                      onDelete={() => deleteGroup(g.id)}
+                      onUpdate={updateGroup}
+                    />
+                  </div>
                 )
+                return null
               })}
-
-              {/* GROUP CARDS */}
-              {groups.map(g => (
-                <div key={g.id} style={{ width: `${Math.round(92 * cardScale)}px` }}>
-                  <GroupStrip
-                    group={g}
-                    clients={regularClients}
-                    isActive={activeGroupIds.has(g.id)}
-                    onActivate={() => activateGroup(g)}
-                    onDeactivate={() => deactivateGroup(g)}
-                    onDelete={() => deleteGroup(g.id)}
-                    onUpdate={updateGroup}
-                  />
-                </div>
-              ))}
             </div>
 
             {/* FLOATING MIXER */}
@@ -982,6 +990,34 @@ const HostView = (props: any) => {
               </div>
             )
           })}
+
+          {/* GROUPS IN SIDEBAR */}
+          {groups.length > 0 && (
+            <>
+              <div className="px-3 pt-3 pb-1">
+                <span className="text-[8px] text-white/20 uppercase tracking-widest font-bold">Groups</span>
+              </div>
+              {groups.map(g => {
+                const isActive = activeGroupIds.has(g.id)
+                return (
+                  <div key={g.id}
+                    className="flex items-center justify-between px-3 py-2 rounded"
+                    style={{ background: g.color + "15", border: `1px solid ${g.color}30` }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: g.color }} />
+                      <span className="text-xs font-bold truncate">{g.name}</span>
+                      <span className="text-[8px] text-white/30 shrink-0">{g.members.length}m</span>
+                    </div>
+                    {isActive && (
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: "#22c55e", boxShadow: "0 0 4px #22c55e" }} />
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
         </div>
       </div>
 

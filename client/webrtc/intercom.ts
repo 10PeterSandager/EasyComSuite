@@ -26,27 +26,6 @@ socket.on("connect", () => {
   setTimeout(() => socket.emit("connections:list"), 300)
 })
 
-// 🔥 Pan control from mobile clients
-socket.on("client:pan", ({ clientId, channel, pan, bridgeId }: { clientId: string; channel: number; pan: number; bridgeId?: string }) => {
-  const applyPan = (bridgeCh: number) => {
-    const fn = (window as any).__setChannelPan
-    if (fn) {
-      fn(bridgeCh, pan)
-      console.log(`[pan] ${clientId} ch${channel} → bridge-ch${bridgeCh}: ${pan}`)
-    }
-  }
-  if (bridgeId) {
-    const match = bridgeId.match(/bridge-ch(\d+)/)
-    applyPan(match ? parseInt(match[1]) : channel)
-  } else {
-    socket.emit("connections:list", (conns: any[]) => {
-      const conn = conns.find((c: any) => c.to === clientId && c.channel === channel)
-      const match = conn?.from?.match(/bridge-ch(\d+)/)
-      applyPan(match ? parseInt(match[1]) : channel)
-    })
-  }
-})
-
 // 🔥 Gain control from mobile clients
 socket.on("client:gain", ({ clientId, channel, gain, bridgeId }: { clientId: string; channel: number; gain: number; bridgeId?: string }) => {
   const setGain = (bridgeCh: number) => {
@@ -473,7 +452,9 @@ function setupAudioPath(stream: MediaStream, sourceId: string, channel: number) 
       let s = 0; for (let i = 0; i < meterBuf.length; i++) s += meterBuf[i] * meterBuf[i]
       const rawRms = Math.sqrt(s / meterBuf.length)
       const isTalking = talkingState.get(sourceId)
-      pushLevel(`recv_${sourceId}`, isTalking ? Math.min(100, rawRms * 350) : 0)
+      const scaledLevel = Math.min(100, rawRms * 350)
+      pushLevel(`recv_${sourceId}`, scaledLevel)
+      if (isTalking) pushLevel(sourceId, scaledLevel)
 
       // Noise gate: only active while TB is open; gate node lives in clientNoiseGateNodes
       const ngSettings = clientNoiseGateSettings.get(sourceId)
@@ -1005,14 +986,7 @@ export function stopFeedMonitor(sourceId: string) {
 
 export function setFeedMonitorVolume(sourceId: string, volume: number) {
   const nodes = feedMonitorNodes.get(sourceId)
-  if (!nodes) return
-  const g = volume / 100
-  nodes.gain.gain.cancelScheduledValues(audioCtx.currentTime)
-  if (g === 0) {
-    nodes.gain.gain.setValueAtTime(0, audioCtx.currentTime)
-  } else {
-    nodes.gain.gain.setTargetAtTime(g, audioCtx.currentTime, 0.05)
-  }
+  if (nodes) nodes.gain.gain.setTargetAtTime(volume / 100, audioCtx.currentTime, 0.05)
 }
 
 export function getClientMonitorStream(sourceId: string): MediaStream | null {
