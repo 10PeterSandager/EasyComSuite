@@ -713,6 +713,7 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
   const startVal = useRef(80)
   const containerRef = useRef<any>(null)
   const containerTop = useRef(-1)
+  const prevGain = useRef(80)
   const gain = gains[idx]
   const pan  = pans[idx]
   const FH = 160, TH = 32, TRACK = FH - TH
@@ -732,6 +733,18 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
     import('../webrtc/intercom').then(({ setLocalChannelGain }) => {
       setLocalChannelGain(channelIndex, g / 100)
     })
+  }
+
+  const toggleMute = () => {
+    if (gain === 0) {
+      const restore = prevGain.current > 0 ? prevGain.current : 80
+      setGains(prev => { const n = [...prev]; n[idx] = restore; return n })
+      emitGain(restore)
+    } else {
+      prevGain.current = gain
+      setGains(prev => { const n = [...prev]; n[idx] = 0; return n })
+      emitGain(0)
+    }
   }
 
   const emitPan = (p: number) => {
@@ -780,6 +793,18 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
           <View style={[lc.thumbAccent, { top: TH/2-0.5 }]} />
         </View>
       </View>
+
+      {/* MUTE */}
+      <TouchableOpacity
+        onPress={toggleMute}
+        style={{ marginTop: 6, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6,
+          backgroundColor: gain === 0 ? '#ef4444' : '#27272a',
+          borderWidth: 1, borderColor: gain === 0 ? '#ef4444' : '#3f3f46' }}
+      >
+        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>
+          {gain === 0 ? 'MUTED' : 'MUTE'}
+        </Text>
+      </TouchableOpacity>
 
       {/* PAN */}
       <Text style={lc.panTitle}>PAN</Text>
