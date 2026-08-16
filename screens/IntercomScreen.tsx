@@ -761,7 +761,7 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
         onResponderRelease={() => { emitGain(gains[idx]) }}
       >
         <View style={{ position:'absolute', top:0, bottom:0, width:6, borderRadius:3, backgroundColor:'#0a0a0a' }} />
-        <View style={{ position:'absolute', bottom:0, width:6, borderRadius:3, backgroundColor:ACCENT, opacity:0.5, height: (gain/100)*TRACK + TH/2 }} />
+        <View style={{ position:'absolute', bottom:0, width:6, borderRadius:3, backgroundColor:ACCENT, opacity:0.5, height: gain === 0 ? 0 : (gain/100)*TRACK + TH/2 }} />
         <View style={[lc.thumb, { top: thumbTop }]}>
           {[0,1,2].map(i => <View key={i} style={[lc.thumbLine, { top: 10+i*6 }]} />)}
           <View style={[lc.thumbAccent, { top: TH/2-0.5 }]} />
