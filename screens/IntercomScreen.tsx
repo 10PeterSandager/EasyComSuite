@@ -727,6 +727,9 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
   const emitGain = (g: number) => {
     const bridgeId = getBridgeId()
     socketEmit?.('client:gain', { channel: channelIndex, gain: g / 100, bridgeId })
+    import('../webrtc/intercom').then(({ setLocalChannelGain }) => {
+      setLocalChannelGain(channelIndex, g / 100)
+    })
   }
 
   const emitPan = (p: number) => {

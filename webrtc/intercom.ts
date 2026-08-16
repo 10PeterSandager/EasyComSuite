@@ -193,6 +193,28 @@ export function resetLevel(key: string) {
 let _currentRouting: Record<number, string[]> = {}
 export function getChannelRouting() { return _currentRouting }
 
+// Apply gain locally to all consumer tracks routed to a channel.
+// react-native-webrtc supports track._setVolume(0..1) for per-track volume.
+// gain=0 also disables the track entirely so the engine stops rendering it.
+export function setLocalChannelGain(channel: number, gain: number) {
+  const sources = _currentRouting[channel] ?? []
+  for (const srcId of sources) {
+    const consumer = _consumers.get(srcId)
+    const track = consumer?.track
+    if (!track) continue
+    try {
+      if (gain === 0) {
+        track.enabled = false
+        track._setVolume?.(0)
+      } else {
+        track.enabled = true
+        track._setVolume?.(gain)
+      }
+    } catch {}
+  }
+  console.log(`[intercom] setLocalChannelGain ch${channel} → ${(gain*100).toFixed(0)}%`)
+}
+
 // ─── Mediasoup ─────────────────────────────────────────────────────────────
 let _device:        any | null = null
 let _sendTransport: any | null = null
