@@ -35,6 +35,8 @@ async function getSharedCtx(sampleRate: number): Promise<AudioContext> {
 const bridges = new Map<number, BridgeInstance>()
 const gainNodes = new Map<number, GainNode>()
 const gainValues = new Map<number, number>()
+const pannerNodes = new Map<number, StereoPannerNode>()
+const panValues = new Map<number, number>()
 const eqFiltersLow = new Map<number, BiquadFilterNode>()
 const eqFiltersMid = new Map<number, BiquadFilterNode>()
 const eqFiltersHigh = new Map<number, BiquadFilterNode>()
@@ -183,15 +185,20 @@ export async function startChannelBridge(channel: number, sampleRate: number): P
   gateNode.gain.value = muteValues.get(channel) ? 0 : 1
   bridgeGateNodes.set(channel, gateNode)
 
+  const pannerNode = ctx.createStereoPanner()
+  pannerNode.pan.value = panValues.get(channel) ?? 0
+  pannerNodes.set(channel, pannerNode)
+
   const destination = ctx.createMediaStreamDestination()
 
-  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → destination
+  // Chain: gainNode → eqLow → eqMid → eqHigh → analyser → gateNode → pannerNode → destination
   gainNode.connect(eqLow)
   eqLow.connect(eqMid)
   eqMid.connect(eqHigh)
   eqHigh.connect(analyser)
   analyser.connect(gateNode)
-  gateNode.connect(destination)
+  gateNode.connect(pannerNode)
+  pannerNode.connect(destination)
 
   const buf = new Float32Array(analyser.fftSize)
   let gateOpen: boolean | null = null  // null = first run, force initial set
@@ -239,6 +246,8 @@ export function stopChannelBridge(channel: number) {
   try { bridge.analyser.disconnect() } catch {}
   try { bridge.gateNode.disconnect() } catch {}
   try { bridge.destination.disconnect() } catch {}
+  const pan = pannerNodes.get(channel)
+  if (pan) { try { pan.disconnect() } catch {} pannerNodes.delete(channel) }
   gainNodes.delete(channel)
   eqFiltersLow.delete(channel)
   eqFiltersMid.delete(channel)
@@ -275,6 +284,12 @@ export function setChannelGain(channel: number, gain: number) {
   }
 }
 
+export function setChannelPan(channel: number, pan: number) {
+  panValues.set(channel, pan)
+  const node = pannerNodes.get(channel)
+  if (node) node.pan.value = Math.max(-1, Math.min(1, pan))
+}
+
 export function setChannelEQ(channel: number, band: 'low' | 'mid' | 'high', db: number) {
   const saved = eqValues.get(channel) ?? { low: 0, mid: 0, high: 0 }
   eqValues.set(channel, { ...saved, [band]: db })
@@ -295,6 +310,7 @@ export function setChannelMute(channel: number, muted: boolean) {
 }
 
 ;(window as any).__setChannelGain = setChannelGain
+;(window as any).__setChannelPan = setChannelPan
 
 export function setChannelLevelCallback(channel: number, cb: (level: number) => void) {
   levelCallbacks.set(channel, cb)

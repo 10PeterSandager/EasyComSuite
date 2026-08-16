@@ -119,10 +119,10 @@ export async function produceBridgeStream(stream: MediaStream, channel: number):
   const producer = await sendTransport.produce({
     track,
     encodings: [{ maxBitrate: 128000 }],
-    codecOptions: { opusFec: true, opusDtx: true, opusMaxPlaybackRate: 48000 }
+    codecOptions: { opusStereo: true, opusFec: true, opusDtx: true, opusMaxPlaybackRate: 48000 }
   })
   bridgeProducers.set(channel, producer)
-  console.log(`✅ Bridge ch${channel} producing: ${producer.id}`)
+  console.log(`✅ Bridge ch${channel} producing (stereo): ${producer.id}`)
   return producer.id
 }
 

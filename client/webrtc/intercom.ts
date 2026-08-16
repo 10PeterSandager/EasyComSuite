@@ -26,6 +26,27 @@ socket.on("connect", () => {
   setTimeout(() => socket.emit("connections:list"), 300)
 })
 
+// 🔥 Pan control from mobile clients
+socket.on("client:pan", ({ clientId, channel, pan, bridgeId }: { clientId: string; channel: number; pan: number; bridgeId?: string }) => {
+  const applyPan = (bridgeCh: number) => {
+    const fn = (window as any).__setChannelPan
+    if (fn) {
+      fn(bridgeCh, pan)
+      console.log(`[pan] ${clientId} ch${channel} → bridge-ch${bridgeCh}: ${pan}`)
+    }
+  }
+  if (bridgeId) {
+    const match = bridgeId.match(/bridge-ch(\d+)/)
+    applyPan(match ? parseInt(match[1]) : channel)
+  } else {
+    socket.emit("connections:list", (conns: any[]) => {
+      const conn = conns.find((c: any) => c.to === clientId && c.channel === channel)
+      const match = conn?.from?.match(/bridge-ch(\d+)/)
+      applyPan(match ? parseInt(match[1]) : channel)
+    })
+  }
+})
+
 // 🔥 Gain control from mobile clients
 socket.on("client:gain", ({ clientId, channel, gain, bridgeId }: { clientId: string; channel: number; gain: number; bridgeId?: string }) => {
   const setGain = (bridgeCh: number) => {
