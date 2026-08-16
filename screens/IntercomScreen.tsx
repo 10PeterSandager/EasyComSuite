@@ -759,11 +759,6 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
         onResponderGrant={e => {
           startY.current   = e.nativeEvent.pageY
           startVal.current = gains[idx]
-          if (containerTop.current >= 0) {
-            const relY = e.nativeEvent.pageY - containerTop.current
-            const v = Math.round(Math.max(0, Math.min(100, (1 - Math.max(0, Math.min(TRACK, relY)) / TRACK) * 100)))
-            setGains(prev => { const n = [...prev]; n[idx] = v; return n })
-          }
         }}
         onResponderMove={e => {
           if (containerTop.current >= 0) {
