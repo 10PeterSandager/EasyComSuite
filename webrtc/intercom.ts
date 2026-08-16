@@ -530,6 +530,19 @@ export function initRouting(clientId: string) {
     }
   })
 
+  // Consume stereo bridge streams for true L/R ear separation in AirPods.
+  // When bridge-stereo-X-Y is available: chX audio → left ear, chY audio → right ear.
+  // This replaces individual mono consumers for those channels.
+  s.on('bridge:stereo:available', ({ stereoId, chL, chR }: { stereoId: string; chL: number; chR: number }) => {
+    console.log(`[stereo] available: ${stereoId} (ch${chL}=L, ch${chR}=R)`)
+    _consume(stereoId, chL)
+    // Silence individual mono tracks that are now covered by the stereo stream
+    ;[`bridge-ch${chL}`, `bridge-ch${chR}`].forEach(srcId => {
+      const c = _consumers.get(srcId)
+      if (c?.track) { try { c.track.enabled = false } catch {} }
+    })
+  })
+
   setTimeout(() => s.emit('routing:request:all'), 800)
 }
 
