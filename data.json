@@ -8,6 +8,21 @@
     },
     {
       "from": "bridge-ch1",
+      "to": "host-ui",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-0",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-1786052854690-0",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
       "to": "client-1786052854690-1",
       "channel": 1
     },
@@ -22,42 +37,31 @@
       "channel": 1
     },
     {
-      "from": "bridge-ch17",
-      "to": "client-1786052854690-1",
-      "channel": 4
+      "from": "client-0",
+      "to": "bridge-ch19",
+      "channel": 1,
+      "toChannel": 1
     },
     {
-      "from": "bridge-ch17",
-      "to": "client-1786052854690-2",
-      "channel": 4
-    },
-    {
-      "from": "bridge-ch17",
-      "to": "client-1786052854690-3",
-      "channel": 4
-    },
-    {
-      "from": "bridge-ch1",
-      "to": "host-ui",
-      "channel": 1
-    },
-    {
-      "from": "bridge-ch17",
-      "to": "host-ui",
-      "channel": 4
-    },
-    {
-      "from": "bridge-ch1",
-      "to": "client-1786052854690-0",
-      "channel": 1
-    },
-    {
-      "from": "bridge-ch17",
-      "to": "client-1786052854690-0",
-      "channel": 4
+      "from": "client-0",
+      "to": "producer-65",
+      "channel": 1,
+      "toChannel": 1
     }
   ],
-  "groups": [],
+  "groups": [
+    {
+      "id": "3a612459-f41c-4994-a1bd-fb048b30e77d",
+      "name": "kat",
+      "members": [
+        "client-1786052854690-3",
+        "client-1786656709243-0",
+        "client-1786656709243-1"
+      ],
+      "channel": 1,
+      "color": "#3b82f6"
+    }
+  ],
   "clients": [
     {
       "id": "client-1786694118525-3",

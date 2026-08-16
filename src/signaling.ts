@@ -8,7 +8,6 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
-import os from "os"
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
@@ -428,23 +427,6 @@ export function setupSignaling(io: Server) {
       }
 
       cb(list)
-    })
-
-    socket.on("server:network:info", (cb) => {
-      if (typeof cb !== "function") return
-      const PORT = parseInt(process.env.PORT ?? "3000")
-      const LAN_PORT = parseInt(process.env.LAN_PORT ?? String(PORT + 1))
-      // Prefer explicit LAN_IP from .env, fall back to auto-detect
-      let lanIp = process.env.LAN_IP ?? ""
-      if (!lanIp) {
-        for (const iface of Object.values(os.networkInterfaces())) {
-          for (const addr of iface ?? []) {
-            if (addr.family === "IPv4" && !addr.internal) { lanIp = addr.address; break }
-          }
-          if (lanIp) break
-        }
-      }
-      cb({ lanIp, lanPort: LAN_PORT, port: PORT })
     })
 
     socket.on("producer:closed", ({ clientId, producerId }: { clientId: string; producerId: string }) => {
@@ -908,17 +890,6 @@ export function setupSignaling(io: Server) {
       io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId })
     })
 
-    socket.on("client:pan", ({ channel, pan }: { channel: number; pan: number }) => {
-      const hostSocket = clients.get("host-ui")?.socketId
-      if (!hostSocket) return
-      const clientId = (socket as any).clientId || socket.id
-      const conn = Array.from(connections.values()).find(
-        c => c.to === clientId && c.channel === channel
-      )
-      const bridgeId = conn?.from ?? null
-      io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId })
-    })
-
     socket.on("audio:level", ({ clientId, level }: { clientId: string; level: number }) => {
       const update: Record<string, number> = { [clientId]: level }
       for (const conn of connections.values()) {
@@ -1208,6 +1179,22 @@ export function setupSignaling(io: Server) {
         io.to(host.socketId).emit("client:talknames", { clientId, names })
         console.log(`[signaling] talknames from ${clientId}: ${JSON.stringify(names)}`)
       }
+    })
+
+    // Host producer TB gating — lets "producer-65" activate toChannel-gated connections
+    // (e.g. producer-65 → bridge-ch19 for Mon L output) without being a mobile client.
+    socket.on("host:producer:talking", ({ producerId, channel, isTalking }: { producerId: string; channel: number; isTalking: boolean }) => {
+      if (!mobileActiveTb.has(producerId)) mobileActiveTb.set(producerId, new Set())
+      const set = mobileActiveTb.get(producerId)!
+      if (isTalking) set.add(channel)
+      else set.delete(channel)
+      broadcastRouting(io)
+    })
+
+    // Batch version — replaces the whole active-channel set in one shot.
+    socket.on("host:producer:channels", ({ producerId, channels }: { producerId: string; channels: number[] }) => {
+      mobileActiveTb.set(producerId, new Set(channels))
+      broadcastRouting(io)
     })
 
     /* ---------- ROUTING MODE ---------- */

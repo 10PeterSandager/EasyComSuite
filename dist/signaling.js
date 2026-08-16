@@ -47,7 +47,6 @@ const tunnel_1 = require("./tunnel");
 const persist_1 = require("./persist");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-const os_1 = __importDefault(require("os"));
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -439,27 +438,6 @@ function setupSignaling(io) {
                 }
             }
             cb(list);
-        });
-        socket.on("server:network:info", (cb) => {
-            if (typeof cb !== "function")
-                return;
-            const PORT = parseInt(process.env.PORT ?? "3000");
-            const LAN_PORT = parseInt(process.env.LAN_PORT ?? String(PORT + 1));
-            // Prefer explicit LAN_IP from .env, fall back to auto-detect
-            let lanIp = process.env.LAN_IP ?? "";
-            if (!lanIp) {
-                for (const iface of Object.values(os_1.default.networkInterfaces())) {
-                    for (const addr of iface ?? []) {
-                        if (addr.family === "IPv4" && !addr.internal) {
-                            lanIp = addr.address;
-                            break;
-                        }
-                    }
-                    if (lanIp)
-                        break;
-                }
-            }
-            cb({ lanIp, lanPort: LAN_PORT, port: PORT });
         });
         socket.on("producer:closed", ({ clientId, producerId }) => {
             console.log(`[signaling] producer closed: ${clientId} → ${producerId}`);
@@ -912,15 +890,6 @@ function setupSignaling(io) {
             const bridgeId = conn?.from ?? null;
             io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId });
         });
-        socket.on("client:pan", ({ channel, pan }) => {
-            const hostSocket = clients.get("host-ui")?.socketId;
-            if (!hostSocket)
-                return;
-            const clientId = socket.clientId || socket.id;
-            const conn = Array.from(connections.values()).find(c => c.to === clientId && c.channel === channel);
-            const bridgeId = conn?.from ?? null;
-            io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId });
-        });
         socket.on("audio:level", ({ clientId, level }) => {
             const update = { [clientId]: level };
             for (const conn of connections.values()) {
@@ -1230,6 +1199,23 @@ function setupSignaling(io) {
                 io.to(host.socketId).emit("client:talknames", { clientId, names });
                 console.log(`[signaling] talknames from ${clientId}: ${JSON.stringify(names)}`);
             }
+        });
+        // Host producer TB gating — lets "producer-65" activate toChannel-gated connections
+        // (e.g. producer-65 → bridge-ch19 for Mon L output) without being a mobile client.
+        socket.on("host:producer:talking", ({ producerId, channel, isTalking }) => {
+            if (!mobileActiveTb.has(producerId))
+                mobileActiveTb.set(producerId, new Set());
+            const set = mobileActiveTb.get(producerId);
+            if (isTalking)
+                set.add(channel);
+            else
+                set.delete(channel);
+            broadcastRouting(io);
+        });
+        // Batch version — replaces the whole active-channel set in one shot.
+        socket.on("host:producer:channels", ({ producerId, channels }) => {
+            mobileActiveTb.set(producerId, new Set(channels));
+            broadcastRouting(io);
         });
         /* ---------- ROUTING MODE ---------- */
         socket.on("routing:mode:set", ({ clientId, enabled }) => {
