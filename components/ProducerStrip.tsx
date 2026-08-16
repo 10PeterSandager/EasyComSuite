@@ -75,7 +75,9 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [newTbChannel, setNewTbChannel] = useState<number | undefined>(undefined)
   const [mappingGroupId, setMappingGroupId] = useState<string | null>(null)
   const [channelEditGroupId, setChannelEditGroupId] = useState<string | null>(null)
-  const [baseTbChannel, setBaseTbChannel] = useState<number>(1)
+  const [baseTbChannel, setBaseTbChannel] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem("easycom:baseTbChannel") ?? "1") || 1 } catch { return 1 }
+  })
   const [editingName, setEditingName] = useState(false)
   const [tempName, setTempName] = useState(client.name)
 
@@ -106,6 +108,10 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
     }
     socket.emit("host:producer:channels", { producerId: PRODUCER_ID, channels: activeChannels })
   }, [isAllActive, baseTbChannel, pttGroups, latchedGroups, talkGroups])
+
+  useEffect(() => {
+    try { localStorage.setItem("easycom:baseTbChannel", String(baseTbChannel)) } catch {}
+  }, [baseTbChannel])
 
   /* ---- Init ---- */
   useEffect(() => {
