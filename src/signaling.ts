@@ -908,6 +908,17 @@ export function setupSignaling(io: Server) {
       io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId })
     })
 
+    socket.on("client:pan", ({ channel, pan }: { channel: number; pan: number }) => {
+      const hostSocket = clients.get("host-ui")?.socketId
+      if (!hostSocket) return
+      const clientId = (socket as any).clientId || socket.id
+      const conn = Array.from(connections.values()).find(
+        c => c.to === clientId && c.channel === channel
+      )
+      const bridgeId = conn?.from ?? null
+      io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId })
+    })
+
     socket.on("audio:level", ({ clientId, level }: { clientId: string; level: number }) => {
       const update: Record<string, number> = { [clientId]: level }
       for (const conn of connections.values()) {

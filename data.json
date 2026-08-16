@@ -8,16 +8,6 @@
     },
     {
       "from": "bridge-ch1",
-      "to": "host-ui",
-      "channel": 1
-    },
-    {
-      "from": "bridge-ch1",
-      "to": "client-1786052854690-0",
-      "channel": 1
-    },
-    {
-      "from": "bridge-ch1",
       "to": "client-1786052854690-1",
       "channel": 1
     },
@@ -30,10 +20,54 @@
       "from": "bridge-ch1",
       "to": "client-1786052854690-3",
       "channel": 1
+    },
+    {
+      "from": "bridge-ch17",
+      "to": "client-1786052854690-1",
+      "channel": 4
+    },
+    {
+      "from": "bridge-ch17",
+      "to": "client-1786052854690-2",
+      "channel": 4
+    },
+    {
+      "from": "bridge-ch17",
+      "to": "client-1786052854690-3",
+      "channel": 4
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "host-ui",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch17",
+      "to": "host-ui",
+      "channel": 4
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-1786052854690-0",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch17",
+      "to": "client-1786052854690-0",
+      "channel": 4
     }
   ],
   "groups": [],
   "clients": [
+    {
+      "id": "client-1786694118525-3",
+      "data": {
+        "id": "client-1786694118525-3",
+        "name": "CL 05",
+        "type": "",
+        "code": "0000"
+      }
+    },
     {
       "id": "client-1786656709243-0",
       "data": {
@@ -51,24 +85,6 @@
         "type": "",
         "code": "0000"
       }
-    },
-    {
-      "id": "client-1786694118525-2",
-      "data": {
-        "id": "client-1786694118525-2",
-        "name": "CL 04",
-        "type": "",
-        "code": "0000"
-      }
-    },
-    {
-      "id": "client-1786694118525-3",
-      "data": {
-        "id": "client-1786694118525-3",
-        "name": "CL 05",
-        "type": "",
-        "code": "0000"
-      }
     }
   ],
   "audioRoutes": [],
@@ -77,169 +93,169 @@
       "channel": 1,
       "name": "Mic 1",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 2,
       "name": "Mic 2",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 3,
       "name": "Line 3",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 4,
       "name": "Line 4",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 5,
       "name": "Line 5",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 6,
       "name": "Line 6",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 7,
       "name": "Line 7",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 8,
       "name": "Line 8",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 9,
       "name": "ADAT 1",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 10,
       "name": "ADAT 2",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 11,
       "name": "ADAT 3",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 12,
       "name": "ADAT 4",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 13,
       "name": "ADAT 5",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 14,
       "name": "ADAT 6",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 15,
       "name": "ADAT 7",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 16,
       "name": "ADAT 8",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 17,
-      "name": "Loopback L",
+      "name": "SP/DIF L",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 18,
-      "name": "Loopback R",
+      "name": "SP/DIF R",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 19,
-      "name": "Line Out 1",
+      "name": "Mon L",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 20,
-      "name": "Line Out 2",
+      "name": "Mon R",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 21,
-      "name": "Line Out 3",
+      "name": "HP 1 L",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 22,
-      "name": "Line Out 4",
+      "name": "HP 1 R",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 23,
-      "name": "Line Out 5",
+      "name": "HP 2 L",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 24,
-      "name": "Line Out 6",
+      "name": "HP 2 R",
       "type": "output",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 25,
-      "name": "Line Out 7",
-      "type": "output",
-      "autoDetected": true
+      "name": "Loopback L",
+      "type": "input",
+      "autoDetected": false
     },
     {
       "channel": 26,
-      "name": "Line Out 8",
-      "type": "output",
-      "autoDetected": true
+      "name": "Loopback R",
+      "type": "input",
+      "autoDetected": false
     },
     {
       "channel": 27,
       "name": "Loopback 2 L",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 28,
       "name": "Loopback 2 R",
       "type": "input",
-      "autoDetected": true
+      "autoDetected": false
     },
     {
       "channel": 29,
@@ -260,9 +276,7 @@
     21,
     22,
     23,
-    24,
-    25,
-    26
+    24
   ],
   "streamDeckLayout": [],
   "terminals": []

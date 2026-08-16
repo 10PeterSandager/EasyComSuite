@@ -47,6 +47,7 @@ const tunnel_1 = require("./tunnel");
 const persist_1 = require("./persist");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -438,6 +439,27 @@ function setupSignaling(io) {
                 }
             }
             cb(list);
+        });
+        socket.on("server:network:info", (cb) => {
+            if (typeof cb !== "function")
+                return;
+            const PORT = parseInt(process.env.PORT ?? "3000");
+            const LAN_PORT = parseInt(process.env.LAN_PORT ?? String(PORT + 1));
+            // Prefer explicit LAN_IP from .env, fall back to auto-detect
+            let lanIp = process.env.LAN_IP ?? "";
+            if (!lanIp) {
+                for (const iface of Object.values(os_1.default.networkInterfaces())) {
+                    for (const addr of iface ?? []) {
+                        if (addr.family === "IPv4" && !addr.internal) {
+                            lanIp = addr.address;
+                            break;
+                        }
+                    }
+                    if (lanIp)
+                        break;
+                }
+            }
+            cb({ lanIp, lanPort: LAN_PORT, port: PORT });
         });
         socket.on("producer:closed", ({ clientId, producerId }) => {
             console.log(`[signaling] producer closed: ${clientId} → ${producerId}`);
@@ -890,6 +912,15 @@ function setupSignaling(io) {
             const bridgeId = conn?.from ?? null;
             io.to(hostSocket).emit("client:gain", { clientId, channel, gain, bridgeId });
         });
+        socket.on("client:pan", ({ channel, pan }) => {
+            const hostSocket = clients.get("host-ui")?.socketId;
+            if (!hostSocket)
+                return;
+            const clientId = socket.clientId || socket.id;
+            const conn = Array.from(connections.values()).find(c => c.to === clientId && c.channel === channel);
+            const bridgeId = conn?.from ?? null;
+            io.to(hostSocket).emit("client:pan", { clientId, channel, pan, bridgeId });
+        });
         socket.on("audio:level", ({ clientId, level }) => {
             const update = { [clientId]: level };
             for (const conn of connections.values()) {
@@ -915,15 +946,12 @@ function setupSignaling(io) {
         });
         /* ---------- MEDIASOUP ---------- */
         socket.on("mediasoup:getRouterRtpCapabilities", (cb) => {
-            console.log(`[mediasoup] getRouterRtpCapabilities fra ${socket.id}`);
             if (typeof cb === "function")
                 cb(mediasoup_1.router.rtpCapabilities);
         });
         socket.on("mediasoup:createTransport", async ({ direction }, cb) => {
-            console.log(`[mediasoup] createTransport "${direction}" fra ${socket.id}`);
             try {
                 const t = await (0, mediasoup_1.createTransport)(direction);
-                console.log(`[mediasoup] transport oprettet: ${t.id} (${direction})`);
                 if (typeof cb === "function")
                     cb({
                         id: t.id, iceParameters: t.iceParameters,
@@ -931,7 +959,6 @@ function setupSignaling(io) {
                     });
             }
             catch (e) {
-                console.error(`[mediasoup] createTransport FEJL (${direction}):`, e);
                 cb?.({ error: String(e) });
             }
         });
@@ -1005,45 +1032,6 @@ function setupSignaling(io) {
             }
             catch (e) {
                 cb?.({ error: String(e) });
-            }
-        });
-        // Push-based consume — mobile uses this instead of consume:request so the
-        // server can push params as a direct event (survives iOS AVAudioSession TCP freeze).
-        socket.on("consume:subscribe", async ({ targetId, rtpCapabilities, transportId }) => {
-            const pushEvent = `mediasoup:consumer:push:${targetId}`;
-            const producerId = producers.get(targetId);
-            if (!producerId) {
-                console.log(`[signaling] consume:subscribe no producer "${targetId}" – queuing (5 s)`);
-                const timer = setTimeout(() => {
-                    const arr = pendingConsumeQueue.get(targetId);
-                    if (arr) {
-                        const i = arr.findIndex(r => r.transportId === transportId);
-                        if (i >= 0) {
-                            arr.splice(i, 1);
-                            if (!arr.length)
-                                pendingConsumeQueue.delete(targetId);
-                        }
-                    }
-                    socket.emit(pushEvent, { error: 'no producer (timeout)' });
-                }, 5000);
-                const arr = pendingConsumeQueue.get(targetId) ?? [];
-                const pushCb = (params) => socket.emit(pushEvent, params);
-                arr.push({ transportId, rtpCapabilities, cb: pushCb, kind: 'audio', timer });
-                pendingConsumeQueue.set(targetId, arr);
-                return;
-            }
-            try {
-                const consumer = await (0, mediasoup_1.consume)(transportId, producerId, rtpCapabilities);
-                await consumer.resume();
-                console.log(`[signaling] consume:subscribe ✅ "${targetId}" → consumer ${consumer.id}`);
-                socket.emit(pushEvent, {
-                    producerId, id: consumer.id,
-                    kind: consumer.kind, rtpParameters: consumer.rtpParameters
-                });
-            }
-            catch (e) {
-                console.error(`[signaling] consume:subscribe FEJL "${targetId}":`, e);
-                socket.emit(pushEvent, { error: String(e) });
             }
         });
         // 🔥 Eksplicit resume endpoint hvis client kalder det
@@ -1473,35 +1461,32 @@ function setupSignaling(io) {
             broadcastTerminals(io);
             cb?.({ ok: true });
         });
-        socket.on("disconnect", (reason) => {
+        socket.on("disconnect", () => {
             // Find ALL clients registered on this socket (not just the first one)
             const disconnectedIds = [...clients.entries()]
                 .filter(([, v]) => v.socketId === socket.id)
                 .map(([id]) => id);
-            if (disconnectedIds.length > 0)
-                console.log(`[socket] disconnected: ${socket.id}, årsag: ${reason}, klienter: [${disconnectedIds}]`);
             if (disconnectedIds.length === 0)
                 return;
             disconnectedIds.forEach(clientId => {
                 io.emit("clients:update", { id: clientId, updates: { status: "offline" } });
                 (0, audioOutput_1.stopAllForClient)(clientId).catch(() => { });
                 mobileActiveTb.delete(clientId);
-                // Keep client in map (offline) so it's visible in clients:list for reconnect.
-                // Delete happens in the grace-period timer if no reconnect arrives.
+                clients.delete(clientId);
+                // Grace period: give the client 8 seconds to reconnect before wiping connections.
+                // Use a timestamp so that a rapid disconnect→reconnect→disconnect sequence doesn't
+                // let an earlier timer prematurely delete connections for the later disconnect.
                 const disconnectTime = Date.now();
-                const staleSocketId = socket.id;
                 disconnectTimes.set(clientId, disconnectTime);
                 setTimeout(() => {
+                    // Abort if a newer disconnect has since occurred for this client
                     if (disconnectTimes.get(clientId) !== disconnectTime)
                         return;
-                    // If the client reconnected on a new socket, its socketId has changed — skip cleanup
-                    const current = clients.get(clientId);
-                    if (current && current.socketId !== staleSocketId) {
+                    if (clients.has(clientId)) {
                         disconnectTimes.delete(clientId);
                         return;
                     }
                     disconnectTimes.delete(clientId);
-                    clients.delete(clientId);
                     producers.delete(clientId);
                     for (const [k, c] of connections) {
                         if (c.from === clientId || c.to === clientId)
