@@ -1462,7 +1462,9 @@ export function setupSignaling(io: Server) {
           disconnectTimes.delete(clientId)
           producers.delete(clientId)
           for (const [k, c] of connections) {
-            if (c.from === clientId || c.to === clientId) connections.delete(k)
+            // Keep toChannel-gated connections — they are TB routing rules, not live
+            // connections, and must survive client disconnects so they reload correctly.
+            if ((c.from === clientId || c.to === clientId) && !c.toChannel) connections.delete(k)
           }
           broadcastRouting(io)
           save()
