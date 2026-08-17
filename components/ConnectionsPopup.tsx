@@ -222,7 +222,10 @@ export default function ConnectionsPopup({
         from: sourceClient.id, to: `bridge-ch${selectedSoundcardCh}`,
         channel: 1, toChannel: tbCh, bidirectional: false,
       })
+      // Tag as a talk-type connection so it shows in TALK section (TB slot), not RECEIVE
+      talkConnKeys.add(ck(sourceClient.id, `bridge-ch${selectedSoundcardCh}`, 1))
     }
+    saveTalkKeys()
     resetFlow()
   }
 
@@ -316,8 +319,8 @@ export default function ConnectionsPopup({
             const ch = i + 1
             // incoming non-talk: someone sends to me on channel ch
             const recvIn = incoming.filter(c => c.channel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
-            // outgoing non-talk: I send to someone on toChannel ch
-            const recvOut = outgoing.filter(c => c.toChannel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)))
+            // outgoing non-talk to other clients (exclude bridge-ch — those are hardware outputs, shown in TALK)
+            const recvOut = outgoing.filter(c => c.toChannel === ch && !talkConnKeys.has(ck(c.from, c.to, c.channel)) && !c.to.startsWith('bridge-ch'))
             type Entry = { conn: Connection; name: string }
             const active: Entry[] = [
               ...recvIn.map(c => {
