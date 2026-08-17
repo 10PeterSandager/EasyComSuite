@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { NetworkConfig, RemoteHost, HardwareInterface } from '../types'
-import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader } from 'lucide-react'
+import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader, RotateCw, AlertTriangle } from 'lucide-react'
 import { socket } from '../client/webrtc/intercom'
 
 interface NetworkPanelProps {
@@ -30,9 +30,13 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
   const [turnUsername, setTurnUsername]       = useState(cache.turnUsername     ?? '')
   const [turnPassword, setTurnPassword]       = useState(cache.turnPassword     ?? '')
   const [sessionPassword, setSessionPassword] = useState(cache.sessionPassword  ?? '')
+  const [port, setPort]                       = useState(cache.port ?? 3000)
+  const [lanPort, setLanPort]                 = useState(cache.lanPort ?? 3001)
   const [detecting, setDetecting]             = useState(false)
   const [saving, setSaving]                   = useState(false)
   const [saveStatus, setSaveStatus]           = useState<'idle' | 'ok' | 'error'>('idle')
+  const [restarting, setRestarting]           = useState(false)
+  const [restartNeeded, setRestartNeeded]     = useState(false)
 
   // Also sync from server (authoritative) once socket is ready
   useEffect(() => {
@@ -44,6 +48,8 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
         setTurnUsername(cfg.turnUsername ?? '')
         setTurnPassword(cfg.turnPassword ?? '')
         setSessionPassword(cfg.sessionPassword ?? '')
+        if (cfg.port)    setPort(cfg.port)
+        if (cfg.lanPort) setLanPort(cfg.lanPort)
       })
     }
     if (socket.connected) load()
@@ -80,6 +86,8 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
       turnUsername:    turnUsername.trim(),
       turnPassword:    turnPassword.trim(),
       sessionPassword: sessionPassword.trim(),
+      port,
+      lanPort,
     }
     try {
       localStorage.setItem(LS_INET, JSON.stringify(cfg))
@@ -90,7 +98,16 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
       clearTimeout(timeout)
       setSaving(false)
       setSaveStatus(res?.ok ? 'ok' : 'error')
+      if (res?.ok) setRestartNeeded(true)
       setTimeout(() => setSaveStatus('idle'), 3000)
+    })
+  }
+
+  const handleRestart = () => {
+    setRestarting(true)
+    socket.emit('server:restart', () => {
+      // Server will exit and Electron will restart it — reload after delay
+      setTimeout(() => window.location.reload(), 4000)
     })
   }
 
@@ -212,6 +229,35 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
             </p>
           </div>
 
+          {/* Ports */}
+          <div className="pt-2 border-t border-white/5 space-y-2">
+            <div className="flex items-center gap-2">
+              <Shield size={11} className="text-white/30" />
+              <span className="text-[10px] text-white/40 uppercase tracking-wider">Ports</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-white/30 uppercase tracking-wider">HTTPS Port</label>
+                <input
+                  type="number"
+                  value={port}
+                  onChange={e => setPort(parseInt(e.target.value) || 3000)}
+                  className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/30 uppercase tracking-wider">LAN Port (mobil)</label>
+                <input
+                  type="number"
+                  value={lanPort}
+                  onChange={e => setLanPort(parseInt(e.target.value) || 3001)}
+                  className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                />
+              </div>
+            </div>
+            <p className="text-[9px] text-white/20">Kræver genstart for at træde i kraft.</p>
+          </div>
+
           {/* Save */}
           <button
             onClick={saveConfig}
@@ -228,6 +274,27 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
               'Save & Apply'
             )}
           </button>
+
+          {/* Restart warning */}
+          {restartNeeded && (
+            <div className="rounded-xl p-3 space-y-2"
+              style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={12} className="text-yellow-400 shrink-0" />
+                <span className="text-[10px] text-yellow-300 font-bold">Genstart påkrævet</span>
+              </div>
+              <button
+                onClick={handleRestart}
+                disabled={restarting}
+                className="w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                style={{ background: "rgba(234,179,8,0.2)", color: "#fde047", border: "1px solid rgba(234,179,8,0.4)" }}
+              >
+                {restarting
+                  ? <><Loader size={12} className="animate-spin" /> Genstarter…</>
+                  : <><RotateCw size={12} /> Genstart server</>}
+              </button>
+            </div>
+          )}
 
           <p className="text-[9px] text-white/20 text-center">
             Changes apply immediately and are persisted to .env
