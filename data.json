@@ -13,11 +13,6 @@
     },
     {
       "from": "bridge-ch1",
-      "to": "client-0",
-      "channel": 1
-    },
-    {
-      "from": "bridge-ch1",
       "to": "client-1786052854690-0",
       "channel": 1
     },
@@ -34,6 +29,11 @@
     {
       "from": "bridge-ch1",
       "to": "client-1786052854690-3",
+      "channel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-0",
       "channel": 1
     },
     {
@@ -97,169 +97,169 @@
       "channel": 1,
       "name": "Mic 1",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 2,
       "name": "Mic 2",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 3,
       "name": "Line 3",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 4,
       "name": "Line 4",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 5,
       "name": "Line 5",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 6,
       "name": "Line 6",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 7,
       "name": "Line 7",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 8,
       "name": "Line 8",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 9,
       "name": "ADAT 1",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 10,
       "name": "ADAT 2",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 11,
       "name": "ADAT 3",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 12,
       "name": "ADAT 4",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 13,
       "name": "ADAT 5",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 14,
       "name": "ADAT 6",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 15,
       "name": "ADAT 7",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 16,
       "name": "ADAT 8",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 17,
-      "name": "SP/DIF L",
+      "name": "Loopback L",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 18,
-      "name": "SP/DIF R",
+      "name": "Loopback R",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 19,
-      "name": "Mon L",
+      "name": "Line Out 1",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 20,
-      "name": "Mon R",
+      "name": "Line Out 2",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 21,
-      "name": "HP 1 L",
+      "name": "Line Out 3",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 22,
-      "name": "HP 1 R",
+      "name": "Line Out 4",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 23,
-      "name": "HP 2 L",
+      "name": "Line Out 5",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 24,
-      "name": "HP 2 R",
+      "name": "Line Out 6",
       "type": "output",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 25,
-      "name": "Loopback L",
-      "type": "input",
-      "autoDetected": false
+      "name": "Line Out 7",
+      "type": "output",
+      "autoDetected": true
     },
     {
       "channel": 26,
-      "name": "Loopback R",
-      "type": "input",
-      "autoDetected": false
+      "name": "Line Out 8",
+      "type": "output",
+      "autoDetected": true
     },
     {
       "channel": 27,
       "name": "Loopback 2 L",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 28,
       "name": "Loopback 2 R",
       "type": "input",
-      "autoDetected": false
+      "autoDetected": true
     },
     {
       "channel": 29,
@@ -280,7 +280,9 @@
     21,
     22,
     23,
-    24
+    24,
+    25,
+    26
   ],
   "streamDeckLayout": [],
   "terminals": []
