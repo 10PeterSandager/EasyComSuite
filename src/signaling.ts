@@ -8,10 +8,23 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
+import os from "os"
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
+function detectLanIp(): string {
+  const ifaces = os.networkInterfaces()
+  for (const name of Object.keys(ifaces)) {
+    // Skip loopback and virtual interfaces
+    if (/lo|loopback|vmnet|vbox|docker|utun|awdl|llw|anpi/i.test(name)) continue
+    for (const iface of ifaces[name] ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address
+    }
+  }
+  return "127.0.0.1"
+}
+
 function persistEnvVars(vars: Record<string, string>) {
   const envPath = path.resolve(process.cwd(), ".env")
   let content = ""
@@ -1223,7 +1236,7 @@ export function setupSignaling(io: Server) {
       if (typeof cb !== "function") return
       const httpsPort = parseInt(process.env.PORT ?? "3000")
       const lanPort   = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1))
-      const lanIp     = process.env.LAN_IP ?? ""
+      const lanIp     = process.env.LAN_IP || detectLanIp()
       cb({ lanIp, port: httpsPort, lanPort })
     })
 

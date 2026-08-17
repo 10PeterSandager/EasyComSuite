@@ -47,9 +47,23 @@ const tunnel_1 = require("./tunnel");
 const persist_1 = require("./persist");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
+function detectLanIp() {
+    const ifaces = os_1.default.networkInterfaces();
+    for (const name of Object.keys(ifaces)) {
+        // Skip loopback and virtual interfaces
+        if (/lo|loopback|vmnet|vbox|docker|utun|awdl|llw|anpi/i.test(name))
+            continue;
+        for (const iface of ifaces[name] ?? []) {
+            if (iface.family === "IPv4" && !iface.internal)
+                return iface.address;
+        }
+    }
+    return "127.0.0.1";
+}
 function persistEnvVars(vars) {
     const envPath = path_1.default.resolve(process.cwd(), ".env");
     let content = "";
@@ -1242,7 +1256,7 @@ function setupSignaling(io) {
                 return;
             const httpsPort = parseInt(process.env.PORT ?? "3000");
             const lanPort = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1));
-            const lanIp = process.env.LAN_IP ?? "";
+            const lanIp = process.env.LAN_IP || detectLanIp();
             cb({ lanIp, port: httpsPort, lanPort });
         });
         socket.on("server:config:get", (cb) => {
