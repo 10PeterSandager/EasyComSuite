@@ -32,11 +32,6 @@
       "channel": 1
     },
     {
-      "from": "bridge-ch1",
-      "to": "client-0",
-      "channel": 1
-    },
-    {
       "from": "client-0",
       "to": "bridge-ch19",
       "channel": 1,
@@ -47,6 +42,11 @@
       "to": "producer-65",
       "channel": 1,
       "toChannel": 1
+    },
+    {
+      "from": "bridge-ch1",
+      "to": "client-0",
+      "channel": 1
     }
   ],
   "groups": [
@@ -86,6 +86,24 @@
       "data": {
         "id": "client-1786656709243-1",
         "name": "CL 07",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1786960498610-0",
+      "data": {
+        "id": "client-1786960498610-0",
+        "name": "CL 08",
+        "type": "",
+        "code": "0000"
+      }
+    },
+    {
+      "id": "client-1786960498610-1",
+      "data": {
+        "id": "client-1786960498610-1",
+        "name": "CL 09",
         "type": "",
         "code": "0000"
       }
