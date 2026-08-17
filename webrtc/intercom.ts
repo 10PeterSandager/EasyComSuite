@@ -148,7 +148,8 @@ export async function fetchClients(hostIp: string, sessionPassword = '', ssl = f
     s.emit('clients:list', (clients: any[]) => {
       if (!Array.isArray(clients)) return reject(new Error('Invalid response'))
       resolve(clients.filter(c =>
-        c.id !== 'host-ui' && c.id !== 'producer-65' && !c.id.startsWith('bridge-')
+        c.id !== 'host-ui' && c.id !== 'producer-65' && !c.id.startsWith('bridge-') &&
+        c.type === 'mobile' && !c.connected
       ))
     })
     setTimeout(() => reject(new Error('Timeout')), 4000)
