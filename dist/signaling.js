@@ -1268,9 +1268,11 @@ function setupSignaling(io) {
                 turnUsername: process.env.TURN_USERNAME ?? "",
                 turnPassword: process.env.TURN_PASSWORD ?? "",
                 sessionPassword: process.env.SESSION_PASSWORD ?? "",
+                port: parseInt(process.env.PORT ?? "3000"),
+                lanPort: parseInt(process.env.LAN_PORT ?? "3001"),
             });
         });
-        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }, cb) => {
+        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, port, lanPort }, cb) => {
             const toSave = {};
             if (announcedIp !== undefined) {
                 process.env.MEDIASOUP_ANNOUNCED_IP = announcedIp;
@@ -1295,8 +1297,19 @@ function setupSignaling(io) {
                 toSave["SESSION_PASSWORD"] = sessionPassword;
                 console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`);
             }
+            if (port !== undefined) {
+                toSave["PORT"] = String(port);
+            }
+            if (lanPort !== undefined) {
+                toSave["LAN_PORT"] = String(lanPort);
+            }
             persistEnvVars(toSave);
             cb?.({ ok: true });
+        });
+        socket.on("server:restart", (cb) => {
+            cb?.({ ok: true });
+            // Give the ACK time to reach the client before exit
+            setTimeout(() => process.exit(0), 400);
         });
         /* ---------- FACTORY RESET ---------- */
         socket.on("server:factory:reset", (cb) => {

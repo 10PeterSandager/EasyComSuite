@@ -1248,12 +1248,14 @@ export function setupSignaling(io: Server) {
         turnUsername:   process.env.TURN_USERNAME ?? "",
         turnPassword:   process.env.TURN_PASSWORD ?? "",
         sessionPassword: process.env.SESSION_PASSWORD ?? "",
+        port:    parseInt(process.env.PORT    ?? "3000"),
+        lanPort: parseInt(process.env.LAN_PORT ?? "3001"),
       })
     })
 
     socket.on("server:config:update", (
-      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }:
-      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string },
+      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, port, lanPort }:
+      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string; port?: number; lanPort?: number },
       cb?: (r: { ok: boolean }) => void
     ) => {
       const toSave: Record<string, string> = {}
@@ -1272,9 +1274,17 @@ export function setupSignaling(io: Server) {
         toSave["SESSION_PASSWORD"] = sessionPassword
         console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`)
       }
+      if (port !== undefined)    { toSave["PORT"]     = String(port) }
+      if (lanPort !== undefined) { toSave["LAN_PORT"] = String(lanPort) }
 
       persistEnvVars(toSave)
       cb?.({ ok: true })
+    })
+
+    socket.on("server:restart", (cb?: (r: { ok: boolean }) => void) => {
+      cb?.({ ok: true })
+      // Give the ACK time to reach the client before exit
+      setTimeout(() => process.exit(0), 400)
     })
 
     /* ---------- FACTORY RESET ---------- */
