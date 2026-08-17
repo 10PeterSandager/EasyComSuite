@@ -157,11 +157,8 @@ export interface HardwareInterface {
 
 export interface NetworkConfig {
   ip: string
-  subnet: string
-  gateway: string
   port: number
   danteMaster: boolean
-  encryptionKey: string
   interfaceType: "DANTE" | "REGULAR"
   activeSoundcard: string
   deviceId?: string

@@ -309,30 +309,25 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
           </div>
 
           <div className="space-y-3">
-            {[
-              { label: 'IP Address', field: 'ip' as const, type: 'text' },
-              { label: 'Subnet', field: 'subnet' as const, type: 'text' },
-              { label: 'Gateway', field: 'gateway' as const, type: 'text' },
-              { label: 'Port', field: 'port' as const, type: 'number' },
-            ].map(({ label, field, type }) => (
-              <div key={field}>
-                <label className="text-[10px] text-white/30 uppercase tracking-wider">{label}</label>
-                <input
-                  type={type}
-                  value={(network as any)[field]}
-                  onChange={e => updateNet(field, type === 'number' ? parseInt(e.target.value) : e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white"
-                />
-              </div>
-            ))}
             <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider">Encryption Key</label>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">IP Address</label>
               <input
-                type="password"
-                value={network.encryptionKey}
-                onChange={e => updateNet('encryptionKey', e.target.value)}
-                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white"
+                type="text"
+                value={network.ip}
+                onChange={e => updateNet('ip', e.target.value)}
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
               />
+              <p className="text-[9px] text-white/20 mt-1">Auto-detekteres fra server — kun synlig, ikke redigerbar i praksis.</p>
+            </div>
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">LAN Port (mobil)</label>
+              <input
+                type="number"
+                value={network.port}
+                readOnly
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white/50 font-mono cursor-not-allowed"
+              />
+              <p className="text-[9px] text-white/20 mt-1">Ændres under Internet Access → Ports.</p>
             </div>
           </div>
         </div>

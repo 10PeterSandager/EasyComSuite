@@ -87,11 +87,8 @@ const App: React.FC = () => {
   const [network, setNetwork] = useState<NetworkConfig>(() => {
     const defaults: NetworkConfig = {
       ip: "192.168.1.21",
-      subnet: "255.255.255.0",
-      gateway: "0.0.0.0",
       port: 3001,
       danteMaster: false,
-      encryptionKey: "",
       interfaceType: "REGULAR",
       activeSoundcard: "",
       deviceId: "easycom-host",
