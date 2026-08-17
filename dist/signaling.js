@@ -441,6 +441,7 @@ function setupSignaling(io) {
                 code: c.data?.code || "0000",
                 status: c.data?.status || "online",
                 color: c.data?.color || undefined,
+                connected: c.socketId ? !!io.sockets.sockets.get(c.socketId)?.connected : false,
             })).filter(c => c.id !== "" && c.id !== "host-ui");
             // Find the requesting client (not host-ui)
             const callerId = [...clients.entries()]

@@ -421,12 +421,13 @@ export function setupSignaling(io: Server) {
     socket.on("clients:list", (cb) => {
       if (typeof cb !== "function") return
       const list = Array.from(clients.values()).map(c => ({
-        id:     c.data?.id     || "",
-        name:   c.data?.name   || "",
-        type:   c.data?.type   || "",
-        code:   c.data?.code   || "0000",
-        status: c.data?.status || "online",
-        color:  c.data?.color  || undefined,
+        id:        c.data?.id     || "",
+        name:      c.data?.name   || "",
+        type:      c.data?.type   || "",
+        code:      c.data?.code   || "0000",
+        status:    c.data?.status || "online",
+        color:     c.data?.color  || undefined,
+        connected: c.socketId ? !!io.sockets.sockets.get(c.socketId)?.connected : false,
       })).filter(c => c.id !== "" && c.id !== "host-ui")
 
       // Find the requesting client (not host-ui)
