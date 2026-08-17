@@ -221,6 +221,14 @@ const HostView = (props: any) => {
     try { localStorage.setItem('easycom:roles', JSON.stringify(roles)) } catch {}
   }, [roles])
 
+  // ── Stereo Pairs ─────────────────────────────────────────────────────────────
+  const [stereoPairs, setStereoPairs] = useState<{ id: string; name: string; chL: number; chR: number }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom:stereoPairs') ?? '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('easycom:stereoPairs', JSON.stringify(stereoPairs)) } catch {}
+  }, [stereoPairs])
+
   // ── Groups ──────────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState<GroupType[]>([])
   const [activeGroupIds, setActiveGroupIds] = useState<Set<string>>(new Set())
@@ -805,7 +813,10 @@ const HostView = (props: any) => {
                   }}
                 />
               ) : (
-                <ServerCapturePanel />
+                <ServerCapturePanel
+                  stereoPairs={stereoPairs}
+                  onStereoPairsChange={setStereoPairs}
+                />
               )}
             </div>
           </div>
@@ -1112,6 +1123,7 @@ const HostView = (props: any) => {
           clients={clients}
           onUpdateClient={updateClient}
           clientTalkNames={clientTalkNames[popupClient.id] || {}}
+          stereoPairs={stereoPairs}
         />
       )}
 
