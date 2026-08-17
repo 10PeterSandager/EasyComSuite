@@ -3,63 +3,102 @@
 #import <WebRTC/RTCAudioSession.h>
 #import <WebRTC/RTCAudioSessionConfiguration.h>
 
+@interface EasyComAudio ()
+@property (nonatomic, strong) id routeChangeObserver;
+@end
+
 @implementation EasyComAudio
 
 RCT_EXPORT_MODULE();
 
-static RTCAudioSessionConfiguration *_stereoConfig = nil;
++ (BOOL)requiresMainQueueSetup { return NO; }
 
-+ (RTCAudioSessionConfiguration *)stereoConfig {
-  if (!_stereoConfig) {
-    _stereoConfig = [[RTCAudioSessionConfiguration alloc] init];
-    _stereoConfig.category = AVAudioSessionCategoryPlayAndRecord;
-    // AllowBluetooth: lets AirPods connect (HFP handshake required by iOS)
-    // AllowBluetoothA2DP: iOS then uses A2DP (stereo) for output instead of HFP (mono)
-    // DefaultToSpeaker: routes to speaker when no Bluetooth connected
-    _stereoConfig.categoryOptions = AVAudioSessionCategoryOptionDefaultToSpeaker |
-                                    AVAudioSessionCategoryOptionAllowBluetooth |
-                                    AVAudioSessionCategoryOptionAllowBluetoothA2DP;
-    _stereoConfig.mode = AVAudioSessionModeDefault;
-  }
-  return _stereoConfig;
+- (NSArray<NSString *> *)supportedEvents {
+  return @[@"EasyComAudioRouteChange"];
 }
 
-+ (void)applyConfig {
-  RTCAudioSession *audioSession = [RTCAudioSession sharedInstance];
-  [audioSession lockForConfiguration];
-  NSError *error = nil;
-  [audioSession setConfiguration:[self stereoConfig] active:YES error:&error];
-  if (error) { NSLog(@"[EasyComAudio] setConfiguration error: %@", error); }
-  [audioSession unlockForConfiguration];
-}
-
-+ (void)handleRouteChange:(NSNotification *)notification {
-  NSInteger reason = [notification.userInfo[AVAudioSessionRouteChangeReasonKey] integerValue];
-  if (reason == AVAudioSessionRouteChangeReasonNewDeviceAvailable ||
-      reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable ||
-      reason == AVAudioSessionRouteChangeReasonCategoryChange) {
-    [self applyConfig];
-    NSLog(@"[EasyComAudio] 🔄 route change (reason %ld) — config re-applied", (long)reason);
-  }
-}
-
+// Overrides react-native-webrtc's own default audio configuration.
+//
+// IMPORTANT: We do NOT call setConfiguration:active:YES here. Calling active:YES
+// directly takes ownership of the AVAudioSession away from WebRTC's internal lifecycle
+// manager. When AirPods connect, iOS fires a route-change interrupt — WebRTC handles
+// this via RTCAudioSessionDelegate, stops and restarts the RemoteIO audio unit.
+// If we own the session (active:YES), the interrupt handling in WebRTC can put the audio
+// unit into an inconsistent state → EXC_BAD_ACCESS crash.
+//
+// Instead: set the WebRTC default config so that whenever WebRTC (re-)activates the
+// session (e.g. after a route change), it uses our stereo/A2DP settings.
+//
 RCT_EXPORT_METHOD(configureForStereo) {
-  // 1. Set as WebRTC's global default so it survives WebRTC session reactivation
-  [RTCAudioSessionConfiguration setWebRTCConfiguration:[EasyComAudio stereoConfig]];
+  RTCAudioSessionConfiguration *config = [[RTCAudioSessionConfiguration alloc] init];
+  config.category = AVAudioSessionCategoryPlayAndRecord;
+  config.categoryOptions = AVAudioSessionCategoryOptionDefaultToSpeaker |
+                           AVAudioSessionCategoryOptionAllowBluetoothA2DP;
+  config.mode = AVAudioSessionModeDefault;
 
-  // 2. Apply immediately
-  [EasyComAudio applyConfig];
+  // Register as WebRTC's default config — applied every time WebRTC activates audio.
+  [RTCAudioSessionConfiguration setWebRTCConfiguration:config];
 
-  // 3. Observe route changes (AirPods connecting after session is already active)
-  [[NSNotificationCenter defaultCenter] removeObserver:[EasyComAudio class]
-                                                  name:AVAudioSessionRouteChangeNotification
-                                                object:nil];
-  [[NSNotificationCenter defaultCenter] addObserver:[EasyComAudio class]
-                                           selector:@selector(handleRouteChange:)
-                                               name:AVAudioSessionRouteChangeNotification
-                                             object:nil];
+  // Apply to the live session without claiming ownership (no active:YES).
+  RTCAudioSession *session = [RTCAudioSession sharedInstance];
+  [session lockForConfiguration];
+  NSError *error = nil;
+  [session setConfiguration:config error:&error];
+  if (error) { NSLog(@"[EasyComAudio] setConfiguration: %@", error); }
+  [session unlockForConfiguration];
 
-  NSLog(@"[EasyComAudio] ✅ configured: Default mode, HFP+A2DP, DefaultToSpeaker, route observer active");
+  // Subscribe to route changes so JS can gracefully pause/resume tracks.
+  [self startRouteChangeObserver];
+
+  NSLog(@"[EasyComAudio] stereo config set (Default mode, A2DP only) — WebRTC manages activation");
+}
+
+- (void)startRouteChangeObserver {
+  if (self.routeChangeObserver) return;
+  __weak typeof(self) weakSelf = self;
+  self.routeChangeObserver = [[NSNotificationCenter defaultCenter]
+    addObserverForName:AVAudioSessionRouteChangeNotification
+                object:[AVAudioSession sharedInstance]
+                 queue:[NSOperationQueue mainQueue]
+            usingBlock:^(NSNotification *note) {
+              NSInteger reason = [note.userInfo[AVAudioSessionRouteChangeReasonKey] integerValue];
+              NSString *reasonStr = @"unknown";
+              if (reason == AVAudioSessionRouteChangeReasonNewDeviceAvailable)   reasonStr = @"newDevice";
+              if (reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable) reasonStr = @"deviceRemoved";
+              NSLog(@"[EasyComAudio] route change: %@", reasonStr);
+
+              // Re-assert our config AFTER WebRTC finishes handling the route change.
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC),
+                             dispatch_get_main_queue(), ^{
+                [weakSelf reapplyConfig];
+              });
+
+              // Notify JS — JS will briefly disable tracks during the transition.
+              [weakSelf sendEventWithName:@"EasyComAudioRouteChange" body:@{@"reason": reasonStr}];
+            }];
+}
+
+- (void)reapplyConfig {
+  RTCAudioSessionConfiguration *config = [[RTCAudioSessionConfiguration alloc] init];
+  config.category = AVAudioSessionCategoryPlayAndRecord;
+  config.categoryOptions = AVAudioSessionCategoryOptionDefaultToSpeaker |
+                           AVAudioSessionCategoryOptionAllowBluetoothA2DP;
+  config.mode = AVAudioSessionModeDefault;
+  [RTCAudioSessionConfiguration setWebRTCConfiguration:config];
+
+  RTCAudioSession *session = [RTCAudioSession sharedInstance];
+  [session lockForConfiguration];
+  NSError *error = nil;
+  [session setConfiguration:config error:&error];
+  if (error) { NSLog(@"[EasyComAudio] reapplyConfig error: %@", error); }
+  [session unlockForConfiguration];
+  NSLog(@"[EasyComAudio] config re-applied after route change");
+}
+
+- (void)dealloc {
+  if (self.routeChangeObserver) {
+    [[NSNotificationCenter defaultCenter] removeObserver:self.routeChangeObserver];
+  }
 }
 
 @end

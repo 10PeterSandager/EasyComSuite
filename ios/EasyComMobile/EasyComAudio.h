@@ -1,4 +1,5 @@
 #import <React/RCTBridgeModule.h>
+#import <React/RCTEventEmitter.h>
 
-@interface EasyComAudio : NSObject <RCTBridgeModule>
+@interface EasyComAudio : RCTEventEmitter <RCTBridgeModule>
 @end

@@ -14,20 +14,32 @@ registerGlobals()
 let _routeChangeListener: any = null
 
 export function startAudioSession() {
-  // Use EasyComAudio native module instead of InCallManager.start().
-  // InCallManager forces AVAudioSessionModeVideoChat (VoiceProcessingIO = mono, low-rate)
-  // and sets allowBluetooth which puts AirPods in HFP mode (mono 8-16kHz Bluetooth codec).
-  // EasyComAudio uses:
-  //   mode: Default      → standard RemoteIO audio unit (stereo, 48kHz)
-  //   allowBluetoothA2DP → AirPods stay in A2DP (stereo, high quality)
-  //   no allowBluetooth  → no HFP; iPhone built-in mic used for input
-  //   defaultToSpeaker   → audio routes to speaker when no Bluetooth device
   const { EasyComAudio } = NativeModules
   if (EasyComAudio?.configureForStereo) {
     EasyComAudio.configureForStereo()
     console.log('[audio] stereo session configured (Default mode, A2DP only)')
+
+    // Listen for native route changes (AirPods connect/disconnect).
+    // Briefly disable all consumer tracks so the audio unit can safely restart,
+    // then re-enable them once the new route is stable.
+    if (!_routeChangeListener) {
+      const emitter = new NativeEventEmitter(EasyComAudio)
+      _routeChangeListener = emitter.addListener('EasyComAudioRouteChange', ({ reason }) => {
+        console.log(`[audio] route change: ${reason} — pausing tracks for 400ms`)
+        for (const [, consumer] of _consumers.entries()) {
+          try { if (consumer.track) consumer.track.enabled = false } catch {}
+        }
+        setTimeout(() => {
+          console.log('[audio] re-enabling tracks after route change')
+          for (const [srcId, consumer] of _consumers.entries()) {
+            if (_activeStreams.has(srcId)) {
+              try { if (consumer.track) consumer.track.enabled = true } catch {}
+            }
+          }
+        }, 400)
+      })
+    }
   } else {
-    // Fallback if native module not linked yet (mono)
     InCallManager.start({ media: 'video' })
     console.log('[audio] session started (InCallManager fallback, mono)')
   }
@@ -282,7 +294,8 @@ async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
     console.log(`[transport] ${direction} ICE state: ${state}`)
     if (state === 'failed') {
       console.warn(`[transport] ${direction} ICE FAILED — attempting ICE restart`)
-      InCallManager.start({ media: 'video' })
+      // Do NOT call InCallManager.start() here — it forces VoiceProcessingIO (mono)
+      // and overrides the stereo AVAudioSession configuration.
       try {
         const result = await new Promise<any>((resolve, reject) => {
           const t = setTimeout(() => reject(new Error('restartIce timeout')), 5000)
