@@ -1237,6 +1237,14 @@ function setupSignaling(io) {
             cb(clientVisibility.get(clientId) ?? []);
         });
         /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
+        socket.on("server:network:info", (cb) => {
+            if (typeof cb !== "function")
+                return;
+            const httpsPort = parseInt(process.env.PORT ?? "3000");
+            const lanPort = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1));
+            const lanIp = process.env.LAN_IP ?? "";
+            cb({ lanIp, port: httpsPort, lanPort });
+        });
         socket.on("server:config:get", (cb) => {
             if (typeof cb !== "function")
                 return;
