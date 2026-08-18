@@ -1150,7 +1150,7 @@ export function setupSignaling(io: Server) {
         const activeTbs = mobileActiveTb.get(clientId) ?? new Set<number>()
         const isConnectedToHost = Array.from(activeTbs).some(ch =>
           Array.from(connections.values()).some(
-            c => c.from === clientId && c.to === "producer-65" && c.toChannel === ch
+            c => c.from === clientId && (c.to === "producer-65" || c.to === "host-ui") && c.toChannel === ch
           )
         )
         io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost })

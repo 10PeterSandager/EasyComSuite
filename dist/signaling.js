@@ -1172,7 +1172,7 @@ function setupSignaling(io) {
                 // Only open the HOST gate when an active TB channel actually has a connection
                 // to the HOST (producer-65). TB2/3/4 with no configured route must not bleed through.
                 const activeTbs = mobileActiveTb.get(clientId) ?? new Set();
-                const isConnectedToHost = Array.from(activeTbs).some(ch => Array.from(connections.values()).some(c => c.from === clientId && c.to === "producer-65" && c.toChannel === ch));
+                const isConnectedToHost = Array.from(activeTbs).some(ch => Array.from(connections.values()).some(c => c.from === clientId && (c.to === "producer-65" || c.to === "host-ui") && c.toChannel === ch));
                 io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost });
                 // Push sender meter immediately so the HOST card lights up on TB press.
                 // recv_ meters are driven by the phone's own audio:level events (emitted
