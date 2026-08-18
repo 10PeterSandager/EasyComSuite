@@ -378,6 +378,19 @@ export function setupSignaling(io: Server) {
           }
         }
         if (seen.size > 0) broadcastRouting(io)
+        // TB return: phone → host-ui for each IFB slot this client has
+        let tbReturnAdded = false
+        for (const conn of connections.values()) {
+          if (conn.to === client.id && conn.from.startsWith("bridge-ch") && conn.toChannel === undefined) {
+            const tbKey = `${client.id}-host-ui-${conn.channel}`
+            if (!connections.has(tbKey)) {
+              connections.set(tbKey, { from: client.id, to: "host-ui", channel: conn.channel, toChannel: conn.channel })
+              console.log(`[signaling] TB return: ${client.id} → host-ui ch${conn.channel}`)
+              tbReturnAdded = true
+            }
+          }
+        }
+        if (tbReturnAdded) broadcastRouting(io)
       }
 
       // Always send current routing to mobile/remote clients on register.
@@ -512,6 +525,19 @@ export function setupSignaling(io: Server) {
           broadcastRouting(io)
           console.log(`[signaling] default IFB: bridge-ch1 → ${mobileIds.length} client(s)`)
         }
+        // TB return: ensure phone → host-ui for every mobile that has a bridge-ch1 IFB
+        let bpTbAdded = false
+        for (const mobileId of mobileIds) {
+          if (connections.has(connKey({ from: bchDefault, to: mobileId, channel: 1 }))) {
+            const tbKey = `${mobileId}-host-ui-1`
+            if (!connections.has(tbKey)) {
+              connections.set(tbKey, { from: mobileId, to: "host-ui", channel: 1, toChannel: 1 })
+              console.log(`[signaling] TB return: ${mobileId} → host-ui ch1`)
+              bpTbAdded = true
+            }
+          }
+        }
+        if (bpTbAdded) broadcastRouting(io)
       }
       // 🔥 Emit producer:ready for each bridge channel
       // Så mobiler der allerede har en routing til en bridge-kanal kan re-consume
@@ -541,6 +567,11 @@ export function setupSignaling(io: Server) {
       for (const mobileId of mobileIds) {
         const k = connKey({ from: bch, to: mobileId, channel: slot })
         connections.set(k, { from: bch, to: mobileId, channel: slot })
+        const tbKey = `${mobileId}-host-ui-${slot}`
+        if (!connections.has(tbKey)) {
+          connections.set(tbKey, { from: mobileId, to: "host-ui", channel: slot, toChannel: slot })
+          console.log(`[signaling] TB return: ${mobileId} → host-ui ch${slot}`)
+        }
       }
       broadcastRouting(io)
       console.log(`[signaling] IFB slot${slot} → ${bch} for ${mobileIds.length} client(s)`)
