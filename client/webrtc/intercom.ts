@@ -654,7 +654,7 @@ export function initRouting(clientId: string) {
 
   // Pull current state immediately so consumers are pre-created before first TB press,
   // even if the phone was already connected when initRouting was called.
-  socket.emit("connections:list")
+  socket.emit("connections:request:all")
 
   // Pre-create consumers for all non-bridge mobile clients connected to us.
   // The consumer starts paused (producer is paused), so no audio flows until the
