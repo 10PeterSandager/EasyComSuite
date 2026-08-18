@@ -34,8 +34,8 @@ type Props = {
 export default function LoginScreen({
   clients, loading, error, onSearch, onConnect, onOpenWithoutConnection, qrConfig,
 }: Props) {
-  const [hostIp,          setHostIp]          = useState('192.168.1.23')
-  const [hostPort,        setHostPort]        = useState('3000')
+  const [hostIp,          setHostIp]          = useState('192.168.1.21')
+  const [hostPort,        setHostPort]        = useState('3001')
   const [sessionPassword, setSessionPassword] = useState('')
   const [ssl,             setSsl]             = useState(false)
   const [settingsLoaded,  setSettingsLoaded]  = useState(false)

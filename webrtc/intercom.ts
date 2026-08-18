@@ -12,42 +12,53 @@ registerGlobals()
 
 // ─── Audio session ─────────────────────────────────────────────────────────
 let _routeChangeListener: any = null
+let _routeChangeTimer: ReturnType<typeof setTimeout> | null = null
 
 export function startAudioSession() {
   const { EasyComAudio } = NativeModules
+  console.log('[audio] startAudioSession — EasyComAudio module:', EasyComAudio ? 'loaded' : 'MISSING', 'configureForStereo:', EasyComAudio?.configureForStereo ? 'available' : 'MISSING')
+
+  // media:'audio' (not 'video') is critical:
+  // With media:'video', InCallManager's route-change observer calls updateAudioRoute()
+  // on every CategoryChange, which re-asserts VideoChat mode and wins over our A2DP config.
+  // With media:'audio', updateAudioRoute() leaves audioMode empty and never re-asserts
+  // any mode — so EasyComAudio's Default+A2DP config stays in effect after AirPods connect.
+  InCallManager.start({ media: 'audio' })
+  console.log('[audio] InCallManager started (audio mode — no VideoChat override)')
+
   if (EasyComAudio?.configureForStereo) {
     EasyComAudio.configureForStereo()
-    console.log('[audio] stereo session configured (Default mode, A2DP only)')
+    console.log('[audio] session configured (Default/A2DP+BT)')
+  }
 
-    // Listen for native route changes (AirPods connect/disconnect).
-    // Briefly disable all consumer tracks so the audio unit can safely restart,
-    // then re-enable them once the new route is stable.
-    if (!_routeChangeListener) {
-      const emitter = new NativeEventEmitter(EasyComAudio)
-      _routeChangeListener = emitter.addListener('EasyComAudioRouteChange', ({ reason }) => {
-        console.log(`[audio] route change: ${reason} — pausing tracks for 400ms`)
-        for (const [, consumer] of _consumers.entries()) {
-          try { if (consumer.track) consumer.track.enabled = false } catch {}
-        }
-        setTimeout(() => {
-          console.log('[audio] re-enabling tracks after route change')
-          for (const [srcId, consumer] of _consumers.entries()) {
-            if (_activeStreams.has(srcId)) {
-              try { if (consumer.track) consumer.track.enabled = true } catch {}
-            }
+  // When AirPods connect, WebRTC restarts its audio unit internally. Without muting
+  // tracks during this window, the jitter buffer overfills → time-scaling → slow audio.
+  if (EasyComAudio && !_routeChangeListener) {
+    const emitter = new NativeEventEmitter(EasyComAudio)
+    _routeChangeListener = emitter.addListener('EasyComAudioRouteChange', ({ reason }: { reason: string }) => {
+      console.log('[audio] route change:', reason)
+      if (_routeChangeTimer) { clearTimeout(_routeChangeTimer); _routeChangeTimer = null }
+      for (const consumer of _consumers.values()) {
+        try { if (consumer.track) consumer.track.enabled = false } catch {}
+      }
+      _routeChangeTimer = setTimeout(() => {
+        _routeChangeTimer = null
+        const routedSources = new Set(Object.values(_currentRouting).flat())
+        for (const [srcId, consumer] of _consumers.entries()) {
+          if (routedSources.has(srcId)) {
+            try { if (consumer.track) consumer.track.enabled = true } catch {}
           }
-        }, 400)
-      })
-    }
-  } else {
-    InCallManager.start({ media: 'video' })
-    console.log('[audio] session started (InCallManager fallback, mono)')
+        }
+        console.log('[audio] tracks re-enabled after route change')
+      }, 800)
+    })
   }
 }
 
 export function stopAudio() {
   _routeChangeListener?.remove()
   _routeChangeListener = null
+  if (_routeChangeTimer) { clearTimeout(_routeChangeTimer); _routeChangeTimer = null }
   InCallManager.stop()
 }
 
@@ -374,7 +385,7 @@ export function setMicActive(active: boolean) {
   try {
     if (active) {
       _micProducer.resume()
-      console.log(`[mic] ▶ RESUMED | paused=${_micProducer.paused} track.enabled=${track?.enabled} readyState=${track?.readyState}`)
+      console.log(`[mic] ▶ RESUMED | paused=${_micProducer.paused} track.enabled=${track?.enabled} readyState=${track?.readyState} producerId=${_micProducer.id}`)
       if (!_levelInterval) {
         _levelInterval = setInterval(() => {
           if (_socket && _clientId) _socket.emit('audio:level', { clientId: _clientId, level: 70 })
@@ -429,23 +440,34 @@ const _failedConsumers = new Set<string>()
 const _consuming       = new Set<string>()
 
 
-async function _consume(sourceId: string, channel: number) {
+async function _consume(sourceId: string, channel: number, muteIfUnrouted = false) {
   if (_consumers.has(sourceId))       return
   if (_failedConsumers.has(sourceId)) return
   if (_consuming.has(sourceId))       return
   if (!_device || !_recvTransport) {
     console.warn(`[consume] not ready – retry 2s "${sourceId}"`)
-    setTimeout(() => _consume(sourceId, channel), 2000)
+    setTimeout(() => _consume(sourceId, channel, muteIfUnrouted), 2000)
     return
   }
 
   _consuming.add(sourceId)
   try {
+    // react-native-webrtc does not include stereo=1 in its Opus SDP by default.
+    // Without it, mediasoup creates a mono consumer even for stereo producers.
+    // Patch the capabilities to declare stereo support before sending to server.
+    const rtpCaps = JSON.parse(JSON.stringify(_device.rtpCapabilities))
+    const opusCodec = rtpCaps.codecs?.find((c: any) =>
+      c.mimeType?.toLowerCase() === 'audio/opus'
+    )
+    if (opusCodec) {
+      opusCodec.parameters = { ...(opusCodec.parameters ?? {}), stereo: 1, 'sprop-stereo': 1 }
+    }
+
     const result = await new Promise<any>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('timeout')), 8000)
       _socket!.emit('consume:request', {
         targetId:        sourceId,
-        rtpCapabilities: _device.rtpCapabilities,
+        rtpCapabilities: rtpCaps,
         transportId:     _recvTransport.id,
       }, (res: any) => { clearTimeout(t); resolve(res) })
     })
@@ -463,6 +485,13 @@ async function _consume(sourceId: string, channel: number) {
 
     _consumers.set(sourceId, consumer)
     _playTrack(consumer.track, sourceId)
+
+    if (muteIfUnrouted) {
+      const isRouted = Object.values(_currentRouting).flat().includes(sourceId)
+      if (!isRouted) {
+        try { consumer.track.enabled = false } catch {}
+      }
+    }
 
     console.log(`[consume] ✅ "${sourceId}" → ch${channel} | track: ${consumer.track.readyState}`)
   } catch (e) {
@@ -523,8 +552,16 @@ export function initRouting(clientId: string) {
       for (const src of sources) {
         const existing = _consumers.get(src)
         if (existing) {
-          // Re-enable a previously muted consumer — no renegotiation needed
-          try { if (existing.track && !existing.track.enabled) existing.track.enabled = true } catch {}
+          const track = existing.track
+          if (track && track.readyState === 'ended') {
+            // Track ended (e.g. after AirPods connect triggers audio session restart).
+            // The consumer is dead — drop it and create a fresh one.
+            _consumers.delete(src)
+            _activeStreams.delete(src)
+            _consume(src, Number(ch))
+          } else {
+            try { if (track && !track.enabled) track.enabled = true } catch {}
+          }
         } else {
           _consume(src, Number(ch))
         }
@@ -549,12 +586,18 @@ export function initRouting(clientId: string) {
   // This replaces individual mono consumers for those channels.
   s.on('bridge:stereo:available', ({ stereoId, chL, chR }: { stereoId: string; chL: number; chR: number }) => {
     console.log(`[stereo] available: ${stereoId} (ch${chL}=L, ch${chR}=R)`)
-    _consume(stereoId, chL)
-    // Silence individual mono tracks that are now covered by the stereo stream
-    ;[`bridge-ch${chL}`, `bridge-ch${chR}`].forEach(srcId => {
-      const c = _consumers.get(srcId)
-      if (c?.track) { try { c.track.enabled = false } catch {} }
-    })
+    // Pre-consume all stereo pairs; mute immediately if not in active routing.
+    // routing:update will re-enable when this pair becomes routed.
+    _consume(stereoId, chL, true)
+    // Only mute the component mono channels when the STEREO pair is routed here.
+    // If the mono channel itself is in routing, leave it enabled.
+    const routedSources = new Set(Object.values(_currentRouting).flat())
+    if (routedSources.has(stereoId)) {
+      ;[`bridge-ch${chL}`, `bridge-ch${chR}`].forEach(srcId => {
+        const c = _consumers.get(srcId)
+        if (c?.track && !routedSources.has(srcId)) { try { c.track.enabled = false } catch {} }
+      })
+    }
   })
 
   setTimeout(() => s.emit('routing:request:all'), 800)
