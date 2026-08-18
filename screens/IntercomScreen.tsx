@@ -65,7 +65,7 @@ export default function IntercomScreen({
 
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
   useEffect(() => {
-    import('../webrtc/intercom').then(({ onStreamAdded, getActiveStreams }) => {
+    import('../webrtc/intercom').then(({ onStreamAdded, onStreamRemoved, getActiveStreams }) => {
       const existing = getActiveStreams()
       if (existing.size > 0) setAudioStreams(Array.from(existing.values()))
       onStreamAdded((stream: any) => {
@@ -73,6 +73,9 @@ export default function IntercomScreen({
           if (prev.includes(stream)) return prev
           return [...prev, stream]
         })
+      })
+      onStreamRemoved((stream: any) => {
+        setAudioStreams(prev => prev.filter(s => s !== stream))
       })
     })
   }, [])
@@ -130,7 +133,7 @@ export default function IntercomScreen({
       } catch {}
     }
     import('../webrtc/intercom').then(({ setVideoSlotAudioEnabled }) => {
-      setVideoSlotAudioEnabled(slot + 1, enabled)
+      setVideoSlotAudioEnabled(slot + 1, enabled, vol / 100)
     }).catch(() => {})
   }
 

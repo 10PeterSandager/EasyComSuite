@@ -411,9 +411,13 @@ export function setMicActive(active: boolean) {
 const _activeStreams = new Map<string, MediaStream>()
 
 // Callback so IntercomScreen can attach streams to RTCView for audio activation
-let _onStreamAdded: ((stream: MediaStream, sourceId: string) => void) | null = null
+let _onStreamAdded:   ((stream: MediaStream, sourceId: string) => void) | null = null
+let _onStreamRemoved: ((stream: MediaStream) => void) | null = null
 export function onStreamAdded(cb: (stream: MediaStream, sourceId: string) => void) {
   _onStreamAdded = cb
+}
+export function onStreamRemoved(cb: (stream: MediaStream) => void) {
+  _onStreamRemoved = cb
 }
 
 function _playTrack(track: any, sourceId: string) {
@@ -426,7 +430,9 @@ function _playTrack(track: any, sourceId: string) {
 }
 
 function _stopTrack(sourceId: string) {
+  const stream = _activeStreams.get(sourceId)
   _activeStreams.delete(sourceId)
+  if (stream) _onStreamRemoved?.(stream)
   resetLevel(`recv_${sourceId}`)
 }
 
@@ -737,17 +743,20 @@ export async function consumeVideoSlot(slot: number): Promise<MediaStream | null
   }
 }
 
-export function setVideoSlotAudioEnabled(slot: number, enabled: boolean) {
+export function setVideoSlotAudioEnabled(slot: number, enabled: boolean, volume = 1) {
   const s = _videoSlots.get(slot)
   if (!s?.audioConsumer) return
   try {
     if (enabled) s.audioConsumer.resume?.()
     else         s.audioConsumer.pause?.()
-    // Update track in the video stream
-    s.stream.getAudioTracks().forEach((t: any) => { t.enabled = enabled })
-    // Update track in the _activeStreams entry (used by native audio engine)
+    const applyTrack = (t: any) => {
+      t.enabled = enabled
+      if (enabled) t._setVolume?.(volume)
+      else         t._setVolume?.(0)
+    }
+    s.stream.getAudioTracks().forEach(applyTrack)
     const audioStream = _activeStreams.get(`video-audio-${slot}`)
-    audioStream?.getAudioTracks().forEach((t: any) => { t.enabled = enabled })
+    audioStream?.getAudioTracks().forEach(applyTrack)
   } catch {}
 }
 
@@ -755,6 +764,14 @@ export function stopVideoSlot(slot: number) {
   const s = _videoSlots.get(slot)
   if (!s) return
   if (s.keyframeTimer) clearInterval(s.keyframeTimer)
+  // Silence immediately so the native audio engine stops before the consumer closes.
+  // Without this the iOS audio renderer plays buffered audio after consumer.close().
+  try {
+    if (s.audioConsumer?.track) {
+      s.audioConsumer.track.enabled = false
+      s.audioConsumer.track._setVolume?.(0)
+    }
+  } catch {}
   try { s.videoConsumer.close() } catch {}
   try { s.audioConsumer?.close() } catch {}
   _stopTrack(`video-audio-${slot}`)
