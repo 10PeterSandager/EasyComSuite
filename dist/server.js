@@ -39,7 +39,7 @@ if (fs_1.default.existsSync(desktopDist)) {
     console.log("🖥️  Desktop app served at /desktop");
 }
 // Serve easycom-broadcast-intercom (host UI) at /host
-const hostDist = path_1.default.join(__dirname, "../../../easycom-broadcast-intercom/dist");
+const hostDist = path_1.default.join(__dirname, "../../../easycom-broadcast-intercom.nosync/dist");
 if (fs_1.default.existsSync(hostDist)) {
     app.use("/host", express_1.default.static(hostDist));
     app.get("/host/{*splat}", (_, res) => res.sendFile(path_1.default.join(hostDist, "index.html")));

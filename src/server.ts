@@ -41,7 +41,7 @@ if (fs.existsSync(desktopDist)) {
 }
 
 // Serve easycom-broadcast-intercom (host UI) at /host
-const hostDist = path.join(__dirname, "../../../easycom-broadcast-intercom/dist")
+const hostDist = path.join(__dirname, "../../../easycom-broadcast-intercom.nosync/dist")
 if (fs.existsSync(hostDist)) {
   app.use("/host", express.static(hostDist))
   app.get("/host/{*splat}", (_, res) => res.sendFile(path.join(hostDist, "index.html")))

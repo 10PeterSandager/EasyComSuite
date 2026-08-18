@@ -8,23 +8,10 @@ import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel
 import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
-import os from "os"
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
-function detectLanIp(): string {
-  const ifaces = os.networkInterfaces()
-  for (const name of Object.keys(ifaces)) {
-    // Skip loopback and virtual interfaces
-    if (/lo|loopback|vmnet|vbox|docker|utun|awdl|llw|anpi/i.test(name)) continue
-    for (const iface of ifaces[name] ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) return iface.address
-    }
-  }
-  return "127.0.0.1"
-}
-
 function persistEnvVars(vars: Record<string, string>) {
   const envPath = path.resolve(process.cwd(), ".env")
   let content = ""
@@ -421,13 +408,12 @@ export function setupSignaling(io: Server) {
     socket.on("clients:list", (cb) => {
       if (typeof cb !== "function") return
       const list = Array.from(clients.values()).map(c => ({
-        id:        c.data?.id     || "",
-        name:      c.data?.name   || "",
-        type:      c.data?.type   || "",
-        code:      c.data?.code   || "0000",
-        status:    c.data?.status || "online",
-        color:     c.data?.color  || undefined,
-        connected: c.socketId ? !!io.sockets.sockets.get(c.socketId)?.connected : false,
+        id:     c.data?.id     || "",
+        name:   c.data?.name   || "",
+        type:   c.data?.type   || "",
+        code:   c.data?.code   || "0000",
+        status: c.data?.status || "online",
+        color:  c.data?.color  || undefined,
       })).filter(c => c.id !== "" && c.id !== "host-ui")
 
       // Find the requesting client (not host-ui)
@@ -922,6 +908,19 @@ export function setupSignaling(io: Server) {
           if (conn.from === clientId) update[`recv_${conn.to}`] = level
         }
       }
+      // Stereo-par sender ikke egne level-events — beregn niveau som max(chL, chR)
+      for (const stereoId of producers.keys()) {
+        const m = stereoId.match(/^bridge-stereo-(\d+)-(\d+)$/)
+        if (!m) continue
+        const lvL = levels[`bridge-ch${m[1]}`] ?? 0
+        const lvR = levels[`bridge-ch${m[2]}`] ?? 0
+        const stereoLevel = Math.max(lvL, lvR)
+        if (stereoLevel <= 0) continue
+        update[stereoId] = stereoLevel
+        for (const conn of connections.values()) {
+          if (conn.from === stereoId) update[`recv_${conn.to}`] = stereoLevel
+        }
+      }
       if (Object.keys(update).length > 0) {
         io.emit("audio:levels", update)
       }
@@ -1195,22 +1194,6 @@ export function setupSignaling(io: Server) {
       }
     })
 
-    // Host producer TB gating — lets "producer-65" activate toChannel-gated connections
-    // (e.g. producer-65 → bridge-ch19 for Mon L output) without being a mobile client.
-    socket.on("host:producer:talking", ({ producerId, channel, isTalking }: { producerId: string; channel: number; isTalking: boolean }) => {
-      if (!mobileActiveTb.has(producerId)) mobileActiveTb.set(producerId, new Set())
-      const set = mobileActiveTb.get(producerId)!
-      if (isTalking) set.add(channel)
-      else set.delete(channel)
-      broadcastRouting(io)
-    })
-
-    // Batch version — replaces the whole active-channel set in one shot.
-    socket.on("host:producer:channels", ({ producerId, channels }: { producerId: string; channels: number[] }) => {
-      mobileActiveTb.set(producerId, new Set(channels))
-      broadcastRouting(io)
-    })
-
     /* ---------- ROUTING MODE ---------- */
 
     socket.on("routing:mode:set", ({ clientId, enabled }: { clientId: string; enabled: boolean }) => {
@@ -1233,14 +1216,6 @@ export function setupSignaling(io: Server) {
 
     /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
 
-    socket.on("server:network:info", (cb) => {
-      if (typeof cb !== "function") return
-      const httpsPort = parseInt(process.env.PORT ?? "3000")
-      const lanPort   = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1))
-      const lanIp     = process.env.LAN_IP || detectLanIp()
-      cb({ lanIp, port: httpsPort, lanPort })
-    })
-
     socket.on("server:config:get", (cb) => {
       if (typeof cb !== "function") return
       cb({
@@ -1249,14 +1224,12 @@ export function setupSignaling(io: Server) {
         turnUsername:   process.env.TURN_USERNAME ?? "",
         turnPassword:   process.env.TURN_PASSWORD ?? "",
         sessionPassword: process.env.SESSION_PASSWORD ?? "",
-        port:    parseInt(process.env.PORT    ?? "3000"),
-        lanPort: parseInt(process.env.LAN_PORT ?? "3001"),
       })
     })
 
     socket.on("server:config:update", (
-      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, port, lanPort }:
-      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string; port?: number; lanPort?: number },
+      { announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }:
+      { announcedIp?: string; turnUrl?: string; turnUsername?: string; turnPassword?: string; sessionPassword?: string },
       cb?: (r: { ok: boolean }) => void
     ) => {
       const toSave: Record<string, string> = {}
@@ -1275,17 +1248,9 @@ export function setupSignaling(io: Server) {
         toSave["SESSION_PASSWORD"] = sessionPassword
         console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`)
       }
-      if (port !== undefined)    { toSave["PORT"]     = String(port) }
-      if (lanPort !== undefined) { toSave["LAN_PORT"] = String(lanPort) }
 
       persistEnvVars(toSave)
       cb?.({ ok: true })
-    })
-
-    socket.on("server:restart", (cb?: (r: { ok: boolean }) => void) => {
-      cb?.({ ok: true })
-      // Give the ACK time to reach the client before exit
-      setTimeout(() => process.exit(0), 400)
     })
 
     /* ---------- FACTORY RESET ---------- */
@@ -1494,9 +1459,8 @@ export function setupSignaling(io: Server) {
           disconnectTimes.delete(clientId)
           producers.delete(clientId)
           for (const [k, c] of connections) {
-            // Keep toChannel-gated connections — they are TB routing rules, not live
-            // connections, and must survive client disconnects so they reload correctly.
-            if ((c.from === clientId || c.to === clientId) && !c.toChannel) connections.delete(k)
+            // Keep bridge→client connections — operator set these intentionally.
+            if ((c.from === clientId || c.to === clientId) && !c.from.startsWith("bridge-")) connections.delete(k)
           }
           broadcastRouting(io)
           save()
