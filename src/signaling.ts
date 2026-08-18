@@ -378,19 +378,21 @@ export function setupSignaling(io: Server) {
           }
         }
         if (seen.size > 0) broadcastRouting(io)
-        // TB return: phone → host-ui for each IFB slot this client has
-        let tbReturnAdded = false
-        for (const conn of connections.values()) {
-          if (conn.to === client.id && conn.from.startsWith("bridge-ch") && conn.toChannel === undefined) {
-            const tbKey = `${client.id}-host-ui-${conn.channel}`
-            if (!connections.has(tbKey)) {
-              connections.set(tbKey, { from: client.id, to: "host-ui", channel: conn.channel, toChannel: conn.channel })
-              console.log(`[signaling] TB return: ${client.id} → host-ui ch${conn.channel}`)
-              tbReturnAdded = true
+        // TB return: phone → host-ui for each IFB slot this client has (skip host itself)
+        if (client.id !== "host-ui") {
+          let tbReturnAdded = false
+          for (const conn of connections.values()) {
+            if (conn.to === client.id && conn.from.startsWith("bridge-ch") && conn.toChannel === undefined) {
+              const tbKey = `${client.id}-host-ui-${conn.channel}`
+              if (!connections.has(tbKey)) {
+                connections.set(tbKey, { from: client.id, to: "host-ui", channel: conn.channel, toChannel: conn.channel })
+                console.log(`[signaling] TB return: ${client.id} → host-ui ch${conn.channel}`)
+                tbReturnAdded = true
+              }
             }
           }
+          if (tbReturnAdded) broadcastRouting(io)
         }
-        if (tbReturnAdded) broadcastRouting(io)
       }
 
       // Always send current routing to mobile/remote clients on register.
