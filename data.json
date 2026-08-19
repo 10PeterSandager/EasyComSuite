@@ -39,12 +39,6 @@
     },
     {
       "from": "client-0",
-      "to": "bridge-ch19",
-      "channel": 1,
-      "toChannel": 1
-    },
-    {
-      "from": "client-0",
       "to": "host-ui",
       "channel": 1,
       "toChannel": 1
@@ -58,6 +52,12 @@
     {
       "from": "host-ui",
       "to": "host-ui",
+      "channel": 1,
+      "toChannel": 1
+    },
+    {
+      "from": "client-0",
+      "to": "bridge-ch19",
       "channel": 1,
       "toChannel": 1
     }
