@@ -548,7 +548,10 @@ const VideoTab: React.FC<VideoTabProps> = ({
   const toggleTest = (ch: number) => {
     const isTest = !testMode[ch]
     setTestMode(prev => ({ ...prev, [ch]: isTest }))
-    if (!isTest) stopVideoStream(ch)
+    // Always stop the current stream (camera or canvas) before switching.
+    // Without this, switching TO test leaves the camera's audio track alive as
+    // an active mediasoup producer even though the visual shows the test pattern.
+    stopVideoStream(ch)
   }
 
   // Video producing håndteres af App.tsx – ikke VideoTab
