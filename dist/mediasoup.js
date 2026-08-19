@@ -42,6 +42,7 @@ exports.produce = produce;
 exports.consume = consume;
 exports.getProducer = getProducer;
 exports.getConsumer = getConsumer;
+exports.getAllConsumers = getAllConsumers;
 exports.getTransport = getTransport;
 const mediasoup = __importStar(require("mediasoup"));
 const os = __importStar(require("os"));
@@ -174,6 +175,15 @@ function getProducer(producerId) {
 }
 function getConsumer(consumerId) {
     return consumers.get(consumerId);
+}
+function getAllConsumers() {
+    return Array.from(consumers.entries()).map(([id, c]) => ({
+        id,
+        producerId: c.producerId,
+        kind: c.kind,
+        paused: c.paused,
+        closed: c.closed
+    }));
 }
 function getTransport(transportId) {
     return transports.get(transportId);

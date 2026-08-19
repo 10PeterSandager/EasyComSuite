@@ -163,6 +163,7 @@ function getDebugState() {
         mobileActiveTb: Array.from(mobileActiveTb.entries()).map(([clientId, ch]) => ({
             clientId, activeChannels: Array.from(ch)
         })),
+        consumers: (0, mediasoup_1.getAllConsumers)(),
         stats: {
             totalConnections: allConns.length,
             effectiveConnections: effectiveConns.length,
@@ -1005,6 +1006,7 @@ function setupSignaling(io) {
             }
         });
         socket.on("consume:request", async ({ targetId, rtpCapabilities, transportId, kind: reqKind }, cb) => {
+            console.log(`[consume:request] targetId="${targetId}" kind=${reqKind ?? 'audio'} transportId=${transportId} socket=${socket.id}`);
             try {
                 // Check both audio and video producers
                 const producerId = reqKind === "video"

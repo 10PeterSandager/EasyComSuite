@@ -47,7 +47,7 @@ rsync -a \
   --exclude='.env' --exclude='*.log' --exclude='tmp/' \
   "$EASYCOM_ROOT/easycom-host/" "$S/source/easycom-host/"
 
-for APP in easycom-broadcast-intercom DESKTOP easycom-remote; do
+for APP in easycom-broadcast-intercom.nosync DESKTOP easycom-remote; do
   if [ -d "$EASYCOM_ROOT/$APP" ]; then
     rsync -a --exclude='node_modules/' --exclude='dist/' --exclude='.git/' \
       "$EASYCOM_ROOT/$APP/" "$S/source/$APP/"
@@ -59,7 +59,7 @@ done
 cat > "$S/Installer EasyCom Host.command" << 'EOF'
 #!/bin/bash
 DMG="$(cd "$(dirname "$0")" && pwd)"
-DEST="$HOME/EASYCOM"
+DEST="$HOME/EASYCOM.nosync"
 
 clear
 printf "\n"
@@ -72,8 +72,8 @@ printf "\n"
 printf "  Kopierer filer til %s ...\n" "$DEST"
 mkdir -p "$DEST"
 rsync -a --exclude=node_modules "$DMG/source/easycom-host/" "$DEST/easycom-host/"
-[ -d "$DMG/source/easycom-broadcast-intercom" ] && \
-  rsync -a --exclude=node_modules "$DMG/source/easycom-broadcast-intercom/" "$DEST/easycom-broadcast-intercom/"
+[ -d "$DMG/source/easycom-broadcast-intercom.nosync" ] && \
+  rsync -a --exclude=node_modules "$DMG/source/easycom-broadcast-intercom.nosync/" "$DEST/easycom-broadcast-intercom.nosync/"
 printf "  ✅ Filer kopieret.\n\n"
 
 # ── Admin-adgangskode ─────────────────────────────────────────────────────────

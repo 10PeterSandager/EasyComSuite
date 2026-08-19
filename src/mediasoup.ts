@@ -183,6 +183,16 @@ export function getConsumer(consumerId: string) {
   return consumers.get(consumerId)
 }
 
+export function getAllConsumers() {
+  return Array.from(consumers.entries()).map(([id, c]) => ({
+    id,
+    producerId: c.producerId,
+    kind: c.kind,
+    paused: c.paused,
+    closed: c.closed
+  }))
+}
+
 export function getTransport(transportId: string) {
   return transports.get(transportId)
 }
