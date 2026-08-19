@@ -607,6 +607,28 @@ export function setupSignaling(io: Server) {
         console.log(`[signaling] VIDEO producer registered: ${clientId} → ${producerId}`)
         // Notify clients that have this clientId in their videoSources
         io.emit("video:producer:available", { clientId, producerId })
+
+        // 🔥 After server restart: auto-trigger fresh WebRTC offers for any connected mobile
+        // clients that already have this source in their persisted routing.
+        // Without this, the user has to manually "switch input" in VideoTab to re-establish video.
+        const srcNum = parseInt(clientId.replace("video-source-", ""))
+        if (!isNaN(srcNum)) {
+          const hostEntry = clients.get("host-ui")
+          if (hostEntry?.socketId) {
+            for (const [mobileId, sources] of videoRouting.entries()) {
+              if (!sources.includes(srcNum)) continue
+              const mobileEntry = clients.get(mobileId)
+              if (!mobileEntry?.socketId) continue
+              const mobileSocket = io.sockets.sockets.get(mobileEntry.socketId)
+              if (!mobileSocket?.connected) continue
+              console.log(`[signaling] 🔄 auto video offer: ${mobileId} has source ${srcNum} in routing → requesting fresh offer`)
+              io.to(hostEntry.socketId).emit("video:direct:request-from-client", {
+                toSocketId: mobileSocket.id,
+                clientId: mobileId
+              })
+            }
+          }
+        }
       } else {
         producers.set(clientId, producerId)
         console.log(`[signaling] producer registered: ${clientId} → ${producerId}`)
