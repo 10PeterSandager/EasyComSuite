@@ -136,6 +136,8 @@ export function getDebugState() {
       clientId, activeChannels: Array.from(ch)
     })),
     consumers: getAllConsumers(),
+    videoProducers: Array.from(videoProducers.entries()).map(([id, producerId]) => ({ id, producerId })),
+    videoRouting: Array.from(videoRouting.entries()).map(([clientId, sources]) => ({ clientId, sources })),
     stats: {
       totalConnections: allConns.length,
       effectiveConnections: effectiveConns.length,
@@ -328,11 +330,22 @@ export function setupSignaling(io: Server) {
       }
       const existing = clients.get(client.id)
 
+      // Guard: if this socket already claimed a different clientId (e.g. host-ui doing bulk
+      // ghost-registration of mobile slots), don't let it set or overwrite the real socket.
+      // Only store the data update; never write this socket's ID into the client's record.
+      const thisSocketAlreadyClaimed = (socket as any).clientId && (socket as any).clientId !== client.id
+      if (thisSocketAlreadyClaimed) {
+        const ghostData = existing ? { ...existing.data, ...client } : client
+        clients.set(client.id, { socketId: existing?.socketId ?? "", data: ghostData })
+        io.emit("clients:update", { id: client.id, updates: client })
+        cb?.({ ok: true })
+        return
+      }
+
       if (existing && existing.socketId !== socket.id && client.type !== "mobile" && client.type !== "remote" && client.type !== "desktop") {
         // Tjek om den eksisterende socket stadig er connected
         // Kun relevant for ikke-mobile clients: forhindrer host-appens batch-re-registrering
         // fra at overskrive en allerede connected mobil.
-        // Mobile clients SKAL altid opdatere socketId, da de er det rigtige bruger-device.
         const existingSocket = io.sockets.sockets.get(existing.socketId)
         if (existingSocket && existingSocket.connected) {
           clients.set(client.id, {
