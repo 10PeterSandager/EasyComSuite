@@ -16,12 +16,13 @@ export interface PersistedState {
   outputBridgeChannels: number[]
   streamDeckLayout:     any[]
   terminals:            Array<{ id: string; name: string; code: string; pairedClientId?: string }>
+  videoRouting:         Array<{ clientId: string; sources: number[] }>
 }
 
 const EMPTY: PersistedState = {
   connections: [], groups: [], clients: [],
   audioRoutes: [], bridgeChannelInfo: [], outputBridgeChannels: [], streamDeckLayout: [],
-  terminals: [],
+  terminals: [], videoRouting: [],
 }
 
 export function loadState(): PersistedState {

@@ -274,7 +274,13 @@ app.get("/debug", (_, res) => {
 </style>
 </head>
 <body>
-<h1>&#127475; EasyCom Diagnostic <span id="ts"></span></h1>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <h1 style="margin:0">&#127475; EasyCom Diagnostic <span id="ts"></span></h1>
+  <button id="btn-export" onclick="exportDiagnostic()"
+    style="background:#0e4429;border:1px solid #22c55e55;color:#4ade80;padding:6px 14px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:bold;cursor:pointer">
+    &#128190; Eksporter til fil
+  </button>
+</div>
 
 <div id="stats" style="margin-bottom:20px"></div>
 
@@ -287,7 +293,7 @@ app.get("/debug", (_, res) => {
     </table>
   </div>
   <div class="card">
-    <h2>Producers</h2>
+    <h2>Producers (audio)</h2>
     <table>
       <thead><tr><th>Client ID</th><th>Producer ID</th></tr></thead>
       <tbody id="tbl-prod"></tbody>
@@ -296,8 +302,22 @@ app.get("/debug", (_, res) => {
   <div class="card">
     <h2>Clients</h2>
     <table>
-      <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th></tr></thead>
+      <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Socket</th></tr></thead>
       <tbody id="tbl-clients"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Video Producers</h2>
+    <table>
+      <thead><tr><th>Source ID</th><th>Producer ID</th></tr></thead>
+      <tbody id="tbl-vprod"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Video Routing</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Slot 1 (V1)</th><th>Slot 2 (V2)</th></tr></thead>
+      <tbody id="tbl-vrouting"></tbody>
     </table>
   </div>
   <div class="card full">
@@ -313,6 +333,34 @@ app.get("/debug", (_, res) => {
 <script>
 let prev = null
 const log = document.getElementById('log')
+
+async function exportDiagnostic() {
+  const btn = document.getElementById('btn-export')
+  btn.textContent = '⏳ Henter...'
+  try {
+    const r = await fetch('/debug/state')
+    const state = await r.json()
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      note: 'EasyCom diagnostic snapshot — send denne fil til Claude for fejlsøgning',
+      state
+    }
+    const json = JSON.stringify(payload, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-')
+    const a = document.createElement('a')
+    a.href = url; a.download = 'easycom-diagnostic-' + ts + '.json'
+    document.body.appendChild(a); a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    btn.textContent = '✅ Fil gemt'
+    setTimeout(() => { btn.textContent = '💾 Eksporter til fil' }, 3000)
+  } catch(e) {
+    btn.textContent = '❌ Fejl: ' + e.message
+    setTimeout(() => { btn.textContent = '💾 Eksporter til fil' }, 3000)
+  }
+}
 
 function addLog(msg, cls='') {
   const d = document.createElement('div')
@@ -349,9 +397,26 @@ function render(s) {
 
   // Clients
   document.getElementById('tbl-clients').innerHTML = s.clients.map(c => {
-    const scls = c.status === 'online' ? 'ok' : 'dim'
-    return \`<tr><td>\${c.id}</td><td>\${c.name}</td><td><span class="tag tag-blue">\${c.type}</span></td><td class="\${scls}">\${c.status}</td></tr>\`
+    const sockBadge = c.socketConnected
+      ? '<span class="tag tag-green">CONNECTED</span>'
+      : c.socketId === '(empty)'
+        ? '<span class="tag tag-red">NO SOCKET</span>'
+        : '<span class="tag tag-red">STALE</span>'
+    return \`<tr><td>\${c.id}</td><td>\${c.name}</td><td><span class="tag tag-blue">\${c.type||'—'}</span></td><td>\${sockBadge}</td></tr>\`
   }).join('') || '<tr><td colspan="4" class="dim">None</td></tr>'
+
+  // Video Producers
+  document.getElementById('tbl-vprod').innerHTML = (s.videoProducers||[]).map(p =>
+    \`<tr><td class="ok">\${p.id}</td><td class="dim" style="font-size:10px">\${p.producerId.slice(0,16)}…</td></tr>\`
+  ).join('') || '<tr><td colspan="2" class="warn">None – host has not produced video yet</td></tr>'
+
+  // Video Routing
+  document.getElementById('tbl-vrouting').innerHTML = (s.videoRouting||[]).map(r => {
+    const s1 = r.sources[0] || 0
+    const s2 = r.sources[1] || 0
+    const fmt = n => n > 0 ? \`<span class="tag tag-green">INPUT \${n}</span>\` : '<span class="dim">OFF</span>'
+    return \`<tr><td>\${r.clientId}</td><td>\${fmt(s1)}</td><td>\${fmt(s2)}</td></tr>\`
+  }).join('') || '<tr><td colspan="3" class="warn">None – assign routing in VideoTab</td></tr>'
 
   // TB state
   const tbEl = document.getElementById('tb-state')

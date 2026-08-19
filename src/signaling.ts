@@ -9,6 +9,8 @@ import { loadState, scheduleSave, PersistedState } from "./persist"
 import fs from "fs"
 import path from "path"
 
+let _io: Server | null = null
+
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -69,10 +71,11 @@ const outputBridgeChannels = new Set<number>()
   s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }))
   s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r as AudioRoute))
   s.terminals?.forEach(t => terminals.set(t.id, t))
+  s.videoRouting?.forEach(({ clientId, sources }) => videoRouting.set(clientId, sources))
   bridgeChannelInfo = s.bridgeChannelInfo
   s.outputBridgeChannels.forEach(ch => outputBridgeChannels.add(ch))
   if (s.connections.length > 0)
-    console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals`)
+    console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals, ${videoRouting.size} videoRouting`)
 })()
 
 // Collects current state for saving to disk
@@ -88,6 +91,7 @@ function getPersistedState(): PersistedState {
     outputBridgeChannels: Array.from(outputBridgeChannels),
     streamDeckLayout:     streamDeckManager.getCurrentLayout?.() ?? [],
     terminals:            Array.from(terminals.values()),
+    videoRouting:         Array.from(videoRouting.entries()).map(([clientId, sources]) => ({ clientId, sources })),
   }
 }
 function save() { scheduleSave(getPersistedState) }
@@ -127,7 +131,9 @@ export function getDebugState() {
     })),
     producers: Array.from(producers.entries()).map(([id, producerId]) => ({ id, producerId })),
     clients: Array.from(clients.entries()).map(([id, c]) => ({
-      id, socketId: c.socketId,
+      id,
+      socketId: c.socketId || "(empty)",
+      socketConnected: !!(c.socketId && _io?.sockets.sockets.get(c.socketId)?.connected),
       name: c.data?.name ?? id,
       type: c.data?.type ?? "?",
       status: c.data?.status ?? "?"
@@ -258,10 +264,11 @@ export function factoryReset(io: Server) {
   mobileActiveTb.clear()
   producers.clear()
   terminals.clear()
+  videoRouting.clear()
   scheduleSave(() => ({
     connections: [], groups: [], clients: [],
     audioRoutes: [], bridgeChannelInfo: [], outputBridgeChannels: [], streamDeckLayout: [],
-    terminals: [],
+    terminals: [], videoRouting: [],
   }))
   io.emit("connections:all", [])
   io.emit("routing:update", [])
@@ -272,6 +279,7 @@ export function factoryReset(io: Server) {
 }
 
 export function setupSignaling(io: Server) {
+  _io = io
 
   // Queue for consume:requests that arrive before the producer is registered.
   // Key = targetId, fulfilled when producer:register fires for that clientId.
