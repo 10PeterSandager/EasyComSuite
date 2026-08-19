@@ -688,18 +688,7 @@ const HostView = (props: any) => {
         )
 
       case "video":
-        return (
-          <VideoTab
-            clients={regularClients} updateClient={updateClient}
-            videoStream1={videoStream1} videoStream2={videoStream2}
-            videoStream3={videoStream3} videoStream4={videoStream4}
-            startVideoStream={startVideoStream} stopVideoStream={stopVideoStream}
-            selectedIds={selectedIds} updateMultipleClients={updateMultipleClients}
-            onClientMark={(id: any, e: any) => handleClientSelect(id, e)}
-            onRoutingChange={onRoutingChange}
-            theme={theme}
-          />
-        )
+        return null // VideoTab is always mounted below — never unmount it
 
       case "setup":
         return (
@@ -725,6 +714,13 @@ const HostView = (props: any) => {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => window.open('http://localhost:3001/debug', '_blank')}
+                className="ml-3 px-2.5 py-1 text-[10px] font-bold whitespace-nowrap rounded-md transition-colors text-cyan-400/70 hover:text-cyan-300 hover:bg-cyan-400/10"
+                style={{ border: '1px solid rgba(34,211,238,0.2)' }}
+                title="Åbn EasyCom Diagnostic">
+                🔬 Diagnostic
+              </button>
             </div>
             <div className="flex-1 overflow-hidden">
               {setupTab === "global" ? (
@@ -1111,7 +1107,22 @@ const HostView = (props: any) => {
             </div>
           </div>
         </div>
-        <div className="flex-1 overflow-hidden min-w-0">{renderTab()}</div>
+        <div className="flex-1 overflow-hidden min-w-0">
+          {/* VideoTab is always mounted so the test pattern + mediasoup producer keep running */}
+          <div className="h-full" style={{ display: activeTab === 'video' ? 'block' : 'none' }}>
+            <VideoTab
+              clients={regularClients} updateClient={updateClient}
+              videoStream1={videoStream1} videoStream2={videoStream2}
+              videoStream3={videoStream3} videoStream4={videoStream4}
+              startVideoStream={startVideoStream} stopVideoStream={stopVideoStream}
+              selectedIds={selectedIds} updateMultipleClients={updateMultipleClients}
+              onClientMark={(id: any, e: any) => handleClientSelect(id, e)}
+              onRoutingChange={onRoutingChange}
+              theme={theme}
+            />
+          </div>
+          {activeTab !== 'video' && renderTab()}
+        </div>
       </div>
 
       {/* CONNECTIONS POPUP — kept mounted so connections state survives close/reopen */}
