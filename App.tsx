@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 
 import { socket, startMicrophone, audioCtx } from "./client/webrtc/intercom"
-import { setSocket, registerClient, attachMicrophone } from "./client/webrtc/clientHandshake"
+import { setSocket, registerClient, attachMicrophone, initAudio } from "./client/webrtc/clientHandshake"
 
 import { ViewMode, Client, NetworkConfig, GPIOConfig } from "./types"
 
@@ -561,6 +561,8 @@ const App: React.FC = () => {
           name: "EasyCom Host",
           type: "desktop"
         })
+
+        initAudio("host-ui")
 
         // 🔥 Registrér alle 64 clients på serveren så mobil-dropdown virker
         clients.forEach(c => {
