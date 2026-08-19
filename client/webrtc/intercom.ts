@@ -73,7 +73,7 @@ const talkingState = new Map<string, boolean>()
 // state:update controls audio for all sources:
 // Non-bridge (phone): sets el.volume 0/1 on the <audio> element directly.
 // Bridge: controls the GainNode gate and ensures the driver element is alive.
-socket.on("client:state:update", ({ clientId, isTalking }: { clientId: string; isTalking?: boolean }) => {
+socket.on("client:state:update", ({ clientId, isTalking, channel }: { clientId: string; isTalking?: boolean; channel?: number }) => {
   if (isTalking === undefined) return
 
   if (isTalking) {
@@ -98,7 +98,13 @@ socket.on("client:state:update", ({ clientId, isTalking }: { clientId: string; i
         }
       }
     } else {
-      // Non-bridge (phone): open gate on talk-start
+      // Non-bridge (phone): on-demand consume if pre-consume timing failed
+      const ch = channel ?? preConsumeTargets.get(clientId)
+      if (!consumers.has(clientId) && ch !== undefined) {
+        console.log(`[GATE] "${clientId}" — no consumer yet, consuming ch${ch} on-demand`)
+        consume(clientId, ch)  // race check inside consume opens gate when ready
+      }
+      // Open gate immediately if consumer already exists
       const gate = gateGains.get(clientId)
       if (gate) gate.gain.setTargetAtTime(1, audioCtx.currentTime, 0.02)
     }
