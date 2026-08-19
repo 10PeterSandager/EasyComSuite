@@ -391,7 +391,7 @@ export function setupSignaling(io: Server) {
               }
             }
           }
-          if (tbReturnAdded) broadcastRouting(io)
+          if (tbReturnAdded) { broadcastRouting(io); save() }
         }
       }
 
@@ -1186,7 +1186,10 @@ export function setupSignaling(io: Server) {
             c => c.from === clientId && (c.to === "producer-65" || c.to === "host-ui") && c.toChannel === ch
           )
         )
-        io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost })
+        // Include channel so host can on-demand consume if pre-consume timing failed
+        const tbChannel = Array.from(connections.values())
+          .find(c => c.from === clientId && c.to === "host-ui" && c.toChannel !== undefined)?.toChannel
+        io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost, channel: tbChannel })
         // Push sender meter immediately so the HOST card lights up on TB press.
         // recv_ meters are driven by the phone's own audio:level events (emitted
         // at 100 ms intervals while the mic producer is active).
