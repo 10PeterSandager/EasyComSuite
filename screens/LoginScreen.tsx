@@ -81,8 +81,13 @@ export default function LoginScreen({
   // Sequential step highlighting: search → select → pin → ready
   const loginStep = canConnect ? 'ready' : selectedClient !== null ? 'pin' : clients.length > 0 ? 'select' : 'search'
 
-  // Replace comma with period so Danish keyboard works for IP input
-  const handleIpChange = (text: string) => setHostIp(text.replace(',', '.'))
+  // Replace comma with period so Danish keyboard works for IP input.
+  // Save immediately on every keystroke so iOS can't kill the app before save.
+  const handleIpChange = (text: string) => {
+    const v = text.replace(',', '.')
+    setHostIp(v)
+    AsyncStorage.setItem(STORAGE_KEYS.hostIp, v).catch(() => {})
+  }
 
   const handleSearch = () => {
     Keyboard.dismiss()
@@ -260,7 +265,7 @@ export default function LoginScreen({
                 <TextInput
                   style={s.modalInput}
                   value={hostPort}
-                  onChangeText={setHostPort}
+                  onChangeText={v => { setHostPort(v); AsyncStorage.setItem(STORAGE_KEYS.hostPort, v).catch(() => {}) }}
                   placeholder="3000"
                   placeholderTextColor="#444"
                   keyboardType="number-pad"
