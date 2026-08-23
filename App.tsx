@@ -635,16 +635,16 @@ const App: React.FC = () => {
 
       {!isFullscreen && (
 
-        <div className="flex items-center justify-between px-6 py-2 bg-black/40 border-b border-white/5">
+        <div className="flex items-center justify-between px-3 py-2 bg-black/40 border-b border-white/5">
 
           <div className="flex items-center gap-6">
 
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded bg-${themeColor}-600`}>
-                <Radio size={18} className="text-white"/>
+                <Radio size={20} className="text-white"/>
               </div>
 
-              <span className="font-black text-white uppercase tracking-tight">
+              <span className="text-lg font-black text-white uppercase tracking-tight">
                 EASYC<span className={`text-${themeColor}-500`}>O</span>M
               </span>
             </div>

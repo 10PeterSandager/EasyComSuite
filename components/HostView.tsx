@@ -237,13 +237,15 @@ const HostView = (props: any) => {
   const [newGroupColor, setNewGroupColor] = useState("#3b82f6")
   const GROUP_COLORS_HV = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899"]
 
-  const [qrModal, setQrModal] = useState<null | 'remote' | 'ios'>(null)
+  const [qrModal, setQrModal] = useState<null | 'remote' | 'ios' | 'internet'>(null)
   const [qrTunnelUrl, setQrTunnelUrl] = useState("")
   const [qrLanIp, setQrLanIp] = useState("")
   const [qrLanPort, setQrLanPort] = useState(3001)
+  const [qrVpsIp, setQrVpsIp] = useState("")
 
   useEffect(() => {
     fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
+    fetch('/api/config').then(r => r.json()).then(c => { if (c.ip) setQrVpsIp(c.ip) }).catch(() => {})
     socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
       if (info?.lanIp) setQrLanIp(info.lanIp)
       if (info?.lanPort) setQrLanPort(info.lanPort)
@@ -1061,9 +1063,13 @@ const HostView = (props: any) => {
               className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
               <QrCode size={13} /> REMOTE PAD
             </button>
-            <button onClick={() => setQrModal('ios')} title="Opsæt iOS app"
+            <button onClick={() => setQrModal('ios')} title="Opsæt iOS app via LAN"
               className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
               <Smartphone size={13} /> iOS APP
+            </button>
+            <button onClick={() => setQrModal('internet')} title="Opsæt iOS app via internet (VPS)"
+              className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
+              <QrCode size={13} /> INTERNET
             </button>
           </div>
         </div>
@@ -1269,11 +1275,20 @@ const HostView = (props: any) => {
       })()}
 
       {qrModal && (() => {
-        const isIos = qrModal === 'ios'
-        const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
-        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
-        const qrData = isIos ? iosUrl : remoteUrl
-        const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
+        const isIos      = qrModal === 'ios'
+        const isInternet = qrModal === 'internet'
+        const iosUrl      = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
+        const internetUrl = qrVpsIp ? `easycommobile://setup?host=${encodeURIComponent(qrVpsIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}` : ''
+        const remoteUrl   = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
+        const qrData = isIos ? iosUrl : isInternet ? internetUrl : remoteUrl
+        const qrSrc  = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
+        const title  = isIos ? 'iOS APP — LAN' : isInternet ? 'iOS APP — INTERNET' : 'REMOTE PAD'
+        const desc   = isIos
+          ? 'Scan med iPhone-kameraet. Forbinder via lokalt netværk (LAN).'
+          : isInternet
+          ? 'Scan med iPhone-kameraet. Forbinder via internet (VPS-relay).'
+          : 'Scan med telefon- eller tablet-kameraet for at åbne Remote Pad i browseren'
+        const emptyMsg = isIos ? 'Ingen netværksinfo' : isInternet ? 'Ingen VPS IP konfigureret' : 'Ingen tunnel URL'
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center"
             style={{ background: "rgba(0,0,0,0.75)" }} onClick={() => setQrModal(null)}>
@@ -1283,21 +1298,20 @@ const HostView = (props: any) => {
               <button onClick={() => setQrModal(null)}
                 className="absolute top-3 right-3 p-1 rounded text-white/30 hover:text-white/70"><X size={16} /></button>
               <div className="text-center">
-                <div className="text-xs font-black text-white/50 mb-1">{isIos ? 'iOS APP OPSÆTNING' : 'REMOTE PAD'}</div>
-                <div className="text-[11px] text-white/30 max-w-[260px] leading-relaxed">
-                  {isIos ? 'Scan med iPhone-kameraet for at åbne EasyCom Mobile og forbinde automatisk'
-                          : 'Scan med telefon- eller tablet-kameraet for at åbne Remote Pad i browseren'}
-                </div>
+                <div className="text-xs font-black text-white/50 mb-1">{title}</div>
+                <div className="text-[11px] text-white/30 max-w-[260px] leading-relaxed">{desc}</div>
               </div>
               <div style={{ background: "#fff", padding: 16, borderRadius: 16 }}>
                 {qrSrc ? <img src={qrSrc} width={220} height={220} alt="QR" />
                         : <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 12 }}>
-                            {isIos ? 'Ingen netværksinfo' : 'Ingen tunnel URL'}
+                            {emptyMsg}
                           </div>}
               </div>
-              {isIos ? (
+              {(isIos || isInternet) ? (
                 <div className="text-center space-y-1">
-                  <div className="text-[10px] text-white/30">LAN: <span className="text-white/60 font-mono">{qrLanIp}:{qrLanPort}</span></div>
+                  <div className="text-[10px] text-white/30">
+                    {isInternet ? 'VPS' : 'LAN'}: <span className="text-white/60 font-mono">{isInternet ? qrVpsIp : qrLanIp}:{qrLanPort}</span>
+                  </div>
                   {qrTunnelUrl && <div className="text-[10px] text-white/30">Tunnel: <span className="text-white/60 font-mono">{qrTunnelUrl}</span></div>}
                 </div>
               ) : (
