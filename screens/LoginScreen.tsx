@@ -195,7 +195,7 @@ export default function LoginScreen({
                   : <Text style={s.connectBtnText}>INITIALIZE LINK</Text>
                 }
               </TouchableOpacity>
-              <TouchableOpacity style={[s.sogBtn, loginStep === 'search' && s.sogBtnActive]} onPress={() => { Keyboard.dismiss(); onSearch(hostIp, sessionPassword, ssl, hostPort) }} disabled={loading}>
+              <TouchableOpacity style={[s.sogBtn, loginStep === 'search' && s.sogBtnActive]} onPress={() => { Keyboard.dismiss(); saveSettings(); onSearch(hostIp, sessionPassword, ssl, hostPort) }} disabled={loading}>
                 <Text style={[s.searchBtnIcon, loginStep === 'search' && s.searchBtnIconActive]}>↻</Text>
                 <Text style={[s.sogBtnText, loginStep === 'search' && s.sogBtnTextActive]}>SEARCH</Text>
               </TouchableOpacity>
@@ -230,7 +230,7 @@ export default function LoginScreen({
                   <Text style={s.modalTitle}>CONNECTION SETTINGS</Text>
                   <Text style={s.modalSubtitle}>NETWORK CONFIGURATION</Text>
                 </View>
-                <TouchableOpacity style={s.closeBtn} onPress={() => { Keyboard.dismiss(); setShowSettings(false) }}>
+                <TouchableOpacity style={s.closeBtn} onPress={() => { Keyboard.dismiss(); saveSettings(); setShowSettings(false) }}>
                   <Text style={s.closeBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
