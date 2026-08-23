@@ -72,12 +72,20 @@ export async function initMediasoup() {
 export async function createTransport(direction: "send" | "recv") {
 
   const localIp = getLocalIp()
-  // Use VPS public IP when set (external clients connect via WireGuard relay).
-  // Falls back to runtime override (set via host UI), then local LAN IP.
-  const announcedIp = _runtimeAnnouncedIp || process.env.MEDIASOUP_ANNOUNCED_IP || localIp
+  const externalIp = _runtimeAnnouncedIp || process.env.MEDIASOUP_ANNOUNCED_IP || null
+
+  // Always include LAN IP so local Electron app and LAN phones can connect.
+  // Add VPS/external IP as a second candidate so internet phones can also connect.
+  // ICE picks the best candidate: local clients use LAN, external clients use VPS.
+  const listenIps: mediasoup.types.TransportListenIp[] = [
+    { ip: "0.0.0.0", announcedIp: localIp },
+  ]
+  if (externalIp && externalIp !== localIp) {
+    listenIps.push({ ip: "0.0.0.0", announcedIp: externalIp })
+  }
 
   const transport = await router.createWebRtcTransport({
-    listenIps: [{ ip: "0.0.0.0", announcedIp }],
+    listenIps,
     enableUdp: true,
     enableTcp: true,
     preferUdp: true,
