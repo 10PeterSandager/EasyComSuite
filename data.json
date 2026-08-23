@@ -38,26 +38,8 @@
       "channel": 8
     },
     {
-      "from": "client-0",
-      "to": "host-ui",
-      "channel": 1,
-      "toChannel": 1
-    },
-    {
-      "from": "client-0",
-      "to": "host-ui",
-      "channel": 8,
-      "toChannel": 8
-    },
-    {
       "from": "host-ui",
       "to": "host-ui",
-      "channel": 1,
-      "toChannel": 1
-    },
-    {
-      "from": "client-0",
-      "to": "bridge-ch19",
       "channel": 1,
       "toChannel": 1
     }
@@ -287,5 +269,13 @@
   ],
   "streamDeckLayout": [],
   "terminals": [],
-  "videoRouting": []
+  "videoRouting": [
+    {
+      "clientId": "client-0",
+      "sources": [
+        1,
+        2
+      ]
+    }
+  ]
 }

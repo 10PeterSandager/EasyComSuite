@@ -72,11 +72,9 @@ export async function initMediasoup() {
 export async function createTransport(direction: "send" | "recv") {
 
   const localIp = getLocalIp()
-  // Announce local LAN IP so phones on the same network get a reachable ICE candidate.
-  // The external IP (MEDIASOUP_ANNOUNCED_IP) only matters for internet clients, which
-  // currently use Cloudflare tunnel (no UDP relay) so WebRTC to external IPs doesn't
-  // work anyway. Local-only is correct for all current use cases.
-  const announcedIp = localIp
+  // Use VPS public IP when set (external clients connect via WireGuard relay).
+  // Falls back to runtime override (set via host UI), then local LAN IP.
+  const announcedIp = _runtimeAnnouncedIp || process.env.MEDIASOUP_ANNOUNCED_IP || localIp
 
   const transport = await router.createWebRtcTransport({
     listenIps: [{ ip: "0.0.0.0", announcedIp }],
