@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 
 import { socket, startMicrophone, audioCtx } from "./client/webrtc/intercom"
-import { setSocket, registerClient, attachMicrophone, initAudio } from "./client/webrtc/clientHandshake"
+import { setSocket, registerClient, attachMicrophone } from "./client/webrtc/clientHandshake"
 
 import { ViewMode, Client, NetworkConfig, GPIOConfig } from "./types"
 
@@ -562,8 +562,6 @@ const App: React.FC = () => {
           type: "desktop"
         })
 
-        initAudio("host-ui")
-
         // 🔥 Registrér alle 64 clients på serveren så mobil-dropdown virker
         clients.forEach(c => {
           socket.emit("client:register", {
@@ -635,16 +633,16 @@ const App: React.FC = () => {
 
       {!isFullscreen && (
 
-        <div className="flex items-center justify-between px-3 py-2 bg-black/40 border-b border-white/5">
+        <div className="flex items-center justify-between px-6 py-2 bg-black/40 border-b border-white/5">
 
           <div className="flex items-center gap-6">
 
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded bg-${themeColor}-600`}>
-                <Radio size={20} className="text-white"/>
+                <Radio size={18} className="text-white"/>
               </div>
 
-              <span className="text-2xl font-black text-white uppercase tracking-tight">
+              <span className="font-black text-white uppercase tracking-tight">
                 EASYC<span className={`text-${themeColor}-500`}>O</span>M
               </span>
             </div>

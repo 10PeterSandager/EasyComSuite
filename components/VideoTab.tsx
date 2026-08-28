@@ -78,8 +78,7 @@ function TestPattern({ label, ch, onStream }: { label: string; ch?: number; onSt
       ctx.fillText(label.toUpperCase(), w / 2, h * 0.34 + 14)
       ctx.font = "11px monospace"
       ctx.fillStyle = "#22c55e"
-      const _d = new Date(); const _pad = (n: number) => String(n).padStart(2, '0')
-      ctx.fillText(`${_pad(_d.getHours())}:${_pad(_d.getMinutes())}:${_pad(_d.getSeconds())}`, w / 2, h * 0.34 + 30)
+      ctx.fillText(new Date().toISOString().slice(11, 19), w / 2, h * 0.34 + 30)
 
       // REC blink
       if (frame.current % 60 < 30) {
@@ -549,10 +548,7 @@ const VideoTab: React.FC<VideoTabProps> = ({
   const toggleTest = (ch: number) => {
     const isTest = !testMode[ch]
     setTestMode(prev => ({ ...prev, [ch]: isTest }))
-    // Always stop the current stream (camera or canvas) before switching.
-    // Without this, switching TO test leaves the camera's audio track alive as
-    // an active mediasoup producer even though the visual shows the test pattern.
-    stopVideoStream(ch)
+    if (!isTest) stopVideoStream(ch)
   }
 
   // Video producing håndteres af App.tsx – ikke VideoTab
