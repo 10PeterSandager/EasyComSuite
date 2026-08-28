@@ -22,7 +22,8 @@ import { registerOutputDevice } from "./audioOutput"
 /* ---- PLATFORM ---- */
 
 const IS_MAC = process.platform === "darwin"
-const CAPTURE_BIN = path.join(__dirname, "audio_capture_bin")
+// __dirname is dist/ at runtime — binary lives in src/ next to it
+const CAPTURE_BIN = path.join(__dirname, "..", "src", "audio_capture_bin")
 
 let naudiodon: any = null
 if (!IS_MAC) {
