@@ -72,20 +72,14 @@ export async function initMediasoup() {
 export async function createTransport(direction: "send" | "recv") {
 
   const localIp = getLocalIp()
-  const externalIp = _runtimeAnnouncedIp || process.env.MEDIASOUP_ANNOUNCED_IP || null
-
-  // Always include LAN IP so local Electron app and LAN phones can connect.
-  // Add VPS/external IP as a second candidate so internet phones can also connect.
-  // ICE picks the best candidate: local clients use LAN, external clients use VPS.
-  const listenIps: mediasoup.types.TransportListenIp[] = [
-    { ip: "0.0.0.0", announcedIp: localIp },
-  ]
-  if (externalIp && externalIp !== localIp) {
-    listenIps.push({ ip: "0.0.0.0", announcedIp: externalIp })
-  }
+  // Announce local LAN IP so phones on the same network get a reachable ICE candidate.
+  // The external IP (MEDIASOUP_ANNOUNCED_IP) only matters for internet clients, which
+  // currently use Cloudflare tunnel (no UDP relay) so WebRTC to external IPs doesn't
+  // work anyway. Local-only is correct for all current use cases.
+  const announcedIp = localIp
 
   const transport = await router.createWebRtcTransport({
-    listenIps,
+    listenIps: [{ ip: "0.0.0.0", announcedIp }],
     enableUdp: true,
     enableTcp: true,
     preferUdp: true,
@@ -187,16 +181,6 @@ export function getProducer(producerId: string) {
 
 export function getConsumer(consumerId: string) {
   return consumers.get(consumerId)
-}
-
-export function getAllConsumers() {
-  return Array.from(consumers.entries()).map(([id, c]) => ({
-    id,
-    producerId: c.producerId,
-    kind: c.kind,
-    paused: c.paused,
-    closed: c.closed
-  }))
 }
 
 export function getTransport(transportId: string) {

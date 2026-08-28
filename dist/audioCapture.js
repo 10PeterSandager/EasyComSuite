@@ -6,6 +6,10 @@
  *  1. audioDeviceConfig.json (admin-override, valgfri)
  *  2. Auto-detect baseret på enhedsnavn + antal kanaler
  *  3. Fallback: CH1, CH2 ... (alle input)
+ *
+ * Platform-support:
+ *  - macOS  : Swift binary (audio_capture_bin) via CoreAudio
+ *  - Windows: naudiodon (PortAudio/WASAPI) – ingen ekstern binary nødvendig
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -46,7 +50,21 @@ const child_process_1 = require("child_process");
 const child_process_2 = require("child_process");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const events_1 = require("events");
 const audioOutput_1 = require("./audioOutput");
+/* ---- PLATFORM ---- */
+const IS_MAC = process.platform === "darwin";
+const CAPTURE_BIN = path.join(__dirname, "audio_capture_bin");
+let naudiodon = null;
+if (!IS_MAC) {
+    try {
+        naudiodon = require("naudiodon");
+        console.log("✅ naudiodon loaded for Windows/Linux audio capture");
+    }
+    catch (e) {
+        console.error("❌ naudiodon failed to load:", e.message);
+    }
+}
 const sessions = new Map();
 /* ---- CONFIG FILE ---- */
 function loadConfig() {
@@ -59,7 +77,6 @@ function loadConfig() {
     return {};
 }
 /* ---- AUTO-DETECT ---- */
-// Kendte professionelle interfaces og deres typiske kanal-layout
 const KNOWN_DEVICES = [
     {
         // Universal Audio Apollo (Thunderbolt/USB)
@@ -169,7 +186,6 @@ const KNOWN_DEVICES = [
         }
     },
     {
-        // Macs built-in mic/speaker
         match: /macbook|imac|mac mini|mac pro|built-in/i,
         getChannels: (total) => {
             const ch = [];
@@ -182,11 +198,9 @@ const KNOWN_DEVICES = [
 ];
 function autoDetectChannels(deviceName, total) {
     for (const known of KNOWN_DEVICES) {
-        if (known.match.test(deviceName)) {
+        if (known.match.test(deviceName))
             return known.getChannels(total);
-        }
     }
-    // Generic fallback: enkelt-kanal enheder er alt input, multi-kanal: første halvdel input, anden halvdel output
     const ch = [];
     const outputStart = total > 2 ? Math.ceil(total * 0.6) + 1 : total + 1;
     for (let i = 1; i <= total; i++) {
@@ -203,9 +217,7 @@ function autoDetectChannels(deviceName, total) {
 function buildChannelInfo(deviceName, total) {
     const config = loadConfig();
     const deviceConfig = config[deviceName];
-    // Start med auto-detect
     const auto = autoDetectChannels(deviceName, total);
-    // Override med config hvis den eksisterer
     if (deviceConfig?.channels) {
         return auto.map(ch => {
             const override = deviceConfig.channels[String(ch.channel)];
@@ -216,7 +228,7 @@ function buildChannelInfo(deviceName, total) {
     }
     return auto;
 }
-/* ---- FFMPEG HELPERS ---- */
+/* ---- FFMPEG CHECK (Mac only) ---- */
 function checkFfmpeg() {
     const candidates = [
         "/opt/homebrew/bin/ffmpeg",
@@ -238,15 +250,15 @@ function checkFfmpeg() {
         return false;
     }
 }
+/* ---- DEVICE LISTING ---- */
 function listAudioDevices() {
+    return IS_MAC ? listAudioDevicesMac() : listAudioDevicesNaudiodon();
+}
+function listAudioDevicesMac() {
     return new Promise((resolve) => {
-        // ✅ Swift binary – lister enheder via CoreAudio
-        const proc = (0, child_process_1.spawn)("/Users/petersandager/EASYCOM/easycom-host/server/src/audio_capture_bin", [
-            "0", "48000", "2"
-        ], { stdio: ["ignore", "pipe", "pipe"] });
+        const proc = (0, child_process_1.spawn)(CAPTURE_BIN, ["0", "48000", "2"], { stdio: ["ignore", "pipe", "pipe"] });
         let output = "";
         proc.stderr.on("data", (d) => { output += d.toString(); });
-        // Kill after we have device list
         setTimeout(() => { try {
             proc.kill();
         }
@@ -265,11 +277,10 @@ function listAudioDevices() {
                     continue;
                 }
                 if (inList) {
-                    // Format: DEVICE:index:name:channels
                     const m = line.match(/^DEVICE:(\d+):(.+):(\d+)$/);
                     if (m) {
                         const ch = parseInt(m[3]);
-                        if (ch > 0) // only input devices
+                        if (ch > 0)
                             devices.push({ index: parseInt(m[1]), name: m[2].trim(), channels: ch });
                     }
                 }
@@ -279,21 +290,90 @@ function listAudioDevices() {
         });
     });
 }
-function getDeviceChannels(deviceIndex) {
-    // Swift binary reports channels in CAPTURE_START line
-    // This function is kept for compatibility but Swift handles channels directly
-    return Promise.resolve(30); // Apollo has 30 channels
+function listAudioDevicesNaudiodon() {
+    return new Promise((resolve) => {
+        if (!naudiodon) {
+            resolve([]);
+            return;
+        }
+        try {
+            const all = naudiodon.getDevices();
+            const devices = all
+                .filter(d => d.maxInputChannels > 0)
+                .map(d => ({ index: d.id, name: d.name, channels: d.maxInputChannels }));
+            console.log("🎛️  Lydenheder (naudiodon):", devices.map(d => `[${d.index}] ${d.name} (${d.channels}ch)`).join(", "));
+            resolve(devices);
+        }
+        catch (e) {
+            console.error("naudiodon getDevices failed:", e.message);
+            resolve([]);
+        }
+    });
+}
+/* ---- CAPTURE FACTORIES ---- */
+function spawnMacCapture(deviceIndex, sampleRate) {
+    const proc = (0, child_process_1.spawn)(CAPTURE_BIN, [
+        String(deviceIndex), String(sampleRate), "30"
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    return {
+        stdout: proc.stdout,
+        stderr: proc.stderr,
+        kill: (sig) => { try {
+            proc.kill(sig ?? "SIGTERM");
+        }
+        catch { } },
+        on: (event, handler) => { proc.on(event, handler); }
+    };
+}
+function spawnNaudiodonCapture(deviceIndex, sampleRate, channelCount) {
+    const stderr = new events_1.EventEmitter();
+    const emitter = new events_1.EventEmitter();
+    const ai = new naudiodon.AudioIO({
+        inOptions: {
+            channelCount,
+            sampleFormat: naudiodon.SampleFormat16Bit,
+            sampleRate,
+            deviceId: deviceIndex,
+            closeOnError: false,
+            framesPerBuffer: 480
+        }
+    });
+    // Emit synthetic protocol signals that match what the Mac binary sends to stderr,
+    // so the shared capture handler below needs no platform branching at all.
+    setImmediate(() => {
+        stderr.emit("data", Buffer.from(`CAPTURE_START:naudiodon:${channelCount}\n`));
+        setTimeout(() => stderr.emit("data", Buffer.from("CAPTURE_READY\n")), 150);
+    });
+    ai.on("error", (err) => emitter.emit("error", err));
+    ai.on("close", () => emitter.emit("close", 0));
+    ai.start();
+    return {
+        stdout: ai,
+        stderr,
+        kill: () => { try {
+            ai.quit();
+        }
+        catch { } },
+        on: (event, handler) => emitter.on(event, handler)
+    };
 }
 /* ---- SETUP ---- */
 function setupAudioCapture(io) {
-    if (!checkFfmpeg()) {
+    if (IS_MAC && !checkFfmpeg()) {
         console.warn("⚠️  ffmpeg ikke fundet – kør: brew install ffmpeg");
         io.on("connection", (socket) => {
             socket.on("audio:devices:list", (cb) => cb({ ok: false, error: "ffmpeg ikke installeret" }));
         });
         return;
     }
-    console.log("✅ ffmpeg fundet – audio capture bridge klar");
+    if (!IS_MAC && !naudiodon) {
+        console.warn("⚠️  naudiodon ikke tilgængelig – lydoptagelse deaktiveret");
+        io.on("connection", (socket) => {
+            socket.on("audio:devices:list", (cb) => cb({ ok: false, error: "naudiodon ikke installeret" }));
+        });
+        return;
+    }
+    console.log(`✅ Audio capture klar (${IS_MAC ? "macOS CoreAudio" : "Windows PortAudio/WASAPI"})`);
     io.on("connection", (socket) => {
         /* LIST DEVICES */
         socket.on("audio:devices:list", async (cb) => {
@@ -304,16 +384,17 @@ function setupAudioCapture(io) {
                     return;
                 }
                 const devices = await Promise.all(rawDevices.map(async (d) => {
-                    const totalChannels = await getDeviceChannels(d.index);
+                    // Mac: channel count discovered at capture time (Apollo always 30)
+                    // Windows: already known from naudiodon.getDevices()
+                    const totalChannels = IS_MAC ? 30 : d.channels;
                     const channelInfo = buildChannelInfo(d.name, totalChannels);
-                    const isApollo = /universal audio|apollo/i.test(d.name);
                     return {
                         index: d.index,
                         name: d.name,
                         channels: totalChannels,
                         channelInfo,
                         sampleRate: 48000,
-                        isApollo
+                        isApollo: /universal audio|apollo/i.test(d.name)
                     };
                 }));
                 cb({ ok: true, devices });
@@ -323,26 +404,34 @@ function setupAudioCapture(io) {
             }
         });
         /* START CAPTURE */
-        socket.on("audio:capture:start", ({ deviceIndex, deviceName = "", sampleRate = 48000 }, cb) => {
+        socket.on("audio:capture:start", async ({ deviceIndex, deviceName = "", sampleRate = 48000 }, cb) => {
             stopSession(socket.id);
             console.log(`🎙️  Starter capture: device ${deviceIndex} (${deviceName}) @ ${sampleRate}Hz`);
             try {
-                // ✅ Swift CoreAudio capture – stable multi-channel, no ffmpeg
-                const proc = (0, child_process_1.spawn)("/Users/petersandager/EASYCOM/easycom-host/server/src/audio_capture_bin", [
-                    String(deviceIndex),
-                    String(sampleRate),
-                    "30"
-                ], { stdio: ["ignore", "pipe", "pipe"] });
-                let totalChannels = 2;
+                // Windows: look up channel count from naudiodon before starting AudioIO
+                let naudiodonChannels = 2;
+                if (!IS_MAC && naudiodon) {
+                    try {
+                        const all = naudiodon.getDevices();
+                        const dev = all.find(d => d.id === deviceIndex);
+                        naudiodonChannels = dev?.maxInputChannels ?? 2;
+                    }
+                    catch { }
+                }
+                const proc = IS_MAC
+                    ? spawnMacCapture(deviceIndex, sampleRate)
+                    : spawnNaudiodonCapture(deviceIndex, sampleRate, naudiodonChannels);
+                // Mac: totalChannels updated when CAPTURE_START arrives on stderr
+                // Windows: already known, but we still parse the synthetic CAPTURE_START for consistency
+                let totalChannels = IS_MAC ? 2 : naudiodonChannels;
                 let headerParsed = false;
                 let callbackSent = false;
                 let buffer = Buffer.alloc(0);
                 proc.stderr.on("data", (data) => {
                     const text = data.toString();
-                    // ✅ Parse Swift output: CAPTURE_START:deviceName:channels
-                    const swiftMatch = text.match(/CAPTURE_START:[^:]+:(\d+)/);
-                    if (swiftMatch && !headerParsed) {
-                        totalChannels = parseInt(swiftMatch[1]);
+                    const match = text.match(/CAPTURE_START:[^:]+:(\d+)/);
+                    if (match && !headerParsed) {
+                        totalChannels = parseInt(match[1]);
                         headerParsed = true;
                     }
                     if (text.includes("CAPTURE_READY") && !callbackSent) {
@@ -369,11 +458,8 @@ function setupAudioCapture(io) {
                     const bytesPerSample = 2;
                     const frameSize = bytesPerSample * totalChannels;
                     const minBytes = frameSize * CHUNK_SAMPLES;
-                    // Only process when we have at least CHUNK_SAMPLES frames
                     while (buffer.length >= minBytes) {
                         const frameCount = Math.floor(Math.min(buffer.length, minBytes * 2) / frameSize);
-                        // Deinterleave all channels first, then emit ONE event so all channels
-                        // always arrive together — prevents per-channel phase offset on the bridge client
                         const channelBuffers = [];
                         for (let ch = 0; ch < totalChannels; ch++) {
                             const mono = Buffer.allocUnsafe(frameCount * bytesPerSample);
@@ -394,7 +480,7 @@ function setupAudioCapture(io) {
                 });
                 proc.on("close", (code) => {
                     if (code !== 0 && code !== null)
-                        socket.emit("audio:capture:error", { error: `ffmpeg stoppet (kode ${code})` });
+                        socket.emit("audio:capture:error", { error: `Capture stoppet (kode ${code})` });
                     sessions.delete(socket.id);
                 });
                 sessions.set(socket.id, { process: proc, deviceIndex, totalChannels, sampleRate });
@@ -403,7 +489,7 @@ function setupAudioCapture(io) {
                 cb?.({ ok: false, error: e.message });
             }
         });
-        /* SAVE CHANNEL CONFIG (fra UI) */
+        /* SAVE CHANNEL CONFIG */
         socket.on("audio:channel:config:save", ({ deviceName, channelInfo }) => {
             try {
                 const configPath = path.join(__dirname, "audioDeviceConfig.json");

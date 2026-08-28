@@ -42,7 +42,6 @@ exports.produce = produce;
 exports.consume = consume;
 exports.getProducer = getProducer;
 exports.getConsumer = getConsumer;
-exports.getAllConsumers = getAllConsumers;
 exports.getTransport = getTransport;
 const mediasoup = __importStar(require("mediasoup"));
 const os = __importStar(require("os"));
@@ -104,18 +103,13 @@ async function initMediasoup() {
 /* ---------- CREATE TRANSPORT ---------- */
 async function createTransport(direction) {
     const localIp = getLocalIp();
-    const externalIp = _runtimeAnnouncedIp || process.env.MEDIASOUP_ANNOUNCED_IP || null;
-    // Always include LAN IP so local Electron app and LAN phones can connect.
-    // Add VPS/external IP as a second candidate so internet phones can also connect.
-    // ICE picks the best candidate: local clients use LAN, external clients use VPS.
-    const listenIps = [
-        { ip: "0.0.0.0", announcedIp: localIp },
-    ];
-    if (externalIp && externalIp !== localIp) {
-        listenIps.push({ ip: "0.0.0.0", announcedIp: externalIp });
-    }
+    // Announce local LAN IP so phones on the same network get a reachable ICE candidate.
+    // The external IP (MEDIASOUP_ANNOUNCED_IP) only matters for internet clients, which
+    // currently use Cloudflare tunnel (no UDP relay) so WebRTC to external IPs doesn't
+    // work anyway. Local-only is correct for all current use cases.
+    const announcedIp = localIp;
     const transport = await exports.router.createWebRtcTransport({
-        listenIps,
+        listenIps: [{ ip: "0.0.0.0", announcedIp }],
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
@@ -180,15 +174,6 @@ function getProducer(producerId) {
 }
 function getConsumer(consumerId) {
     return consumers.get(consumerId);
-}
-function getAllConsumers() {
-    return Array.from(consumers.entries()).map(([id, c]) => ({
-        id,
-        producerId: c.producerId,
-        kind: c.kind,
-        paused: c.paused,
-        closed: c.closed
-    }));
 }
 function getTransport(transportId) {
     return transports.get(transportId);
