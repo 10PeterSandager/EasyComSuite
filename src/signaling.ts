@@ -358,44 +358,15 @@ export function setupSignaling(io: Server) {
       save()
       cb?.({ ok: true })
 
-      // When a new mobile/remote registers, replicate any active IFB slot routings
-      // that were established via bridge:ifb:set for existing mobile clients.
-      // Falls back to bridge-ch1 → client on slot 1 if no existing IFB routing found.
+      // Auto-create TB return so the host can consume the phone's mic when TB1 is pressed.
+      // IFB (bridge → client) is NOT auto-created — set it up via ConnectionsPopup for a clean slate.
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
-        const existingMobiles = Array.from(clients.keys()).filter(id => id !== client.id && (clients.get(id)?.data?.type === "mobile" || clients.get(id)?.data?.type === "remote" || clients.get(id)?.data?.type === "desktop"))
-        const seen = new Set<string>()
-        for (const otherId of existingMobiles) {
-          for (const conn of connections.values()) {
-            if (conn.to === otherId && conn.from.startsWith("bridge-ch") && !seen.has(conn.from + ":" + conn.channel)) {
-              seen.add(conn.from + ":" + conn.channel)
-              const ifbKey = connKey({ from: conn.from, to: client.id, channel: conn.channel })
-              if (!connections.has(ifbKey)) {
-                connections.set(ifbKey, { from: conn.from, to: client.id, channel: conn.channel })
-                console.log(`[signaling] replicated IFB: ${conn.from} → ${client.id} ch${conn.channel}`)
-              }
-            }
-          }
-        }
-        // Fallback: if no IFB routing established yet, use bridge-ch1 as default slot 1
-        if (seen.size === 0 && producers.has("bridge-ch1")) {
-          const k = connKey({ from: "bridge-ch1", to: client.id, channel: 1 })
-          if (!connections.has(k)) {
-            connections.set(k, { from: "bridge-ch1", to: client.id, channel: 1 })
-            console.log(`[signaling] default IFB: bridge-ch1 → ${client.id} ch1`)
-          }
-        }
-
-        // Auto-create TB return: phone TB1 → host (producer-65) on ch1.
-        // Without this the host never has a routing path to consume the phone's mic
-        // and client:talking's isConnectedToHost check always returns false.
         const tbReturnKey = connKey({ from: client.id, to: "producer-65", channel: 1, toChannel: 1 })
         if (!connections.has(tbReturnKey)) {
           connections.set(tbReturnKey, { from: client.id, to: "producer-65", channel: 1, toChannel: 1 })
           console.log(`[signaling] auto TB return: ${client.id} → producer-65 ch1 (TB1-gated)`)
         }
-
         broadcastRouting(io)
-        save()
       }
 
       // Always send current routing to mobile/remote clients on register.
