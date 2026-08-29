@@ -63,6 +63,7 @@ export default function IntercomScreen({
   const [toneActive, setToneActive] = useState(false)
   const [routing, setRouting] = useState<Record<number, string[]>>({})
   const [tallyState, setTallyState] = useState<'program' | 'preview' | 'off'>('off')
+  const [meterSectionBottom, setMeterSectionBottom] = useState(0)
   const [gpoEnabled, setGpoEnabled] = useState(false)
   const gpoFiredRef = useRef(false)
 
@@ -580,33 +581,31 @@ export default function IntercomScreen({
       {renderSettings()}
       {renderLandscapeVideo()}
 
-      {/* TALLY OVERLAY — full-screen colored border + banner */}
-      {tallyState !== 'off' && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <View style={{
-            ...StyleSheet.absoluteFillObject,
-            borderWidth: 6,
-            borderColor: tallyState === 'program' ? '#dc2626' : '#d97706',
-          }} />
-          <View style={{
+      {/* TALLY BLOCK — rendered before topBar so it sits behind content in z-order */}
+      {tallyState !== 'off' && meterSectionBottom > 0 && (
+        <View
+          pointerEvents="none"
+          style={{
             position: 'absolute',
             top: 0, left: 0, right: 0,
+            height: meterSectionBottom,
             backgroundColor: tallyState === 'program' ? '#dc2626' : '#d97706',
-            paddingVertical: 6,
-            alignItems: 'center',
-          }}>
-            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 3 }}>
-              {tallyState === 'program' ? '● ON AIR' : '● STAND BY'}
-            </Text>
-          </View>
-        </View>
+            borderBottomLeftRadius: 20,
+            borderBottomRightRadius: 20,
+          }}
+        />
       )}
 
-      {/* TOP BAR */}
-      <View style={s.topBar}>
+      {/* TOP BAR — transparent background when tally active so tally color shows through */}
+      <View style={[s.topBar, tallyState !== 'off' && { backgroundColor: 'transparent', borderBottomColor: 'rgba(255,255,255,0.15)' }]}>
         <View>
           <Text style={s.liveLabel}>⚡ LIVE_NODE</Text>
           <Text style={s.stationName}>{stationName}</Text>
+          {tallyState !== 'off' && (
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 2.5, marginTop: 2 }}>
+              {tallyState === 'program' ? '● ON AIR' : '● STAND BY'}
+            </Text>
+          )}
         </View>
         <View style={s.topBtns}>
           <TouchableOpacity style={[s.topBtn, shuffleOffset!==0 && s.topBtnOn]}
@@ -699,7 +698,10 @@ export default function IntercomScreen({
       )}
 
       {/* METERS */}
-      <View style={s.meterSection}>
+      <View style={s.meterSection} onLayout={e => {
+        const { y, height } = e.nativeEvent.layout
+        setMeterSectionBottom(y + height + 20)
+      }}>
         <View style={s.meterGrid}>
           {[0,1,2,3].map(pairIdx => {
             return (
