@@ -20,6 +20,8 @@ type Props = {
   allClients?: Client[]
   roles?: { id: string; label: string; color: string }[]
   connectedSources?: Client[]
+  tallyState?: 'program' | 'preview' | 'off'
+  onTallySet?: (state: 'program' | 'preview' | 'off') => void
 }
 
 const defaultIFB = (): IFBSettings => ({ active: false, channels: {} })
@@ -47,7 +49,8 @@ const ClientStrip: React.FC<Props> = ({
   client, isSelected, onUpdate, theme,
   onHijack = () => {}, onMapKey = () => {},
   isMixerOpen = false, onToggleMixer = () => {},
-  feedSources = [], allClients = [], roles = [], connectedSources = []
+  feedSources = [], allClients = [], roles = [], connectedSources = [],
+  tallyState = 'off', onTallySet
 }) => {
 
   const [snd, setSnd] = useState(0)
@@ -229,6 +232,9 @@ const ClientStrip: React.FC<Props> = ({
           ${isSelected ? `border-${themeColor}-500 bg-${themeColor}-600/5` : "border-white/5"}
           ${(client as any).ifbActive ? "ring-2 ring-blue-500" : ""}
           ${isMixerOpen ? "border-blue-400/40" : ""}`}
+        style={tallyState === 'program' ? { boxShadow: '0 0 0 2.5px #dc2626, 0 0 12px 2px #dc262650' }
+             : tallyState === 'preview' ? { boxShadow: '0 0 0 2.5px #d97706, 0 0 10px 2px #d9770640' }
+             : undefined}
       >
         {/* HEADER */}
         <div style={{ background: client.color || "#444" }} className="flex items-center justify-between px-2 py-1">
@@ -248,6 +254,25 @@ const ClientStrip: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-1">
             {(client.videoSources?.length ?? 0) > 0 && <Video size={10} />}
+            {/* Tally R / P buttons */}
+            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+              <button
+                onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
+                className="text-[7px] font-black px-0.5 rounded leading-none"
+                style={tallyState === 'program'
+                  ? { background: '#dc2626', color: '#fff' }
+                  : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}
+                title="Program tally"
+              >R</button>
+              <button
+                onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'preview' ? 'off' : 'preview') }}
+                className="text-[7px] font-black px-0.5 rounded leading-none"
+                style={tallyState === 'preview'
+                  ? { background: '#d97706', color: '#fff' }
+                  : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}
+                title="Preview tally"
+              >P</button>
+            </div>
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-zinc-700"}`} />
           </div>
         </div>

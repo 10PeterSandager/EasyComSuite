@@ -383,6 +383,15 @@ const HostView = (props: any) => {
     return () => { socket.off("connections:all", upd) }
   }, [])
 
+  // ── Tally ──────────────────────────────────────────────────────────────────
+  const [tallyStates, setTallyStates] = useState<Record<string, 'program' | 'preview' | 'off'>>({})
+  useEffect(() => {
+    socket.emit("tally:all", (res: any) => setTallyStates(res ?? {}))
+    const upd = (map: any) => setTallyStates(map ?? {})
+    socket.on("tally:all", upd)
+    return () => { socket.off("tally:all", upd) }
+  }, [])
+
   // 🔥 Update mixer when mobile client changes gain
   useEffect(() => {
     const handler = ({ clientId, channel, gain }: { clientId: string; channel: number; gain: number }) => {
@@ -619,6 +628,8 @@ const HostView = (props: any) => {
                         feedSources={[...clientSources, ...bridgeSources]}
                         allClients={regularClients}
                         roles={roles}
+                        tallyState={tallyStates[c.id] ?? 'off'}
+                        onTallySet={(state) => socket.emit('tally:set', { clientId: c.id, state })}
                         connectedSources={(() => {
                           // Find other online clients that share a bridge channel with this card
                           const myBridgeChannels = new Set(
