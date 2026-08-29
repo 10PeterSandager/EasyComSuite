@@ -7,7 +7,6 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { RTCView } from 'react-native-webrtc'
-import { LongPressGestureHandler, State as GestureState } from 'react-native-gesture-handler'
 
 const ACCENT = '#f97316'
 const BG     = '#09090b'
@@ -66,6 +65,7 @@ export default function IntercomScreen({
   const [tallyState, setTallyState] = useState<'program' | 'preview' | 'off'>('off')
   const [meterSectionBottom, setMeterSectionBottom] = useState(0)
   const [gpoEnabled, setGpoEnabled] = useState(false)
+  const [gpoActive, setGpoActive] = useState(false)
   const gpoFiredRef = useRef(false)
 
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
@@ -113,8 +113,9 @@ export default function IntercomScreen({
   // GPO: release if disabled while active
   useEffect(() => {
     if (!gpoEnabled && gpoFiredRef.current) {
-      socketEmit?.('client:gpo:release', {})
       gpoFiredRef.current = false
+      setGpoActive(false)
+      socketEmit?.('client:gpo:release', {})
     }
   }, [gpoEnabled])
 
@@ -325,21 +326,34 @@ export default function IntercomScreen({
 
   // ── Talk ──────────────────────────────────────────────────────────────────
   const handleTalkIn  = (k: string) => {
+    // When GPO mode is active, the 4th button (bottom-right) is the GPO trigger
+    if (gpoEnabled && k === orderedTalk[3]?.key) {
+      if (!gpoFiredRef.current) {
+        gpoFiredRef.current = true
+        setGpoActive(true)
+        socketEmit?.('client:gpo:trigger', {})
+      }
+      return
+    }
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: true }))
     socketEmit?.('client:talking', { isTalking: true, channel: ch })
   }
   const handleTalkOut = (k: string, touchCount: number = 0) => {
+    // GPO button release
+    if (gpoEnabled && k === orderedTalk[3]?.key) {
+      if (gpoFiredRef.current) {
+        gpoFiredRef.current = false
+        setGpoActive(false)
+        socketEmit?.('client:gpo:release', {})
+      }
+      return
+    }
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: false }))
     socketEmit?.('client:talking', { isTalking: false, channel: ch })
-    // GPO release: when remaining touches drop below 2
-    if (touchCount < 2 && gpoFiredRef.current) {
-      gpoFiredRef.current = false
-      socketEmit?.('client:gpo:release', {})
-    }
   }
   const handleLatch = (k: string) => {
     const ch = parseInt(k.replace('talk', ''))
@@ -736,48 +750,25 @@ export default function IntercomScreen({
 
       {/* TALK BUTTONS */}
       <View style={s.talkSection}>
-        {/* LongPressGestureHandler with numberOfPointers=2: uses iOS native gesture
-            recognizer to detect simultaneous 2-finger press. cancelsTouchesInView=false
-            lets the individual TalkButton responders continue working normally. */}
-        <LongPressGestureHandler
-          numberOfPointers={2}
-          minDurationMs={80}
-          maxDist={500}
-          cancelsTouchesInView={false}
-          enabled={gpoEnabled}
-          onHandlerStateChange={(e) => {
-            if (e.nativeEvent.state === GestureState.ACTIVE && !gpoFiredRef.current) {
-              gpoFiredRef.current = true
-              socketEmit?.('client:gpo:trigger', {})
-            }
-            if (
-              e.nativeEvent.state === GestureState.END ||
-              e.nativeEvent.state === GestureState.CANCELLED ||
-              e.nativeEvent.state === GestureState.FAILED
-            ) {
-              if (gpoFiredRef.current) {
-                gpoFiredRef.current = false
-                socketEmit?.('client:gpo:release', {})
-              }
-            }
-          }}
-        >
-          <View style={s.talkRow}>
-            {orderedTalk.slice(0,2).map(({key,name}) => (
-              <TalkButton key={key} talkKey={key} name={name}
-                active={talkActive[key]} latched={talkLatched[key]}
-                toneMode={toneActive}
-                onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
-            ))}
-          </View>
-        </LongPressGestureHandler>
         <View style={s.talkRow}>
-          {orderedTalk.slice(2,4).map(({key,name}) => (
+          {orderedTalk.slice(0,2).map(({key,name}) => (
             <TalkButton key={key} talkKey={key} name={name}
               active={talkActive[key]} latched={talkLatched[key]}
               toneMode={toneActive}
               onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
           ))}
+        </View>
+        <View style={s.talkRow}>
+          {orderedTalk.slice(2,4).map(({key,name}, i) => {
+            const isGpoBtn = gpoEnabled && i === 1  // 4th button = slice(2,4)[1]
+            return (
+              <TalkButton key={key} talkKey={key} name={name}
+                active={talkActive[key]} latched={talkLatched[key]}
+                toneMode={toneActive}
+                isGpo={isGpoBtn} gpoActive={isGpoBtn && gpoActive}
+                onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
+            )
+          })}
         </View>
       </View>
 
@@ -945,10 +936,32 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
 
 interface TalkBtnProps {
   talkKey:string; name:string; active:boolean; latched:boolean; toneMode?: boolean
+  isGpo?: boolean; gpoActive?: boolean
   onIn:(k:string)=>void; onOut:(k:string, touches:number)=>void; onLatch:(k:string)=>void
 }
-function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onLatch }: TalkBtnProps) {
+function TalkButton({ talkKey, name, active, latched, toneMode, isGpo, gpoActive, onIn, onOut, onLatch }: TalkBtnProps) {
   const isOn = active || latched
+
+  if (isGpo) {
+    return (
+      <View style={s.talkCell}>
+        <View
+          style={[s.talkBtn, gpoActive && { backgroundColor: '#78350f', borderColor: '#f59e0b', borderWidth: 2 }]}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => false}
+          onResponderGrant={() => onIn(talkKey)}
+          onResponderRelease={(e) => onOut(talkKey, e.nativeEvent.touches.length)}
+          onResponderTerminate={(e) => onOut(talkKey, e.nativeEvent.touches.length)}
+        >
+          <View style={s.talkGloss} pointerEvents="none" />
+          <Text style={[s.micIcon, { color: gpoActive ? '#f59e0b' : '#71717a' }]}>⚡</Text>
+          <Text style={[s.talkName, { color: gpoActive ? '#fbbf24' : '#71717a' }]}>GPO</Text>
+          {gpoActive && <Text style={[s.toneBadge, { backgroundColor: '#f59e0b', color: '#000' }]}>ACTIVE</Text>}
+        </View>
+        <View style={s.latchBtn} />
+      </View>
+    )
+  }
 
   return (
     <View style={s.talkCell}>
