@@ -42,6 +42,7 @@ exports.clearAllConnections = clearAllConnections;
 exports.factoryReset = factoryReset;
 exports.setupSignaling = setupSignaling;
 const os_1 = __importDefault(require("os"));
+const dgram_1 = __importDefault(require("dgram"));
 const mediasoup_1 = require("./mediasoup");
 const audioOutput_1 = require("./audioOutput");
 const tunnel_1 = require("./tunnel");
@@ -100,6 +101,8 @@ const producerOutputs = new Map();
 // Set of bridge channel numbers that are OUTPUTS (hardware outputs on the interface).
 // Populated when the host sends audio:bridge:channelInfo:set.
 const outputBridgeChannels = new Set();
+const tallyStates = new Map();
+const gpiTallyMap = new Map();
 (function restoreState() {
     const s = (0, persist_1.loadState)();
     s.connections.forEach(c => connections.set(connKey(c), c));
@@ -308,6 +311,17 @@ function factoryReset(io) {
     io.emit("factory:reset");
     console.log("[signaling] ⚠️  Factory reset — all state cleared");
 }
+function setTally(io, clientId, state) {
+    if (state === 'off')
+        tallyStates.delete(clientId);
+    else
+        tallyStates.set(clientId, state);
+    const entry = clients.get(clientId);
+    if (entry?.socketId) {
+        io.to(entry.socketId).emit('tally:update', { state });
+    }
+    io.emit('tally:all', Object.fromEntries(tallyStates));
+}
 function setupSignaling(io) {
     // Queue for consume:requests that arrive before the producer is registered.
     // Key = targetId, fulfilled when producer:register fires for that clientId.
@@ -413,6 +427,21 @@ function setupSignaling(io) {
             const ok = code === storedCode;
             console.log(`[signaling] auth ${clientId}: ${ok ? '✅' : '❌'} (entered: ${code}, stored: ${storedCode})`);
             cb?.({ ok });
+        });
+        /* ---------- TALLY ---------- */
+        socket.on("tally:set", ({ clientId, state }) => {
+            setTally(io, clientId, state);
+        });
+        socket.on("tally:all", (cb) => {
+            if (typeof cb === "function")
+                cb(Object.fromEntries(tallyStates));
+        });
+        // GPI pin → client+state mapping (configured by host)
+        socket.on("tally:gpi:map", ({ pin, clientId, state }) => {
+            if (state === 'remove')
+                gpiTallyMap.delete(pin);
+            else
+                gpiTallyMap.set(pin, { clientId, state });
         });
         socket.on("client:update", ({ id, updates }, cb) => {
             const existing = clients.get(id);
@@ -1537,6 +1566,41 @@ function setupSignaling(io) {
             broadcastRouting(io);
         });
     });
+    // ── UDP GPI tally listener ────────────────────────────────────────────────
+    // Listens on port 9000 (UDP) for incoming GPI tally triggers.
+    // Supported message formats:
+    //   PROGRAM:<clientId>   → set program tally for that client
+    //   PREVIEW:<clientId>   → set preview tally
+    //   OFF:<clientId>       → clear tally
+    //   GPI:<pinNumber>      → trigger via gpiTallyMap (pin→client mapping set by host)
+    try {
+        const gpiServer = dgram_1.default.createSocket('udp4');
+        gpiServer.on('message', (msg) => {
+            const str = msg.toString().trim();
+            const colon = str.indexOf(':');
+            if (colon < 0)
+                return;
+            const cmd = str.slice(0, colon).toUpperCase();
+            const arg = str.slice(colon + 1);
+            if (cmd === 'PROGRAM' && arg)
+                setTally(io, arg, 'program');
+            else if (cmd === 'PREVIEW' && arg)
+                setTally(io, arg, 'preview');
+            else if (cmd === 'OFF' && arg)
+                setTally(io, arg, 'off');
+            else if (cmd === 'GPI') {
+                const pin = parseInt(arg, 10);
+                const mapping = gpiTallyMap.get(pin);
+                if (mapping)
+                    setTally(io, mapping.clientId, mapping.state);
+            }
+        });
+        gpiServer.on('error', (err) => console.warn('[tally] GPI UDP error:', err.message));
+        gpiServer.bind(9000, () => console.log('[tally] GPI UDP listener on port 9000'));
+    }
+    catch (e) {
+        console.warn('[tally] Could not start GPI UDP listener:', e);
+    }
 }
 class StreamDeckManager {
     constructor() {

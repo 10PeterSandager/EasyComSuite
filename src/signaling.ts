@@ -1,5 +1,6 @@
 import { Server } from "socket.io"
 import os from "os"
+import dgram from "dgram"
 import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp } from "./mediasoup"
 import {
   startOutputRoute, stopOutputRoute, stopAllForClient,
@@ -64,6 +65,13 @@ const producerOutputs = new Map<string, any>()
 // Set of bridge channel numbers that are OUTPUTS (hardware outputs on the interface).
 // Populated when the host sends audio:bridge:channelInfo:set.
 const outputBridgeChannels = new Set<number>()
+
+// ── Tally ────────────────────────────────────────────────────────────────────
+// tallyStates: clientId → current tally state
+// gpiTallyMap: GPI pin number → { clientId, state } (configured by host)
+type TallyState = 'program' | 'preview' | 'off'
+const tallyStates = new Map<string, TallyState>()
+const gpiTallyMap = new Map<number, { clientId: string; state: TallyState }>()
 
 // ── Restore persisted state ───────────────────────────────────────────────────
 ;(function restoreState() {
@@ -278,6 +286,16 @@ export function factoryReset(io: Server) {
   console.log("[signaling] ⚠️  Factory reset — all state cleared")
 }
 
+function setTally(io: Server, clientId: string, state: TallyState) {
+  if (state === 'off') tallyStates.delete(clientId)
+  else tallyStates.set(clientId, state)
+  const entry = clients.get(clientId)
+  if (entry?.socketId) {
+    io.to(entry.socketId).emit('tally:update', { state })
+  }
+  io.emit('tally:all', Object.fromEntries(tallyStates))
+}
+
 export function setupSignaling(io: Server) {
 
   // Queue for consume:requests that arrive before the producer is registered.
@@ -401,6 +419,22 @@ export function setupSignaling(io: Server) {
       const ok = code === storedCode
       console.log(`[signaling] auth ${clientId}: ${ok ? '✅' : '❌'} (entered: ${code}, stored: ${storedCode})`)
       cb?.({ ok })
+    })
+
+    /* ---------- TALLY ---------- */
+
+    socket.on("tally:set", ({ clientId, state }: { clientId: string; state: TallyState }) => {
+      setTally(io, clientId, state)
+    })
+
+    socket.on("tally:all", (cb) => {
+      if (typeof cb === "function") cb(Object.fromEntries(tallyStates))
+    })
+
+    // GPI pin → client+state mapping (configured by host)
+    socket.on("tally:gpi:map", ({ pin, clientId, state }: { pin: number; clientId: string; state: TallyState | 'remove' }) => {
+      if (state === 'remove') gpiTallyMap.delete(pin)
+      else gpiTallyMap.set(pin, { clientId, state })
     })
 
     socket.on("client:update", ({ id, updates }, cb) => {
@@ -1517,6 +1551,36 @@ export function setupSignaling(io: Server) {
       broadcastRouting(io)
     })
   })
+
+  // ── UDP GPI tally listener ────────────────────────────────────────────────
+  // Listens on port 9000 (UDP) for incoming GPI tally triggers.
+  // Supported message formats:
+  //   PROGRAM:<clientId>   → set program tally for that client
+  //   PREVIEW:<clientId>   → set preview tally
+  //   OFF:<clientId>       → clear tally
+  //   GPI:<pinNumber>      → trigger via gpiTallyMap (pin→client mapping set by host)
+  try {
+    const gpiServer = dgram.createSocket('udp4')
+    gpiServer.on('message', (msg: Buffer) => {
+      const str = msg.toString().trim()
+      const colon = str.indexOf(':')
+      if (colon < 0) return
+      const cmd = str.slice(0, colon).toUpperCase()
+      const arg = str.slice(colon + 1)
+      if (cmd === 'PROGRAM' && arg) setTally(io, arg, 'program')
+      else if (cmd === 'PREVIEW' && arg) setTally(io, arg, 'preview')
+      else if (cmd === 'OFF' && arg) setTally(io, arg, 'off')
+      else if (cmd === 'GPI') {
+        const pin = parseInt(arg, 10)
+        const mapping = gpiTallyMap.get(pin)
+        if (mapping) setTally(io, mapping.clientId, mapping.state)
+      }
+    })
+    gpiServer.on('error', (err: Error) => console.warn('[tally] GPI UDP error:', err.message))
+    gpiServer.bind(9000, () => console.log('[tally] GPI UDP listener on port 9000'))
+  } catch (e) {
+    console.warn('[tally] Could not start GPI UDP listener:', e)
+  }
 }
 
 
