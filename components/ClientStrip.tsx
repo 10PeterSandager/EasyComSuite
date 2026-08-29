@@ -259,7 +259,7 @@ const ClientStrip: React.FC<Props> = ({
             <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
               <button
                 onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
-                className="text-[7px] font-black px-0.5 rounded leading-none"
+                className="text-[10px] font-black px-1 py-0.5 rounded leading-none"
                 style={tallyState === 'program'
                   ? { background: '#dc2626', color: '#fff' }
                   : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}
@@ -267,7 +267,7 @@ const ClientStrip: React.FC<Props> = ({
               >R</button>
               <button
                 onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'preview' ? 'off' : 'preview') }}
-                className="text-[7px] font-black px-0.5 rounded leading-none"
+                className="text-[10px] font-black px-1 py-0.5 rounded leading-none"
                 style={tallyState === 'preview'
                   ? { background: '#d97706', color: '#fff' }
                   : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}

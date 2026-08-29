@@ -2175,9 +2175,9 @@ function TallyGPITab({
 
       {/* ── GPI pin → client mapping ── */}
       <div>
-        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-3">GPI pin-mapping</h3>
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-3">GPI pin mapping</h3>
         <p className="text-white/35 mb-3 leading-relaxed">
-          Indgående UDP-beskeder på port 9000 med formatet <span className="font-mono text-white/60">GPI:&lt;pin&gt;</span> trigger den konfigurerede tally-state for den valgte client.
+          Incoming UDP messages on port 9000 with format <span className="font-mono text-white/60">GPI:&lt;pin&gt;</span> trigger the configured tally state for the selected client.
         </p>
 
         {/* Add row */}
@@ -2215,7 +2215,7 @@ function TallyGPITab({
 
         {/* Mapping table */}
         {mappings.length === 0 ? (
-          <div className="text-white/25 py-4 text-center">Ingen mappings endnu</div>
+          <div className="text-white/25 py-4 text-center">No mappings yet</div>
         ) : (
           <table className="w-full border-collapse">
             <thead>
@@ -2251,31 +2251,31 @@ function TallyGPITab({
 
       {/* ── UDP reference ── */}
       <div className="border-t border-white/5 pt-4">
-        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">UDP-protokol (port 9000)</h3>
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">UDP protocol (port 9000)</h3>
         <div className="space-y-1 font-mono text-[10px] text-white/50">
-          <div><span className="text-white/70">PROGRAM:&lt;clientId&gt;</span>  — sæt program direkte på client-id</div>
-          <div><span className="text-white/70">PREVIEW:&lt;clientId&gt;</span>  — sæt preview direkte</div>
-          <div><span className="text-white/70">OFF:&lt;clientId&gt;</span>      — sluk tally</div>
-          <div><span className="text-white/70">GPI:&lt;pin&gt;</span>           — trigger via pin-mapping ovenfor</div>
+          <div><span className="text-white/70">PROGRAM:&lt;clientId&gt;</span>  — set program tally directly on client id</div>
+          <div><span className="text-white/70">PREVIEW:&lt;clientId&gt;</span>  — set preview tally directly</div>
+          <div><span className="text-white/70">OFF:&lt;clientId&gt;</span>      — clear tally</div>
+          <div><span className="text-white/70">GPI:&lt;pin&gt;</span>           — trigger via pin mapping above</div>
         </div>
         <p className="text-white/25 mt-2 leading-relaxed">
-          Eks. fra terminal: <span className="font-mono text-white/45">echo -n "GPI:1" | nc -u 127.0.0.1 9000</span>
+          Example from terminal: <span className="font-mono text-white/45">echo -n "GPI:1" | nc -u 127.0.0.1 9000</span>
         </p>
       </div>
 
       {/* ── Manual tally note ── */}
       <div className="border-t border-white/5 pt-4">
-        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-1">Manuel tally</h3>
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-1">Manual tally</h3>
         <p className="text-white/35 leading-relaxed">
-          Klik <span className="font-bold text-red-400">R</span> eller <span className="font-bold text-amber-400">P</span> direkte på et client-kort i grid-visningen for at sætte tally manuelt.
+          Click <span className="font-bold text-red-400">R</span> or <span className="font-bold text-amber-400">P</span> directly on a client card in the grid view to set tally manually.
         </p>
       </div>
 
       {/* ── GPO routing: phone button → UDP out ── */}
       <div className="border-t border-white/5 pt-4">
-        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">GPO-routing (telefon → UDP ud)</h3>
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">GPO routing (phone → UDP out)</h3>
         <p className="text-white/35 mb-3 leading-relaxed">
-          Når en journalist trykker begge øverste TB-knapper samtidig (GPO aktiveret i telefon-settings), sender serveren en UDP-besked til den konfigurerede IP:port.
+          When a journalist presses both top TB buttons simultaneously (GPO enabled in phone settings), the server sends a UDP message to the configured IP:port.
         </p>
 
         {/* Add GPO route */}
@@ -2311,7 +2311,7 @@ function TallyGPITab({
             }}
             className="px-3 py-1 rounded font-bold text-white text-xs"
             style={{ background: accent }}
-          >Gem GPO-route</button>
+          >Save GPO route</button>
         </div>
 
         {/* GPO route table */}
