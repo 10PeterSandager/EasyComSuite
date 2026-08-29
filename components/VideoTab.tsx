@@ -78,7 +78,7 @@ function TestPattern({ label, ch, onStream }: { label: string; ch?: number; onSt
       ctx.fillText(label.toUpperCase(), w / 2, h * 0.34 + 14)
       ctx.font = "11px monospace"
       ctx.fillStyle = "#22c55e"
-      ctx.fillText(new Date().toISOString().slice(11, 19), w / 2, h * 0.34 + 30)
+      ctx.fillText(new Date().toLocaleTimeString('da-DK', { hour12: false }), w / 2, h * 0.34 + 30)
 
       // REC blink
       if (frame.current % 60 < 30) {

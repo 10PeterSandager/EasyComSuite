@@ -117,7 +117,21 @@ export default function ConnectionsPopup({
 
   useEffect(() => {
     if (!open) { resetFlow(); return }
-    const onUpdate = (list: Connection[]) => setConnections(Array.isArray(list) ? list : [])
+    const onUpdate = (list: Connection[]) => {
+      const conns = Array.isArray(list) ? list : []
+      setConnections(conns)
+      // Auto-restore talkConnKeys from server state so TALK section survives
+      // localStorage loss (browser restart, cleared cache, etc.).
+      // Heuristic: any TB-gated connection to bridge-ch or producer-65 is TALK type.
+      let changed = false
+      for (const c of conns) {
+        if (c.toChannel != null && (c.to?.startsWith('bridge-ch') || c.to === 'producer-65')) {
+          const k = ck(c.from, c.to, c.channel)
+          if (!talkConnKeys.has(k)) { talkConnKeys.add(k); changed = true }
+        }
+      }
+      if (changed) saveTalkKeys()
+    }
     socket.on("connections:all", onUpdate)
     socket.emit("connections:request:all")
     const fetchBridge = () => {
