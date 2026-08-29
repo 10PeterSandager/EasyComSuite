@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { RTCView } from 'react-native-webrtc'
+import { LongPressGestureHandler, State as GestureState } from 'react-native-gesture-handler'
 
 const ACCENT = '#f97316'
 const BG     = '#09090b'
@@ -735,25 +736,41 @@ export default function IntercomScreen({
 
       {/* TALK BUTTONS */}
       <View style={s.talkSection}>
-        {/* Capture-phase handler: fires before any child claims the responder.
-            nativeEvent.touches contains ALL active touches at this moment,
-            so touches.length ≥ 2 reliably means both top buttons are pressed. */}
-        <View style={s.talkRow}
-          onStartShouldSetResponderCapture={(e) => {
-            if (gpoEnabled && !gpoFiredRef.current && e.nativeEvent.touches.length >= 2) {
+        {/* LongPressGestureHandler with numberOfPointers=2: uses iOS native gesture
+            recognizer to detect simultaneous 2-finger press. cancelsTouchesInView=false
+            lets the individual TalkButton responders continue working normally. */}
+        <LongPressGestureHandler
+          numberOfPointers={2}
+          minDurationMs={80}
+          maxDist={500}
+          cancelsTouchesInView={false}
+          enabled={gpoEnabled}
+          onHandlerStateChange={(e) => {
+            if (e.nativeEvent.state === GestureState.ACTIVE && !gpoFiredRef.current) {
               gpoFiredRef.current = true
               socketEmit?.('client:gpo:trigger', {})
             }
-            return false  // don't steal — let children handle their own responders
+            if (
+              e.nativeEvent.state === GestureState.END ||
+              e.nativeEvent.state === GestureState.CANCELLED ||
+              e.nativeEvent.state === GestureState.FAILED
+            ) {
+              if (gpoFiredRef.current) {
+                gpoFiredRef.current = false
+                socketEmit?.('client:gpo:release', {})
+              }
+            }
           }}
         >
-          {orderedTalk.slice(0,2).map(({key,name}) => (
-            <TalkButton key={key} talkKey={key} name={name}
-              active={talkActive[key]} latched={talkLatched[key]}
-              toneMode={toneActive}
-              onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
-          ))}
-        </View>
+          <View style={s.talkRow}>
+            {orderedTalk.slice(0,2).map(({key,name}) => (
+              <TalkButton key={key} talkKey={key} name={name}
+                active={talkActive[key]} latched={talkLatched[key]}
+                toneMode={toneActive}
+                onIn={handleTalkIn} onOut={handleTalkOut} onLatch={handleLatch} />
+            ))}
+          </View>
+        </LongPressGestureHandler>
         <View style={s.talkRow}>
           {orderedTalk.slice(2,4).map(({key,name}) => (
             <TalkButton key={key} talkKey={key} name={name}
