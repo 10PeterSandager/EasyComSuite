@@ -41,13 +41,13 @@ exports.getDebugState = getDebugState;
 exports.clearAllConnections = clearAllConnections;
 exports.factoryReset = factoryReset;
 exports.setupSignaling = setupSignaling;
+const os_1 = __importDefault(require("os"));
 const mediasoup_1 = require("./mediasoup");
 const audioOutput_1 = require("./audioOutput");
 const tunnel_1 = require("./tunnel");
 const persist_1 = require("./persist");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-let _io = null;
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -99,7 +99,7 @@ const producerOutputs = new Map();
 const outputBridgeChannels = new Set();
 (function restoreState() {
     const s = (0, persist_1.loadState)();
-    s.connections.forEach(c => connections.set(`${c.from}-${c.to}-${c.channel}`, c));
+    s.connections.forEach(c => connections.set(connKey(c), c));
     s.groups.forEach(g => groups.push(g));
     s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }));
     s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r));
@@ -108,7 +108,7 @@ const outputBridgeChannels = new Set();
     bridgeChannelInfo = s.bridgeChannelInfo;
     s.outputBridgeChannels.forEach(ch => outputBridgeChannels.add(ch));
     if (s.connections.length > 0)
-        console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals, ${videoRouting.size} videoRouting`);
+        console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals, ${videoRouting.size} videoRouting entries`);
 })();
 // Collects current state for saving to disk
 function getPersistedState() {
@@ -143,7 +143,11 @@ const activeOutputKeys = new Set();
 // Tracks which TB channels are currently active (pressed/latched) per mobile client.
 // Connections with toChannel are only included in routing when that channel is active.
 const mobileActiveTb = new Map();
-function connKey(c) { return `${c.from}-${c.to}-${c.channel}`; }
+function connKey(c) {
+    return c.toChannel != null
+        ? `${c.from}-${c.to}-${c.channel}-tc${c.toChannel}`
+        : `${c.from}-${c.to}-${c.channel}`;
+}
 function getConnectionsArray() { return Array.from(connections.values()); }
 function getDebugState() {
     const allConns = Array.from(connections.values());
@@ -158,9 +162,7 @@ function getDebugState() {
         })),
         producers: Array.from(producers.entries()).map(([id, producerId]) => ({ id, producerId })),
         clients: Array.from(clients.entries()).map(([id, c]) => ({
-            id,
-            socketId: c.socketId || "(empty)",
-            socketConnected: !!(c.socketId && _io?.sockets.sockets.get(c.socketId)?.connected),
+            id, socketId: c.socketId,
             name: c.data?.name ?? id,
             type: c.data?.type ?? "?",
             status: c.data?.status ?? "?"
@@ -168,9 +170,6 @@ function getDebugState() {
         mobileActiveTb: Array.from(mobileActiveTb.entries()).map(([clientId, ch]) => ({
             clientId, activeChannels: Array.from(ch)
         })),
-        consumers: (0, mediasoup_1.getAllConsumers)(),
-        videoProducers: Array.from(videoProducers.entries()).map(([id, producerId]) => ({ id, producerId })),
-        videoRouting: Array.from(videoRouting.entries()).map(([clientId, sources]) => ({ clientId, sources })),
         stats: {
             totalConnections: allConns.length,
             effectiveConnections: effectiveConns.length,
@@ -294,7 +293,6 @@ function factoryReset(io) {
     mobileActiveTb.clear();
     producers.clear();
     terminals.clear();
-    videoRouting.clear();
     (0, persist_1.scheduleSave)(() => ({
         connections: [], groups: [], clients: [],
         audioRoutes: [], bridgeChannelInfo: [], outputBridgeChannels: [], streamDeckLayout: [],
@@ -308,7 +306,6 @@ function factoryReset(io) {
     console.log("[signaling] ⚠️  Factory reset — all state cleared");
 }
 function setupSignaling(io) {
-    _io = io;
     // Queue for consume:requests that arrive before the producer is registered.
     // Key = targetId, fulfilled when producer:register fires for that clientId.
     const pendingConsumeQueue = new Map();
@@ -353,21 +350,11 @@ function setupSignaling(io) {
                 }
             }
             const existing = clients.get(client.id);
-            // Guard: if this socket already claimed a different clientId (e.g. host-ui doing bulk
-            // ghost-registration of mobile slots), don't let it set or overwrite the real socket.
-            // Only store the data update; never write this socket's ID into the client's record.
-            const thisSocketAlreadyClaimed = socket.clientId && socket.clientId !== client.id;
-            if (thisSocketAlreadyClaimed) {
-                const ghostData = existing ? { ...existing.data, ...client } : client;
-                clients.set(client.id, { socketId: existing?.socketId ?? "", data: ghostData });
-                io.emit("clients:update", { id: client.id, updates: client });
-                cb?.({ ok: true });
-                return;
-            }
             if (existing && existing.socketId !== socket.id && client.type !== "mobile" && client.type !== "remote" && client.type !== "desktop") {
                 // Tjek om den eksisterende socket stadig er connected
                 // Kun relevant for ikke-mobile clients: forhindrer host-appens batch-re-registrering
                 // fra at overskrive en allerede connected mobil.
+                // Mobile clients SKAL altid opdatere socketId, da de er det rigtige bruger-device.
                 const existingSocket = io.sockets.sockets.get(existing.socketId);
                 if (existingSocket && existingSocket.connected) {
                     clients.set(client.id, {
@@ -411,26 +398,16 @@ function setupSignaling(io) {
                         console.log(`[signaling] default IFB: bridge-ch1 → ${client.id} ch1`);
                     }
                 }
-                if (seen.size > 0)
-                    broadcastRouting(io);
-                // TB return: phone → host-ui for each IFB slot this client has (skip host itself)
-                if (client.id !== "host-ui") {
-                    let tbReturnAdded = false;
-                    for (const conn of connections.values()) {
-                        if (conn.to === client.id && conn.from.startsWith("bridge-ch") && conn.toChannel === undefined) {
-                            const tbKey = `${client.id}-host-ui-${conn.channel}`;
-                            if (!connections.has(tbKey)) {
-                                connections.set(tbKey, { from: client.id, to: "host-ui", channel: conn.channel, toChannel: conn.channel });
-                                console.log(`[signaling] TB return: ${client.id} → host-ui ch${conn.channel}`);
-                                tbReturnAdded = true;
-                            }
-                        }
-                    }
-                    if (tbReturnAdded) {
-                        broadcastRouting(io);
-                        save();
-                    }
+                // Auto-create TB return: phone TB1 → host (producer-65) on ch1.
+                // Without this the host never has a routing path to consume the phone's mic
+                // and client:talking's isConnectedToHost check always returns false.
+                const tbReturnKey = connKey({ from: client.id, to: "producer-65", channel: 1, toChannel: 1 });
+                if (!connections.has(tbReturnKey)) {
+                    connections.set(tbReturnKey, { from: client.id, to: "producer-65", channel: 1, toChannel: 1 });
+                    console.log(`[signaling] auto TB return: ${client.id} → producer-65 ch1 (TB1-gated)`);
                 }
+                broadcastRouting(io);
+                save();
             }
             // Always send current routing to mobile/remote clients on register.
             // Covers both first-time connect and socket.io auto-reconnects where the
@@ -561,20 +538,6 @@ function setupSignaling(io) {
                     broadcastRouting(io);
                     console.log(`[signaling] default IFB: bridge-ch1 → ${mobileIds.length} client(s)`);
                 }
-                // TB return: ensure phone → host-ui for every mobile that has a bridge-ch1 IFB
-                let bpTbAdded = false;
-                for (const mobileId of mobileIds) {
-                    if (connections.has(connKey({ from: bchDefault, to: mobileId, channel: 1 }))) {
-                        const tbKey = `${mobileId}-host-ui-1`;
-                        if (!connections.has(tbKey)) {
-                            connections.set(tbKey, { from: mobileId, to: "host-ui", channel: 1, toChannel: 1 });
-                            console.log(`[signaling] TB return: ${mobileId} → host-ui ch1`);
-                            bpTbAdded = true;
-                        }
-                    }
-                }
-                if (bpTbAdded)
-                    broadcastRouting(io);
             }
             // 🔥 Emit producer:ready for each bridge channel
             // Så mobiler der allerede har en routing til en bridge-kanal kan re-consume
@@ -603,13 +566,9 @@ function setupSignaling(io) {
             for (const mobileId of mobileIds) {
                 const k = connKey({ from: bch, to: mobileId, channel: slot });
                 connections.set(k, { from: bch, to: mobileId, channel: slot });
-                const tbKey = `${mobileId}-host-ui-${slot}`;
-                if (!connections.has(tbKey)) {
-                    connections.set(tbKey, { from: mobileId, to: "host-ui", channel: slot, toChannel: slot });
-                    console.log(`[signaling] TB return: ${mobileId} → host-ui ch${slot}`);
-                }
             }
             broadcastRouting(io);
+            save();
             console.log(`[signaling] IFB slot${slot} → ${bch} for ${mobileIds.length} client(s)`);
         });
         socket.on("producer:register", ({ clientId, producerId, kind = "audio" }) => {
@@ -618,30 +577,6 @@ function setupSignaling(io) {
                 console.log(`[signaling] VIDEO producer registered: ${clientId} → ${producerId}`);
                 // Notify clients that have this clientId in their videoSources
                 io.emit("video:producer:available", { clientId, producerId });
-                // 🔥 After server restart: auto-trigger fresh WebRTC offers for any connected mobile
-                // clients that already have this source in their persisted routing.
-                // Without this, the user has to manually "switch input" in VideoTab to re-establish video.
-                const srcNum = parseInt(clientId.replace("video-source-", ""));
-                if (!isNaN(srcNum)) {
-                    const hostEntry = clients.get("host-ui");
-                    if (hostEntry?.socketId) {
-                        for (const [mobileId, sources] of videoRouting.entries()) {
-                            if (!sources.includes(srcNum))
-                                continue;
-                            const mobileEntry = clients.get(mobileId);
-                            if (!mobileEntry?.socketId)
-                                continue;
-                            const mobileSocket = io.sockets.sockets.get(mobileEntry.socketId);
-                            if (!mobileSocket?.connected)
-                                continue;
-                            console.log(`[signaling] 🔄 auto video offer: ${mobileId} has source ${srcNum} in routing → requesting fresh offer`);
-                            io.to(hostEntry.socketId).emit("video:direct:request-from-client", {
-                                toSocketId: mobileSocket.id,
-                                clientId: mobileId
-                            });
-                        }
-                    }
-                }
             }
             else {
                 producers.set(clientId, producerId);
@@ -669,6 +604,7 @@ function setupSignaling(io) {
         socket.on("video:routing:update", ({ clientId, videoSources }) => {
             const prevSources = videoRouting.get(clientId) || [];
             videoRouting.set(clientId, videoSources);
+            save();
             console.log(`[signaling] video routing: ${clientId} → sources [${videoSources}] (prev: [${prevSources}])`);
             // Find mobilens socket via clients map (ikke socket-attributten som er undefined)
             const mobileEntry = clients.get(clientId);
@@ -792,10 +728,15 @@ function setupSignaling(io) {
             save();
             cb?.({ ok: true });
         });
-        socket.on("connection:remove", ({ from, to, channel, bidirectional = true }) => {
-            connections.delete(connKey({ from, to, channel }));
-            if (bidirectional)
-                connections.delete(connKey({ from: to, to: from, channel }));
+        socket.on("connection:remove", ({ from, to, channel, toChannel, bidirectional = true }) => {
+            // Delete matching connections — check both TB-gated and non-TB variants
+            for (const [k, c] of connections.entries()) {
+                const matchFwd = c.from === from && c.to === to && c.channel === channel &&
+                    (toChannel == null || c.toChannel === toChannel);
+                const matchRev = bidirectional && c.from === to && c.to === from && c.channel === channel;
+                if (matchFwd || matchRev)
+                    connections.delete(k);
+            }
             broadcastRouting(io);
             save();
         });
@@ -1049,7 +990,6 @@ function setupSignaling(io) {
             }
         });
         socket.on("consume:request", async ({ targetId, rtpCapabilities, transportId, kind: reqKind }, cb) => {
-            console.log(`[consume:request] targetId="${targetId}" kind=${reqKind ?? 'audio'} transportId=${transportId} socket=${socket.id}`);
             try {
                 // Check both audio and video producers
                 const producerId = reqKind === "video"
@@ -1120,6 +1060,22 @@ function setupSignaling(io) {
                     }
                     catch { }
                 }
+                cb?.({ ok: true });
+            }
+            catch (e) {
+                cb?.({ error: String(e) });
+            }
+        });
+        socket.on("consumer:pause", async ({ consumerId }, cb) => {
+            try {
+                const { getConsumer } = await Promise.resolve().then(() => __importStar(require("./mediasoup")));
+                const consumer = getConsumer(consumerId);
+                if (!consumer) {
+                    cb?.({ error: 'consumer not found' });
+                    return;
+                }
+                await consumer.pause();
+                console.log(`[signaling] consumer paused: ${consumerId} (kind: ${consumer.kind})`);
                 cb?.({ ok: true });
             }
             catch (e) {
@@ -1254,11 +1210,8 @@ function setupSignaling(io) {
                 // Only open the HOST gate when an active TB channel actually has a connection
                 // to the HOST (producer-65). TB2/3/4 with no configured route must not bleed through.
                 const activeTbs = mobileActiveTb.get(clientId) ?? new Set();
-                const isConnectedToHost = Array.from(activeTbs).some(ch => Array.from(connections.values()).some(c => c.from === clientId && (c.to === "producer-65" || c.to === "host-ui") && c.toChannel === ch));
-                // Include channel so host can on-demand consume if pre-consume timing failed
-                const tbChannel = Array.from(connections.values())
-                    .find(c => c.from === clientId && c.to === "host-ui" && c.toChannel !== undefined)?.toChannel;
-                io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost, channel: tbChannel });
+                const isConnectedToHost = Array.from(activeTbs).some(ch => Array.from(connections.values()).some(c => c.from === clientId && c.to === "producer-65" && c.toChannel === ch));
+                io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isConnectedToHost });
                 // Push sender meter immediately so the HOST card lights up on TB press.
                 // recv_ meters are driven by the phone's own audio:level events (emitted
                 // at 100 ms intervals while the mic producer is active).
@@ -1321,6 +1274,23 @@ function setupSignaling(io) {
             cb(clientVisibility.get(clientId) ?? []);
         });
         /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
+        socket.on("server:network:info", (cb) => {
+            if (typeof cb !== "function")
+                return;
+            const lanPort = parseInt(process.env.LAN_PORT ?? "3001");
+            let lanIp = "127.0.0.1";
+            for (const ifaces of Object.values(os_1.default.networkInterfaces())) {
+                for (const iface of ifaces ?? []) {
+                    if (iface.family === "IPv4" && !iface.internal && !iface.address.startsWith("169.254.")) {
+                        lanIp = iface.address;
+                        break;
+                    }
+                }
+                if (lanIp !== "127.0.0.1")
+                    break;
+            }
+            cb({ lanIp, lanPort, port: lanPort });
+        });
         socket.on("server:config:get", (cb) => {
             if (typeof cb !== "function")
                 return;
