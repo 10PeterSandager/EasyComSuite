@@ -141,16 +141,21 @@ export async function connectSocket(hostIp: string, sessionPassword = '', ssl = 
 
       // Re-register on every subsequent reconnect (socket.io auto-reconnects but
       // the server deletes the client entry on disconnect, so we must re-register).
+      // Also reinit mediasoup transports — the server creates a fresh router on restart,
+      // so any existing transport IDs are unknown to the new instance.
       s.on('connect', () => {
         if (!_clientId) return
         console.log('[intercom] 🔄 reconnected – re-registering', _clientId)
         s.emit('client:register',
           { id: _clientId, name: _clientName, type: 'mobile', code: _clientCode },
-          () => {
+          async () => {
             console.log('[intercom] ✅ re-registered after reconnect')
-            _failedConsumers.clear()
-            _consuming.clear()
-            setTimeout(() => s.emit('routing:request:all'), 300)
+            await reinitTransports().catch(e => console.warn('[intercom] transport reinit failed:', e))
+            setTimeout(() => {
+              s.emit('routing:request:all')
+              // Request current video producers so onProducerReady can trigger re-consume
+              if (_clientId) s.emit('video:producers:request', { clientId: _clientId }, () => {})
+            }, 300)
           }
         )
       })
@@ -244,6 +249,7 @@ let _device:        any | null = null
 let _sendTransport: any | null = null
 let _recvTransport: any | null = null
 let _micProducer:   any | null = null
+let _micStream:     any | null = null  // stored so transports can be recreated on reconnect
 let _clientId = ''
 let _levelInterval: ReturnType<typeof setInterval> | null = null
 
@@ -282,6 +288,38 @@ export async function initMediasoup(clientId: string, clientName = '', clientCod
   _recvTransport = await _createTransport('recv')
 
   console.log('[mediasoup] ✅ transports ready')
+}
+
+// Called on every socket reconnect to replace stale transports from the previous server instance.
+export async function reinitTransports(): Promise<void> {
+  if (!_socket || !_device) return
+  console.log('[mediasoup] 🔄 reinitializing transports...')
+
+  try { _sendTransport?.close() } catch {}
+  try { _recvTransport?.close() } catch {}
+  _sendTransport = null
+  _recvTransport = null
+
+  // All consumers belong to the old transport — drop them
+  for (const [srcId, c] of _consumers.entries()) {
+    try { c.close() } catch {}
+    _stopTrack(srcId)
+  }
+  _consumers.clear()
+  _failedConsumers.clear()
+  _consuming.clear()
+
+  // Drop video slots (stale consumers on dead transport)
+  for (const slot of Array.from(_videoSlots.keys())) stopVideoSlot(slot)
+  _availableVideoProducers.clear()
+
+  _sendTransport = await _createTransport('send')
+  _recvTransport = await _createTransport('recv')
+  console.log('[mediasoup] ✅ transports reinitialized')
+
+  if (_micStream) {
+    await startMicProducer(_micStream).catch(e => console.warn('[mediasoup] mic reinit failed:', e))
+  }
 }
 
 async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
@@ -356,6 +394,7 @@ export async function getLocalAudioStream(): Promise<MediaStream> {
 }
 
 export async function startMicProducer(micStream: MediaStream): Promise<void> {
+  _micStream = micStream
   if (!_sendTransport) { console.warn('[mic] send transport not ready'); return }
   try {
     const track = (micStream.getAudioTracks() as any[])[0]
@@ -642,6 +681,12 @@ async function _serverResume(consumerId: string): Promise<void> {
   })
 }
 
+async function _serverPause(consumerId: string): Promise<void> {
+  return new Promise(resolve => {
+    _socket!.emit('consumer:pause', { consumerId }, () => resolve())
+  })
+}
+
 export async function consumeVideoSlot(slot: number): Promise<MediaStream | null> {
   if (_videoSlots.has(slot)) return _videoSlots.get(slot)!.stream
   if (!_device || !_recvTransport || !_socket) return null
@@ -747,16 +792,16 @@ export function setVideoSlotAudioEnabled(slot: number, enabled: boolean, volume 
   const s = _videoSlots.get(slot)
   if (!s?.audioConsumer) return
   try {
-    if (enabled) s.audioConsumer.resume?.()
-    else         s.audioConsumer.pause?.()
     const applyTrack = (t: any) => {
       t.enabled = enabled
-      if (enabled) t._setVolume?.(volume)
-      else         t._setVolume?.(0)
+      t._setVolume?.(enabled ? volume : 0)
     }
     s.stream.getAudioTracks().forEach(applyTrack)
     const audioStream = _activeStreams.get(`video-audio-${slot}`)
     audioStream?.getAudioTracks().forEach(applyTrack)
+    // Server-side pause/resume stops RTP — more reliable than track.enabled on iOS
+    if (enabled) _serverResume(s.audioConsumer.id).catch(() => {})
+    else         _serverPause(s.audioConsumer.id).catch(() => {})
   } catch {}
 }
 

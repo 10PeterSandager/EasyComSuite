@@ -128,7 +128,7 @@ export default function IntercomScreen({
       try {
         stream.getAudioTracks?.()?.forEach((t: any) => {
           t.enabled = enabled
-          if (enabled) t._setVolume?.(vol / 100)
+          t._setVolume?.(enabled ? vol / 100 : 0)
         })
       } catch {}
     }
@@ -153,21 +153,32 @@ export default function IntercomScreen({
     }
   }
 
+  // Sequence numbers per slot — each new retry supersedes the previous one instead of
+  // being silently blocked (the old mutex approach). A stale result is discarded.
+  const retrySeqRef = useRef<Record<number, number>>({})
+
   const retryVideoSlot = (slotIdx: number) => {
+    const seq = (retrySeqRef.current[slotIdx] ?? 0) + 1
+    retrySeqRef.current[slotIdx] = seq
     const slot = slotIdx + 1
     import('../webrtc/intercom').then(({ consumeVideoSlot, stopVideoSlot }) => {
+      if (retrySeqRef.current[slotIdx] !== seq) return
       stopVideoSlot(slot)
       setVideoStreamUrl(p => { const n=[...p]; n[slotIdx]=null; return n })
       setVideoStreams(p => { const n=[...p]; n[slotIdx]=null; return n })
       consumeVideoSlot(slot).then(stream => {
+        if (retrySeqRef.current[slotIdx] !== seq) {
+          if (stream) import('../webrtc/intercom').then(({ stopVideoSlot: s }) => s(slot)).catch(() => {})
+          return
+        }
         setVideoStreamUrl(p => { const n=[...p]; n[slotIdx] = stream ? (stream as any).toURL() : null; return n })
         setVideoStreams(p => { const n=[...p]; n[slotIdx] = stream || null; return n })
         if (stream) applyVideoVolume(slotIdx, videoVolume[slotIdx], [
           slotIdx === 0 ? stream : videoStreams[0],
           slotIdx === 1 ? stream : videoStreams[1],
         ])
-      })
-    })
+      }).catch(() => {})
+    }).catch(() => {})
   }
 
   useEffect(() => {
@@ -194,11 +205,14 @@ export default function IntercomScreen({
         })
       }
 
+      let routingTimer: ReturnType<typeof setTimeout> | null = null
       const onRoutingChanged = () => {
-        setTimeout(() => {
+        if (routingTimer) clearTimeout(routingTimer)
+        routingTimer = setTimeout(() => {
+          routingTimer = null
           if (showV1Ref.current) retryVideoSlot(0)
           if (showV2Ref.current) retryVideoSlot(1)
-        }, 300)
+        }, 500)
       }
 
       s.on('video:producer:available', onProducerReady)
@@ -206,6 +220,7 @@ export default function IntercomScreen({
       cleanup = () => {
         s.off('video:producer:available', onProducerReady)
         s.off('video:routing:update',     onRoutingChanged)
+        if (routingTimer) clearTimeout(routingTimer)
       }
     })
     return () => { cleanup?.() }

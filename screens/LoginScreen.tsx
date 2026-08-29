@@ -58,12 +58,13 @@ export default function LoginScreen({
     }).catch(() => setSettingsLoaded(true))
   }, [])
 
-  // Apply config received from QR scan — overrides saved values
+  // Apply config received from QR scan — waits for AsyncStorage to finish loading
+  // first so we always overwrite it, not the other way around.
   useEffect(() => {
-    if (!qrConfig) return
-    if (qrConfig.ip)   { setHostIp(qrConfig.ip);     AsyncStorage.setItem(STORAGE_KEYS.hostIp,   qrConfig.ip).catch(() => {}) }
-    if (qrConfig.port) { setHostPort(qrConfig.port);  AsyncStorage.setItem(STORAGE_KEYS.hostPort, qrConfig.port).catch(() => {}) }
-  }, [qrConfig])
+    if (!qrConfig || !settingsLoaded) return
+    if (qrConfig.ip)   { setHostIp(qrConfig.ip);    AsyncStorage.setItem(STORAGE_KEYS.hostIp,   qrConfig.ip).catch(() => {}) }
+    if (qrConfig.port) { setHostPort(qrConfig.port); AsyncStorage.setItem(STORAGE_KEYS.hostPort, qrConfig.port).catch(() => {}) }
+  }, [qrConfig, settingsLoaded])
 
   const saveSettings = () => {
     AsyncStorage.setItem(STORAGE_KEYS.hostIp,          hostIp).catch(() => {})
