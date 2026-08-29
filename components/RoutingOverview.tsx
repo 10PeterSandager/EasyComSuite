@@ -48,7 +48,7 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
     return () => { socket.off("connections:all", refresh) }
   }, [])
 
-  /* ── close context menu on outside click ── */
+  /* ── close context menu on outside mousedown ── */
 
   useEffect(() => {
     if (!ctxMenu) return
@@ -92,9 +92,9 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
     return true
   })
 
-  /* ── LIST VIEW ── */
+  /* ── LIST VIEW — called as a function, not <ListView />, to avoid remount issues ── */
 
-  const ListView = () => (
+  const renderList = () => (
     <div>
       {/* search bar */}
       <div className="flex gap-2 mb-4">
@@ -180,9 +180,9 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
     </div>
   )
 
-  /* ── MATRIX VIEW ── */
+  /* ── MATRIX VIEW — called as a function ── */
 
-  const MatrixView = () => {
+  const renderMatrix = () => {
     const activeIds = Array.from(new Set([
       ...connections.map(c => c.from),
       ...connections.map(c => c.to),
@@ -197,9 +197,9 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
       )
     }
 
-    const COL_W      = 52   // px per column cell
-    const LABEL_W    = 128  // px for the row-label column
-    const HEADER_H   = 100  // px for the rotated column headers
+    const COL_W   = 52
+    const LABEL_W = 128
+    const HDR_H   = 100
 
     const onCtx = (
       e: React.MouseEvent,
@@ -208,9 +208,8 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
       conn: Connection | null
     ) => {
       e.preventDefault()
-      // keep menu within viewport
-      const mw = 200, mh = conn ? 80 : 120
-      const x = Math.min(e.clientX, window.innerWidth  - mw - 8)
+      const mh = conn ? 80 : 130
+      const x = Math.min(e.clientX, window.innerWidth  - 210)
       const y = Math.min(e.clientY, window.innerHeight - mh - 8)
       setCtxMenu({ x, y, rowClient: row, colClient: col, conn })
     }
@@ -227,83 +226,57 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
           </colgroup>
           <thead>
             <tr>
-              {/* ── corner ── */}
+              {/* corner */}
               <th
-                className="border-r border-b border-white/8 relative select-none"
-                style={{ width: LABEL_W, height: HEADER_H }}
+                className="relative border-r border-b border-white/8 select-none"
+                style={{ width: LABEL_W, height: HDR_H }}
               >
-                {/* diagonal rule */}
                 <svg
                   className="absolute inset-0 w-full h-full pointer-events-none"
-                  viewBox={`0 0 ${LABEL_W} ${HEADER_H}`}
+                  viewBox={`0 0 ${LABEL_W} ${HDR_H}`}
                   preserveAspectRatio="none"
                 >
-                  <line
-                    x1="0" y1="0" x2={LABEL_W} y2={HEADER_H}
-                    stroke="rgba(255,255,255,0.06)" strokeWidth="1"
-                  />
+                  <line x1="0" y1="0" x2={LABEL_W} y2={HDR_H}
+                    stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
                 </svg>
-                <span
-                  className="absolute top-2 right-2 text-white/25"
-                  style={{ fontSize: 9, letterSpacing: "0.04em" }}
-                >
-                  TO →
-                </span>
-                <span
-                  className="absolute bottom-2 left-2 text-white/25"
-                  style={{ fontSize: 9, letterSpacing: "0.04em" }}
-                >
-                  FROM ↓
-                </span>
+                <span className="absolute top-2 right-2 text-white/25"
+                  style={{ fontSize: 9, letterSpacing: "0.04em" }}>TO →</span>
+                <span className="absolute bottom-2 left-2 text-white/25"
+                  style={{ fontSize: 9, letterSpacing: "0.04em" }}>FROM ↓</span>
               </th>
 
-              {/* ── column headers (rotated) ── */}
+              {/* column headers */}
               {cols.map(c => (
-                <th
-                  key={c.id}
-                  className="border-r border-b border-white/8 align-bottom"
-                  style={{ width: COL_W, height: HEADER_H, paddingBottom: 6 }}
-                >
-                  <div
-                    className="text-white/55 font-semibold overflow-hidden mx-auto"
+                <th key={c.id} className="border-r border-b border-white/8 align-bottom"
+                  style={{ width: COL_W, height: HDR_H, paddingBottom: 6 }}>
+                  <div className="text-white/55 font-semibold overflow-hidden mx-auto"
                     style={{
                       writingMode: "vertical-rl",
                       transform: "rotate(180deg)",
-                      maxHeight: HEADER_H - 12,
-                      fontSize: 10,
-                      lineHeight: 1.2,
+                      maxHeight: HDR_H - 12,
+                      fontSize: 10, lineHeight: 1.2,
                       width: "fit-content",
-                    }}
-                  >
+                    }}>
                     {c.name}
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
-
           <tbody>
             {cols.map(row => (
               <tr key={row.id} className="border-b border-white/5">
-                {/* row label */}
-                <td
-                  className="py-1.5 pl-3 pr-2 font-semibold text-white/55 whitespace-nowrap border-r border-white/8"
-                  style={{ fontSize: 11, width: LABEL_W }}
-                >
+                <td className="py-1.5 pl-3 pr-2 font-semibold text-white/55 whitespace-nowrap border-r border-white/8"
+                  style={{ fontSize: 11, width: LABEL_W }}>
                   {row.name}
                 </td>
-
-                {/* cells */}
                 {cols.map(col => {
                   const conn = connections.find(
                     c => c.from === row.id && c.to === col.id
                   )
                   const isSelf = row.id === col.id
-
                   return (
-                    <td
-                      key={col.id}
-                      className="text-center border-r border-white/5"
+                    <td key={col.id} className="text-center border-r border-white/5"
                       style={{ width: COL_W, height: 36 }}
                       onContextMenu={isSelf ? undefined : e => onCtx(e, row, col, conn ?? null)}
                     >
@@ -322,14 +295,13 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
                             border: `1px solid ${chColor(conn.channel)}66`,
                             fontSize: 11,
                           }}
-                          title={`CH ${conn.channel} — right-click for options`}
+                          title="Click to remove — right-click for options"
                         >
                           {conn.channel}
                         </button>
                       ) : (
                         <div
                           className="w-8 h-8 mx-auto rounded border border-white/5 hover:border-white/20 hover:bg-white/3 transition-all cursor-context-menu"
-                          onContextMenu={e => onCtx(e, row, col, null)}
                           title="Right-click to create connection"
                         />
                       )}
@@ -340,69 +312,6 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
             ))}
           </tbody>
         </table>
-      </div>
-    )
-  }
-
-  /* ── CONTEXT MENU ── */
-
-  const ContextMenu = () => {
-    if (!ctxMenu) return null
-    const { x, y, rowClient, colClient, conn } = ctxMenu
-    return (
-      <div
-        ref={menuRef}
-        className="fixed z-50 rounded-xl shadow-2xl overflow-hidden"
-        style={{
-          left: x, top: y,
-          background: "#1c1c1e",
-          border: "1px solid rgba(255,255,255,0.1)",
-          minWidth: 190,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        }}
-        onContextMenu={e => e.preventDefault()}
-      >
-        {/* header */}
-        <div className="px-3 py-2 border-b border-white/8">
-          <div className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
-            {conn ? "Connection" : "New connection"}
-          </div>
-          <div className="text-xs text-white/70 font-bold mt-0.5">
-            {rowClient.name} → {colClient.name}
-          </div>
-        </div>
-
-        {conn ? (
-          /* remove */
-          <button
-            onClick={() => removeConn(conn)}
-            className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <span className="text-[11px]">✕</span>
-            Remove CH {conn.channel}
-          </button>
-        ) : (
-          /* create — pick channel */
-          <div className="p-3 space-y-2">
-            <div className="text-[10px] text-white/35">Select channel:</div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(ch => (
-                <button
-                  key={ch}
-                  onClick={() => createConn(rowClient.id, colClient.id, ch)}
-                  className="h-7 rounded text-[10px] font-bold flex items-center justify-center transition-opacity hover:opacity-75"
-                  style={{
-                    background: chColor(ch) + "33",
-                    color: chColor(ch),
-                    border: `1px solid ${chColor(ch)}55`,
-                  }}
-                >
-                  {ch}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     )
   }
@@ -442,12 +351,69 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
         </div>
       </div>
 
-      {/* content */}
+      {/* content — render functions called directly, not as JSX components */}
       <div className="flex-1 overflow-auto p-4">
-        {view === "list" ? <ListView /> : <MatrixView />}
+        {view === "list" ? renderList() : renderMatrix()}
       </div>
 
-      <ContextMenu />
+      {/* context menu — inlined JSX so it's never remounted on parent re-renders */}
+      {ctxMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 rounded-xl shadow-2xl overflow-hidden"
+          style={{
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            background: "#1c1c1e",
+            border: "1px solid rgba(255,255,255,0.1)",
+            minWidth: 190,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+          onContextMenu={e => e.preventDefault()}
+        >
+          {/* header */}
+          <div className="px-3 py-2 border-b border-white/8">
+            <div className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+              {ctxMenu.conn ? "Connection" : "New connection"}
+            </div>
+            <div className="text-xs text-white/70 font-bold mt-0.5">
+              {ctxMenu.rowClient.name} → {ctxMenu.colClient.name}
+            </div>
+          </div>
+
+          {ctxMenu.conn ? (
+            /* remove */
+            <button
+              onClick={() => removeConn(ctxMenu.conn!)}
+              className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <span className="text-[11px]">✕</span>
+              Remove CH {ctxMenu.conn.channel}
+            </button>
+          ) : (
+            /* create — pick channel */
+            <div className="p-3 space-y-2">
+              <div className="text-[10px] text-white/35">Select channel:</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(ch => (
+                  <button
+                    key={ch}
+                    onClick={() => createConn(ctxMenu.rowClient.id, ctxMenu.colClient.id, ch)}
+                    className="h-7 rounded text-[10px] font-bold flex items-center justify-center transition-opacity hover:opacity-75"
+                    style={{
+                      background: chColor(ch) + "33",
+                      color: chColor(ch),
+                      border: `1px solid ${chColor(ch)}55`,
+                    }}
+                  >
+                    {ch}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
