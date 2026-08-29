@@ -109,24 +109,13 @@ export default function IntercomScreen({
     return () => { if (iv) clearInterval(iv) }
   }, [])
 
-  // GPO: detect simultaneous press of top 2 TB buttons → emit to server
+  // GPO: release if disabled while active
   useEffect(() => {
-    if (!gpoEnabled) {
-      if (gpoFiredRef.current) { socketEmit?.('client:gpo:release', {}); gpoFiredRef.current = false }
-      return
-    }
-    const top2 = SHUFFLE_ORDERS[shuffleOffset].slice(0, 2).map(i =>
-      (['talk1','talk2','talk3','talk4'] as const)[i]
-    )
-    const bothActive = top2.every(k => talkActive[k] || talkLatched[k])
-    if (bothActive && !gpoFiredRef.current) {
-      gpoFiredRef.current = true
-      socketEmit?.('client:gpo:trigger', {})
-    } else if (!bothActive && gpoFiredRef.current) {
-      gpoFiredRef.current = false
+    if (!gpoEnabled && gpoFiredRef.current) {
       socketEmit?.('client:gpo:release', {})
+      gpoFiredRef.current = false
     }
-  }, [talkActive, talkLatched, gpoEnabled, shuffleOffset])
+  }, [gpoEnabled])
 
   // Tally indicator
   useEffect(() => {
@@ -334,17 +323,33 @@ export default function IntercomScreen({
   }, [talkActive, talkLatched, toneActive])
 
   // ── Talk ──────────────────────────────────────────────────────────────────
-  const handleTalkIn  = (k: string) => {
+  const handleTalkIn  = (k: string, touchCount: number = 1) => {
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: true }))
     socketEmit?.('client:talking', { isTalking: true, channel: ch })
+    // GPO: fires when 2nd top button is pressed (responder system only allows one
+    // owner at a time, so touches.length ≥ 2 means another finger is already down)
+    if (gpoEnabled && touchCount >= 2 && !gpoFiredRef.current) {
+      const top2 = SHUFFLE_ORDERS[shuffleOffset].slice(0, 2).map(i =>
+        (['talk1','talk2','talk3','talk4'] as const)[i]
+      )
+      if (top2.includes(k as any)) {
+        gpoFiredRef.current = true
+        socketEmit?.('client:gpo:trigger', {})
+      }
+    }
   }
-  const handleTalkOut = (k: string) => {
+  const handleTalkOut = (k: string, touchCount: number = 0) => {
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: false }))
     socketEmit?.('client:talking', { isTalking: false, channel: ch })
+    // GPO release: when we drop below 2 simultaneous touches
+    if (touchCount < 2 && gpoFiredRef.current) {
+      gpoFiredRef.current = false
+      socketEmit?.('client:gpo:release', {})
+    }
   }
   const handleLatch = (k: string) => {
     const ch = parseInt(k.replace('talk', ''))
@@ -923,7 +928,7 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
 
 interface TalkBtnProps {
   talkKey:string; name:string; active:boolean; latched:boolean; toneMode?: boolean
-  onIn:(k:string)=>void; onOut:(k:string)=>void; onLatch:(k:string)=>void
+  onIn:(k:string, touches:number)=>void; onOut:(k:string, touches:number)=>void; onLatch:(k:string)=>void
 }
 function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onLatch }: TalkBtnProps) {
   const isOn = active || latched
@@ -935,15 +940,15 @@ function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onL
         style={[s.talkBtn, isOn && s.talkBtnOn]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => false}
-        onResponderGrant={() => {
-          if (!latched) onIn(talkKey)
+        onResponderGrant={(e) => {
+          if (!latched) onIn(talkKey, e.nativeEvent.touches.length)
         }}
-        onResponderRelease={() => {
+        onResponderRelease={(e) => {
           if (latched) onLatch(talkKey)
-          else onOut(talkKey)
+          else onOut(talkKey, e.nativeEvent.touches.length)
         }}
-        onResponderTerminate={() => {
-          if (!latched) onOut(talkKey)
+        onResponderTerminate={(e) => {
+          if (!latched) onOut(talkKey, e.nativeEvent.touches.length)
         }}
       >
         <View style={s.talkGloss} pointerEvents="none" />
