@@ -323,29 +323,18 @@ export default function IntercomScreen({
   }, [talkActive, talkLatched, toneActive])
 
   // ── Talk ──────────────────────────────────────────────────────────────────
-  const handleTalkIn  = (k: string, touchCount: number = 1) => {
+  const handleTalkIn  = (k: string) => {
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: true }))
     socketEmit?.('client:talking', { isTalking: true, channel: ch })
-    // GPO: fires when 2nd top button is pressed (responder system only allows one
-    // owner at a time, so touches.length ≥ 2 means another finger is already down)
-    if (gpoEnabled && touchCount >= 2 && !gpoFiredRef.current) {
-      const top2 = SHUFFLE_ORDERS[shuffleOffset].slice(0, 2).map(i =>
-        (['talk1','talk2','talk3','talk4'] as const)[i]
-      )
-      if (top2.includes(k as any)) {
-        gpoFiredRef.current = true
-        socketEmit?.('client:gpo:trigger', {})
-      }
-    }
   }
   const handleTalkOut = (k: string, touchCount: number = 0) => {
     if (talkLatched[k as keyof typeof talkLatched]) return
     const ch = parseInt(k.replace('talk', ''))
     setTalkActive(p => ({ ...p, [k]: false }))
     socketEmit?.('client:talking', { isTalking: false, channel: ch })
-    // GPO release: when we drop below 2 simultaneous touches
+    // GPO release: when remaining touches drop below 2
     if (touchCount < 2 && gpoFiredRef.current) {
       gpoFiredRef.current = false
       socketEmit?.('client:gpo:release', {})
@@ -463,8 +452,8 @@ export default function IntercomScreen({
                   <Text style={st.rowLabel}>GPO Mode</Text>
                   <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>
                     {gpoEnabled
-                      ? 'AKTIV — tryk begge øverste TB-knapper samtidig for at sende GPO-signal'
-                      : 'Tryk begge øverste TB-knapper samtidig for at sende et GPO-signal til hosten'}
+                      ? 'ACTIVE — press both top talk buttons simultaneously to send a GPO signal'
+                      : 'Press both top talk buttons simultaneously to send a GPO signal to the host'}
                   </Text>
                 </View>
                 <Switch
@@ -746,7 +735,18 @@ export default function IntercomScreen({
 
       {/* TALK BUTTONS */}
       <View style={s.talkSection}>
-        <View style={s.talkRow}>
+        {/* Capture-phase handler: fires before any child claims the responder.
+            nativeEvent.touches contains ALL active touches at this moment,
+            so touches.length ≥ 2 reliably means both top buttons are pressed. */}
+        <View style={s.talkRow}
+          onStartShouldSetResponderCapture={(e) => {
+            if (gpoEnabled && !gpoFiredRef.current && e.nativeEvent.touches.length >= 2) {
+              gpoFiredRef.current = true
+              socketEmit?.('client:gpo:trigger', {})
+            }
+            return false  // don't steal — let children handle their own responders
+          }}
+        >
           {orderedTalk.slice(0,2).map(({key,name}) => (
             <TalkButton key={key} talkKey={key} name={name}
               active={talkActive[key]} latched={talkLatched[key]}
@@ -928,7 +928,7 @@ function FaderCtrl({ idx, label, gains, setGains, pans, setPans, socketEmit, cha
 
 interface TalkBtnProps {
   talkKey:string; name:string; active:boolean; latched:boolean; toneMode?: boolean
-  onIn:(k:string, touches:number)=>void; onOut:(k:string, touches:number)=>void; onLatch:(k:string)=>void
+  onIn:(k:string)=>void; onOut:(k:string, touches:number)=>void; onLatch:(k:string)=>void
 }
 function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onLatch }: TalkBtnProps) {
   const isOn = active || latched
@@ -940,8 +940,8 @@ function TalkButton({ talkKey, name, active, latched, toneMode, onIn, onOut, onL
         style={[s.talkBtn, isOn && s.talkBtnOn]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => false}
-        onResponderGrant={(e) => {
-          if (!latched) onIn(talkKey, e.nativeEvent.touches.length)
+        onResponderGrant={() => {
+          if (!latched) onIn(talkKey)
         }}
         onResponderRelease={(e) => {
           if (latched) onLatch(talkKey)
