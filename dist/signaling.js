@@ -103,6 +103,9 @@ const producerOutputs = new Map();
 const outputBridgeChannels = new Set();
 const tallyStates = new Map();
 const gpiTallyMap = new Map();
+const gpoStates = new Map();
+const gpoRoutes = new Map();
+let gpoSendSocket = null;
 (function restoreState() {
     const s = (0, persist_1.loadState)();
     s.connections.forEach(c => connections.set(connKey(c), c));
@@ -442,6 +445,41 @@ function setupSignaling(io) {
                 gpiTallyMap.delete(pin);
             else
                 gpiTallyMap.set(pin, { clientId, state });
+        });
+        /* ---------- GPO (phone → host → external) ---------- */
+        socket.on("client:gpo:trigger", () => {
+            const clientId = socket.clientId;
+            if (!clientId)
+                return;
+            gpoStates.set(clientId, true);
+            io.emit("client:gpo:state", { clientId, active: true });
+            const route = gpoRoutes.get(clientId);
+            if (route && gpoSendSocket) {
+                gpoSendSocket.send(Buffer.from(route.onMsg), route.port, route.ip);
+            }
+        });
+        socket.on("client:gpo:release", () => {
+            const clientId = socket.clientId;
+            if (!clientId)
+                return;
+            gpoStates.set(clientId, false);
+            io.emit("client:gpo:state", { clientId, active: false });
+            const route = gpoRoutes.get(clientId);
+            if (route && gpoSendSocket) {
+                gpoSendSocket.send(Buffer.from(route.offMsg), route.port, route.ip);
+            }
+        });
+        // Host configures GPO → UDP route for a client
+        socket.on("client:gpo:route", ({ clientId, route }) => {
+            if (route)
+                gpoRoutes.set(clientId, route);
+            else
+                gpoRoutes.delete(clientId);
+        });
+        // Host requests current GPO states
+        socket.on("client:gpo:all", (cb) => {
+            if (typeof cb === "function")
+                cb(Object.fromEntries(gpoStates));
         });
         socket.on("client:update", ({ id, updates }, cb) => {
             const existing = clients.get(id);
@@ -1573,6 +1611,9 @@ function setupSignaling(io) {
     //   PREVIEW:<clientId>   → set preview tally
     //   OFF:<clientId>       → clear tally
     //   GPI:<pinNumber>      → trigger via gpiTallyMap (pin→client mapping set by host)
+    // Shared UDP send socket for GPO output signals
+    gpoSendSocket = dgram_1.default.createSocket('udp4');
+    gpoSendSocket.on('error', (err) => console.warn('[GPO] UDP send error:', err.message));
     try {
         const gpiServer = dgram_1.default.createSocket('udp4');
         gpiServer.on('message', (msg) => {

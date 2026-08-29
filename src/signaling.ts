@@ -73,6 +73,14 @@ type TallyState = 'program' | 'preview' | 'off'
 const tallyStates = new Map<string, TallyState>()
 const gpiTallyMap = new Map<number, { clientId: string; state: TallyState }>()
 
+// ── GPO (phone → host) ───────────────────────────────────────────────────────
+// gpoStates: clientId → currently active (buttons held)
+// gpoRoutes: clientId → UDP route to trigger on GPO (configured by host)
+type GpoRoute = { ip: string; port: number; onMsg: string; offMsg: string }
+const gpoStates = new Map<string, boolean>()
+const gpoRoutes = new Map<string, GpoRoute>()
+let gpoSendSocket: ReturnType<typeof dgram.createSocket> | null = null
+
 // ── Restore persisted state ───────────────────────────────────────────────────
 ;(function restoreState() {
   const s = loadState()
@@ -435,6 +443,41 @@ export function setupSignaling(io: Server) {
     socket.on("tally:gpi:map", ({ pin, clientId, state }: { pin: number; clientId: string; state: TallyState | 'remove' }) => {
       if (state === 'remove') gpiTallyMap.delete(pin)
       else gpiTallyMap.set(pin, { clientId, state })
+    })
+
+    /* ---------- GPO (phone → host → external) ---------- */
+
+    socket.on("client:gpo:trigger", () => {
+      const clientId = (socket as any).clientId as string | undefined
+      if (!clientId) return
+      gpoStates.set(clientId, true)
+      io.emit("client:gpo:state", { clientId, active: true })
+      const route = gpoRoutes.get(clientId)
+      if (route && gpoSendSocket) {
+        gpoSendSocket.send(Buffer.from(route.onMsg), route.port, route.ip)
+      }
+    })
+
+    socket.on("client:gpo:release", () => {
+      const clientId = (socket as any).clientId as string | undefined
+      if (!clientId) return
+      gpoStates.set(clientId, false)
+      io.emit("client:gpo:state", { clientId, active: false })
+      const route = gpoRoutes.get(clientId)
+      if (route && gpoSendSocket) {
+        gpoSendSocket.send(Buffer.from(route.offMsg), route.port, route.ip)
+      }
+    })
+
+    // Host configures GPO → UDP route for a client
+    socket.on("client:gpo:route", ({ clientId, route }: { clientId: string; route: GpoRoute | null }) => {
+      if (route) gpoRoutes.set(clientId, route)
+      else gpoRoutes.delete(clientId)
+    })
+
+    // Host requests current GPO states
+    socket.on("client:gpo:all", (cb) => {
+      if (typeof cb === "function") cb(Object.fromEntries(gpoStates))
     })
 
     socket.on("client:update", ({ id, updates }, cb) => {
@@ -1559,6 +1602,10 @@ export function setupSignaling(io: Server) {
   //   PREVIEW:<clientId>   → set preview tally
   //   OFF:<clientId>       → clear tally
   //   GPI:<pinNumber>      → trigger via gpiTallyMap (pin→client mapping set by host)
+  // Shared UDP send socket for GPO output signals
+  gpoSendSocket = dgram.createSocket('udp4')
+  gpoSendSocket.on('error', (err: Error) => console.warn('[GPO] UDP send error:', err.message))
+
   try {
     const gpiServer = dgram.createSocket('udp4')
     gpiServer.on('message', (msg: Buffer) => {
