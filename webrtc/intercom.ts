@@ -479,6 +479,31 @@ export function getActiveStreams() {
   return _activeStreams
 }
 
+// ─── IFB duck state ────────────────────────────────────────────────────────
+type IFBChannelSettings = { muted: boolean; duckAmount: number }
+let _ifbActive   = false
+let _ifbSettings: Record<number, IFBChannelSettings> = {}
+
+function _applyIFBGains() {
+  for (const [chStr, ch] of Object.entries(_ifbSettings)) {
+    const gain = ch.muted ? 0 : (100 - ch.duckAmount) / 100
+    setLocalChannelGain(Number(chStr), gain)
+  }
+}
+
+// active=true  → duck channels per settings  (duckAmount 0..100 = reduction %)
+// active=false → restore previously ducked channels to full gain
+export function applyIFBDuck(active: boolean, settings?: Record<number, IFBChannelSettings>) {
+  const prev = _ifbSettings
+  _ifbActive   = active
+  _ifbSettings = settings ?? {}
+  if (!active) {
+    for (const chStr of Object.keys(prev)) setLocalChannelGain(Number(chStr), 1.0)
+    return
+  }
+  _applyIFBGains()
+}
+
 // ─── Consumers ─────────────────────────────────────────────────────────────
 const _consumers       = new Map<string, any>()
 const _failedConsumers = new Set<string>()
@@ -904,6 +929,8 @@ export function unmuteActiveConsumers() {
       try { if (consumer.track && !consumer.track.enabled) consumer.track.enabled = true } catch {}
     }
   }
+  // Re-apply IFB duck levels — mute-on-talk resets _setVolume to 0 via track.enabled
+  if (_ifbActive) _applyIFBGains()
 }
 
 // ─── Disconnect ────────────────────────────────────────────────────────────

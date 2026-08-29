@@ -132,6 +132,21 @@ export default function IntercomScreen({
     return () => { cleanup?.() }
   }, [])
 
+  // IFB duck — host remotely ducks channels in journalist's ear
+  useEffect(() => {
+    let cleanup: (() => void) | null = null
+    import('../webrtc/intercom').then(({ getSocket, applyIFBDuck }) => {
+      const s = getSocket()
+      if (!s) return
+      const handler = ({ active, settings }: { active: boolean; settings?: any }) => {
+        applyIFBDuck(active, settings?.channels ?? {})
+      }
+      s.on('ifb:duck', handler)
+      cleanup = () => { s.off('ifb:duck', handler); applyIFBDuck(false) }
+    })
+    return () => { cleanup?.() }
+  }, [])
+
   // Host matrix OFF → stop video slot on mobile
   useEffect(() => {
     let cleanup: (() => void) | null = null
