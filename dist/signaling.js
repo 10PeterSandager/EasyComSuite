@@ -83,6 +83,9 @@ const terminals = new Map();
 // Used by the grace-period timer to avoid premature connection cleanup when a
 // client disconnects, reconnects, then disconnects again before the first timer fires.
 const disconnectTimes = new Map();
+// Preserves client data (incl. PIN code) during the 8-second grace period so
+// client:auth can still verify the PIN before client:register fires.
+const offlineClients = new Map();
 const directVideoOffers = new Map(); // cache: sourceId → sdp
 const producers = new Map();
 const videoProducers = new Map(); // clientId → videoProducerId
@@ -101,7 +104,7 @@ const outputBridgeChannels = new Set();
     const s = (0, persist_1.loadState)();
     s.connections.forEach(c => connections.set(connKey(c), c));
     s.groups.forEach(g => groups.push(g));
-    s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }));
+    s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data: { ...data, status: "offline" } }));
     s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r));
     s.terminals?.forEach(t => terminals.set(t.id, t));
     s.videoRouting?.forEach(({ clientId, sources }) => videoRouting.set(clientId, sources));
@@ -314,6 +317,7 @@ function setupSignaling(io) {
         socket.on("client:register", (client, cb) => {
             // Cancel any pending grace-period cleanup for this client
             disconnectTimes.delete(client.id);
+            offlineClients.delete(client.id);
             if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
                 // Track TB gating state for this mobile/remote (empty = no TB pressed)
                 if (!mobileActiveTb.has(client.id))
@@ -350,6 +354,18 @@ function setupSignaling(io) {
                 }
             }
             const existing = clients.get(client.id);
+            // Host batch-registration always sends type:"" — keep offline, just sync name/code.
+            if (client.type === "") {
+                if (existing) {
+                    clients.set(client.id, { socketId: "", data: { ...existing.data, name: client.name, code: client.code } });
+                }
+                else {
+                    clients.set(client.id, { socketId: "", data: { ...client, status: "offline" } });
+                }
+                io.emit("clients:update", { id: client.id, updates: { name: client.name, code: client.code } });
+                cb?.({ ok: true });
+                return;
+            }
             if (existing && existing.socketId !== socket.id && client.type !== "mobile" && client.type !== "remote" && client.type !== "desktop") {
                 // Tjek om den eksisterende socket stadig er connected
                 // Kun relevant for ikke-mobile clients: forhindrer host-appens batch-re-registrering
@@ -372,42 +388,15 @@ function setupSignaling(io) {
             io.emit("clients:update", { id: client.id, updates: { ...client, status: "online" } });
             save();
             cb?.({ ok: true });
-            // When a new mobile/remote registers, replicate any active IFB slot routings
-            // that were established via bridge:ifb:set for existing mobile clients.
-            // Falls back to bridge-ch1 → client on slot 1 if no existing IFB routing found.
+            // Auto-create TB return so the host can consume the phone's mic when TB1 is pressed.
+            // IFB (bridge → client) is NOT auto-created — set it up via ConnectionsPopup for a clean slate.
             if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
-                const existingMobiles = Array.from(clients.keys()).filter(id => id !== client.id && (clients.get(id)?.data?.type === "mobile" || clients.get(id)?.data?.type === "remote" || clients.get(id)?.data?.type === "desktop"));
-                const seen = new Set();
-                for (const otherId of existingMobiles) {
-                    for (const conn of connections.values()) {
-                        if (conn.to === otherId && conn.from.startsWith("bridge-ch") && !seen.has(conn.from + ":" + conn.channel)) {
-                            seen.add(conn.from + ":" + conn.channel);
-                            const ifbKey = connKey({ from: conn.from, to: client.id, channel: conn.channel });
-                            if (!connections.has(ifbKey)) {
-                                connections.set(ifbKey, { from: conn.from, to: client.id, channel: conn.channel });
-                                console.log(`[signaling] replicated IFB: ${conn.from} → ${client.id} ch${conn.channel}`);
-                            }
-                        }
-                    }
-                }
-                // Fallback: if no IFB routing established yet, use bridge-ch1 as default slot 1
-                if (seen.size === 0 && producers.has("bridge-ch1")) {
-                    const k = connKey({ from: "bridge-ch1", to: client.id, channel: 1 });
-                    if (!connections.has(k)) {
-                        connections.set(k, { from: "bridge-ch1", to: client.id, channel: 1 });
-                        console.log(`[signaling] default IFB: bridge-ch1 → ${client.id} ch1`);
-                    }
-                }
-                // Auto-create TB return: phone TB1 → host (producer-65) on ch1.
-                // Without this the host never has a routing path to consume the phone's mic
-                // and client:talking's isConnectedToHost check always returns false.
                 const tbReturnKey = connKey({ from: client.id, to: "producer-65", channel: 1, toChannel: 1 });
                 if (!connections.has(tbReturnKey)) {
                     connections.set(tbReturnKey, { from: client.id, to: "producer-65", channel: 1, toChannel: 1 });
                     console.log(`[signaling] auto TB return: ${client.id} → producer-65 ch1 (TB1-gated)`);
                 }
                 broadcastRouting(io);
-                save();
             }
             // Always send current routing to mobile/remote clients on register.
             // Covers both first-time connect and socket.io auto-reconnects where the
@@ -419,8 +408,8 @@ function setupSignaling(io) {
             }
         });
         socket.on("client:auth", ({ clientId, code }, cb) => {
-            const client = clients.get(clientId);
-            const storedCode = client?.data?.code || "0000";
+            const clientData = clients.get(clientId)?.data ?? offlineClients.get(clientId);
+            const storedCode = clientData?.code || "0000";
             const ok = code === storedCode;
             console.log(`[signaling] auth ${clientId}: ${ok ? '✅' : '❌'} (entered: ${code}, stored: ${storedCode})`);
             cb?.({ ok });
@@ -1512,7 +1501,13 @@ function setupSignaling(io) {
                 io.emit("clients:update", { id: clientId, updates: { status: "offline" } });
                 (0, audioOutput_1.stopAllForClient)(clientId).catch(() => { });
                 mobileActiveTb.delete(clientId);
-                clients.delete(clientId);
+                const existingEntry = clients.get(clientId);
+                offlineClients.set(clientId, existingEntry?.data);
+                // Keep client in Map as "offline" so phone can still find it in clients:list.
+                // Grace period timer uses socketId check to detect reconnect instead of clients.has().
+                if (existingEntry) {
+                    clients.set(clientId, { socketId: "", data: { ...existingEntry.data, status: "offline" } });
+                }
                 // Grace period: give the client 8 seconds to reconnect before wiping connections.
                 // Use a timestamp so that a rapid disconnect→reconnect→disconnect sequence doesn't
                 // let an earlier timer prematurely delete connections for the later disconnect.
@@ -1522,11 +1517,13 @@ function setupSignaling(io) {
                     // Abort if a newer disconnect has since occurred for this client
                     if (disconnectTimes.get(clientId) !== disconnectTime)
                         return;
-                    if (clients.has(clientId)) {
+                    const reconnected = clients.get(clientId);
+                    if (reconnected?.socketId) {
                         disconnectTimes.delete(clientId);
                         return;
                     }
                     disconnectTimes.delete(clientId);
+                    offlineClients.delete(clientId);
                     producers.delete(clientId);
                     for (const [k, c] of connections) {
                         // Keep bridge→client connections — operator set these intentionally.

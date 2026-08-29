@@ -46,6 +46,9 @@ const terminals = new Map<string, Terminal>()
 // Used by the grace-period timer to avoid premature connection cleanup when a
 // client disconnects, reconnects, then disconnects again before the first timer fires.
 const disconnectTimes = new Map<string, number>()
+// Preserves client data (incl. PIN code) during the 8-second grace period so
+// client:auth can still verify the PIN before client:register fires.
+const offlineClients = new Map<string, any>()
 const directVideoOffers = new Map<string, string>() // cache: sourceId → sdp
 const producers = new Map<string, string>()
 const videoProducers = new Map<string, string>() // clientId → videoProducerId
@@ -67,7 +70,7 @@ const outputBridgeChannels = new Set<number>()
   const s = loadState()
   s.connections.forEach(c => connections.set(connKey(c), c))
   s.groups.forEach(g => groups.push(g))
-  s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }))
+  s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data: { ...data, status: "offline" } }))
   s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r as AudioRoute))
   s.terminals?.forEach(t => terminals.set(t.id, t))
   s.videoRouting?.forEach(({ clientId, sources }) => videoRouting.set(clientId, sources))
@@ -294,6 +297,7 @@ export function setupSignaling(io: Server) {
     socket.on("client:register", (client, cb) => {
       // Cancel any pending grace-period cleanup for this client
       disconnectTimes.delete(client.id)
+      offlineClients.delete(client.id)
 
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
         // Track TB gating state for this mobile/remote (empty = no TB pressed)
@@ -333,6 +337,18 @@ export function setupSignaling(io: Server) {
         }
       }
       const existing = clients.get(client.id)
+
+      // Host batch-registration always sends type:"" — keep offline, just sync name/code.
+      if (client.type === "") {
+        if (existing) {
+          clients.set(client.id, { socketId: "", data: { ...existing.data, name: client.name, code: client.code } })
+        } else {
+          clients.set(client.id, { socketId: "", data: { ...client, status: "offline" } })
+        }
+        io.emit("clients:update", { id: client.id, updates: { name: client.name, code: client.code } })
+        cb?.({ ok: true })
+        return
+      }
 
       if (existing && existing.socketId !== socket.id && client.type !== "mobile" && client.type !== "remote" && client.type !== "desktop") {
         // Tjek om den eksisterende socket stadig er connected
@@ -380,8 +396,8 @@ export function setupSignaling(io: Server) {
     })
 
     socket.on("client:auth", ({ clientId, code }: { clientId: string, code: string }, cb) => {
-      const client = clients.get(clientId)
-      const storedCode = client?.data?.code || "0000"
+      const clientData = clients.get(clientId)?.data ?? offlineClients.get(clientId)
+      const storedCode = clientData?.code || "0000"
       const ok = code === storedCode
       console.log(`[signaling] auth ${clientId}: ${ok ? '✅' : '❌'} (entered: ${code}, stored: ${storedCode})`)
       cb?.({ ok })
@@ -1467,7 +1483,13 @@ export function setupSignaling(io: Server) {
         stopAllForClient(clientId).catch(() => {})
 
         mobileActiveTb.delete(clientId)
-        clients.delete(clientId)
+        const existingEntry = clients.get(clientId)
+        offlineClients.set(clientId, existingEntry?.data)
+        // Keep client in Map as "offline" so phone can still find it in clients:list.
+        // Grace period timer uses socketId check to detect reconnect instead of clients.has().
+        if (existingEntry) {
+          clients.set(clientId, { socketId: "", data: { ...existingEntry.data, status: "offline" } })
+        }
 
         // Grace period: give the client 8 seconds to reconnect before wiping connections.
         // Use a timestamp so that a rapid disconnect→reconnect→disconnect sequence doesn't
@@ -1478,8 +1500,10 @@ export function setupSignaling(io: Server) {
         setTimeout(() => {
           // Abort if a newer disconnect has since occurred for this client
           if (disconnectTimes.get(clientId) !== disconnectTime) return
-          if (clients.has(clientId)) { disconnectTimes.delete(clientId); return }
+          const reconnected = clients.get(clientId)
+          if (reconnected?.socketId) { disconnectTimes.delete(clientId); return }
           disconnectTimes.delete(clientId)
+          offlineClients.delete(clientId)
           producers.delete(clientId)
           for (const [k, c] of connections) {
             // Keep bridge→client connections — operator set these intentionally.
