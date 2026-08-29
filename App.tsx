@@ -77,7 +77,7 @@ const App: React.FC = () => {
           return parsed.map(c => ({ ...c, isTalking: false, isLatched: false, remoteIsLatched: false, status: 'offline' as const }))
       }
     } catch {}
-    return INITIAL_CLIENTS
+    return []
   })
   const [mobileClients, setMobileClients] = useState<Client[]>([])
 
@@ -130,7 +130,7 @@ const App: React.FC = () => {
         localStorage.removeItem('easycom:remotePanels')
         localStorage.removeItem('easycom:panelMappings')
       } catch {}
-      setClients(INITIAL_CLIENTS)
+      setClients([])
     }
     socket.on('factory:reset', handler)
     return () => { socket.off('factory:reset', handler) }
@@ -567,7 +567,7 @@ const App: React.FC = () => {
           socket.emit("client:register", {
             id: c.id,
             name: c.name,
-            type: c.type || "",
+            type: "",
             code: c.code || "0000"
           }, () => {})
         })

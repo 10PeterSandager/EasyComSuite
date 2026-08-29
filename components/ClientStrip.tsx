@@ -3,7 +3,7 @@ import { Client } from '../types'
 import { subscribeToLevels, socket, startFeedMonitor, stopFeedMonitor, setFeedMonitorVolume, getClientMonitorStream, acquireConnection, releaseConnection } from '../client/webrtc/intercom'
 import { getChannelStream } from '../client/audio/AudioBridge'
 import IFBPanel, { IFBSettings } from './IFBPanel'
-import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Zap, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio } from 'lucide-react'
+import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Zap, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio, Link2 } from 'lucide-react'
 
 export type FeedSource = { id: string; label: string }
 
@@ -19,6 +19,7 @@ type Props = {
   feedSources?: FeedSource[]
   allClients?: Client[]
   roles?: { id: string; label: string; color: string }[]
+  connectedSources?: Client[]
 }
 
 const defaultIFB = (): IFBSettings => ({ active: false, channels: {} })
@@ -46,11 +47,12 @@ const ClientStrip: React.FC<Props> = ({
   client, isSelected, onUpdate, theme,
   onHijack = () => {}, onMapKey = () => {},
   isMixerOpen = false, onToggleMixer = () => {},
-  feedSources = [], allClients = [], roles = []
+  feedSources = [], allClients = [], roles = [], connectedSources = []
 }) => {
 
   const [snd, setSnd] = useState(0)
   const [rcv, setRcv] = useState(0)
+  const [wasPatched, setWasPatched] = useState(false)
   const [phoneRoutes, setPhoneRoutes] = useState<Array<{ from: string; name: string }>>([])
   const [disabledPhoneIds, setDisabledPhoneIds] = useState<Set<string>>(new Set())
   const [isTalkPressed, setIsTalkPressed] = useState(false)
@@ -146,6 +148,11 @@ const ClientStrip: React.FC<Props> = ({
 
   const isTalking = client.isTalking || client.isLatched || isTalkPressed || snd > 20
   const isOnline = client.status === "online"
+
+  useEffect(() => {
+    if (isOnline && connectedSources.length > 0) setWasPatched(true)
+    if (isOnline && connectedSources.length === 0) setWasPatched(false)
+  }, [connectedSources.length, isOnline])
   const themeColor = theme === "orange" ? "orange" : "blue"
   const ifb: IFBSettings = (client as any).ifbSettings ?? defaultIFB()
   const auxLevel = client.auxLevel ?? 80
@@ -217,7 +224,7 @@ const ClientStrip: React.FC<Props> = ({
       <div
         id={`client-${client.id}`}
         data-client-id={client.id}
-        className={`relative flex flex-col aspect-[1/1.25] bg-zinc-900 border rounded-lg overflow-hidden
+        className={`relative flex flex-col aspect-[1/1.1] bg-zinc-900 border rounded-lg overflow-hidden
           ${isTalking ? `ring-2 ring-${themeColor}-500` : ""}
           ${isSelected ? `border-${themeColor}-500 bg-${themeColor}-600/5` : "border-white/5"}
           ${(client as any).ifbActive ? "ring-2 ring-blue-500" : ""}
@@ -244,6 +251,34 @@ const ClientStrip: React.FC<Props> = ({
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-zinc-700"}`} />
           </div>
         </div>
+
+        {/* CONNECTED-SOURCES INDICATOR — pulse when someone talking, dim when offline */}
+        {(connectedSources.length > 0 || (!isOnline && wasPatched)) && (() => {
+          const live = connectedSources.length > 0
+          const anyTalking = connectedSources.some(s => (s as any).isTalking || (s as any).isLatched)
+          return (
+            <div
+              className={`flex items-center gap-1 px-2 py-1 flex-wrap${anyTalking ? " animate-pulse" : ""}`}
+              style={{ background: "rgba(0,0,0,0.3)" }}
+            >
+              {live
+                ? connectedSources.map((src) => (
+                    <span
+                      key={src.id}
+                      title={src.name}
+                      className="flex items-center"
+                      style={{ color: src.color || "#aaa" }}
+                    >
+                      {src.type === "mobile"  && <Smartphone size={16} />}
+                      {src.type === "desktop" && <Monitor    size={16} />}
+                      {src.type === "remote"  && <Tablet     size={16} />}
+                    </span>
+                  ))
+                : <Link2 size={16} style={{ opacity: 0.25, color: "white" }} />
+              }
+            </div>
+          )
+        })()}
 
         {/* ROLE SELECTOR */}
         {roles.length > 0 && (

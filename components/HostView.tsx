@@ -206,6 +206,7 @@ const HostView = (props: any) => {
   const [cardScale, setCardScale] = useState(2)
   const [setupTab, setSetupTab] = useState<SetupTab>("audio")
   const [connections, setConnections] = useState<any[]>([])
+  const [allConns, setAllConns] = useState<any[]>([])
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
   const [editingNameValue, setEditingNameValue] = useState("")
   const [mixerClientId, setMixerClientId] = useState<string | null>(null)
@@ -373,6 +374,13 @@ const HostView = (props: any) => {
     load()
     socket.on("routing:update", load)
     return () => { socket.off("routing:update", load) }
+  }, [])
+
+  useEffect(() => {
+    const upd = (list: any[]) => setAllConns(Array.isArray(list) ? list : [])
+    socket.emit("connections:list", (res: any[]) => setAllConns(Array.isArray(res) ? res : []))
+    socket.on("connections:all", upd)
+    return () => { socket.off("connections:all", upd) }
   }, [])
 
   // 🔥 Update mixer when mobile client changes gain
@@ -611,6 +619,29 @@ const HostView = (props: any) => {
                         feedSources={[...clientSources, ...bridgeSources]}
                         allClients={regularClients}
                         roles={roles}
+                        connectedSources={(() => {
+                          // Find other online clients that share a bridge channel with this card
+                          const myBridgeChannels = new Set(
+                            allConns
+                              .filter(conn => conn.from === c.id || conn.to === c.id)
+                              .flatMap(conn => [conn.from, conn.to])
+                              .filter((id: string) => id.startsWith('bridge-ch'))
+                          )
+                          if (myBridgeChannels.size === 0) return []
+                          const peerIds = new Set<string>()
+                          for (const conn of allConns) {
+                            const bridgeEnd = conn.from.startsWith('bridge-ch') ? conn.from
+                              : conn.to.startsWith('bridge-ch') ? conn.to : null
+                            const clientEnd = conn.from.startsWith('bridge-ch') ? conn.to
+                              : conn.to.startsWith('bridge-ch') ? conn.from : null
+                            if (bridgeEnd && clientEnd && myBridgeChannels.has(bridgeEnd)
+                              && clientEnd !== c.id && !clientEnd.startsWith('producer-')
+                              && !clientEnd.startsWith('bridge-')) {
+                              peerIds.add(clientEnd)
+                            }
+                          }
+                          return regularClients.filter(cl => peerIds.has(cl.id) && cl.status === 'online')
+                        })()}
                       />
                     </div>
                   )
