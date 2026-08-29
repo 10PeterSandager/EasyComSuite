@@ -62,6 +62,9 @@ export default function IntercomScreen({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [toneActive, setToneActive] = useState(false)
   const [routing, setRouting] = useState<Record<number, string[]>>({})
+  const [tallyState, setTallyState] = useState<'program' | 'preview' | 'off'>('off')
+  const [gpoEnabled, setGpoEnabled] = useState(false)
+  const gpoFiredRef = useRef(false)
 
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
   useEffect(() => {
@@ -103,6 +106,38 @@ export default function IntercomScreen({
       iv = setInterval(update, 1000)
     })
     return () => { if (iv) clearInterval(iv) }
+  }, [])
+
+  // GPO: detect simultaneous press of top 2 TB buttons → emit to server
+  useEffect(() => {
+    if (!gpoEnabled) {
+      if (gpoFiredRef.current) { socketEmit?.('client:gpo:release', {}); gpoFiredRef.current = false }
+      return
+    }
+    const top2 = SHUFFLE_ORDERS[shuffleOffset].slice(0, 2).map(i =>
+      (['talk1','talk2','talk3','talk4'] as const)[i]
+    )
+    const bothActive = top2.every(k => talkActive[k] || talkLatched[k])
+    if (bothActive && !gpoFiredRef.current) {
+      gpoFiredRef.current = true
+      socketEmit?.('client:gpo:trigger', {})
+    } else if (!bothActive && gpoFiredRef.current) {
+      gpoFiredRef.current = false
+      socketEmit?.('client:gpo:release', {})
+    }
+  }, [talkActive, talkLatched, gpoEnabled, shuffleOffset])
+
+  // Tally indicator
+  useEffect(() => {
+    let cleanup: (() => void) | null = null
+    import('../webrtc/intercom').then(({ getSocket }) => {
+      const s = getSocket()
+      if (!s) return
+      const handler = ({ state }: { state: 'program' | 'preview' | 'off' }) => setTallyState(state ?? 'off')
+      s.on('tally:update', handler)
+      cleanup = () => s.off('tally:update', handler)
+    })
+    return () => { cleanup?.() }
   }, [])
 
   // Host matrix OFF → stop video slot on mobile
@@ -416,6 +451,25 @@ export default function IntercomScreen({
               </View>
             </View>
             <View style={st.section}>
+              <Text style={st.sectionLabel}>GPI / GPO</Text>
+              <View style={st.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.rowLabel}>GPO Mode</Text>
+                  <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>
+                    {gpoEnabled
+                      ? 'AKTIV — tryk begge øverste TB-knapper samtidig for at sende GPO-signal'
+                      : 'Tryk begge øverste TB-knapper samtidig for at sende et GPO-signal til hosten'}
+                  </Text>
+                </View>
+                <Switch
+                  value={gpoEnabled}
+                  onValueChange={v => setGpoEnabled(v)}
+                  trackColor={{ false: BORDER, true: ACCENT }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </View>
+            <View style={st.section}>
               <Text style={st.sectionLabel}>BUTTON NAMES</Text>
               {(['talk1','talk2','talk3','talk4'] as const).map((k,i) => (
                 <View key={k} style={st.nameRow}>
@@ -525,6 +579,28 @@ export default function IntercomScreen({
       {renderChannelLogic()}
       {renderSettings()}
       {renderLandscapeVideo()}
+
+      {/* TALLY OVERLAY — full-screen colored border + banner */}
+      {tallyState !== 'off' && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={{
+            ...StyleSheet.absoluteFillObject,
+            borderWidth: 6,
+            borderColor: tallyState === 'program' ? '#dc2626' : '#d97706',
+          }} />
+          <View style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            backgroundColor: tallyState === 'program' ? '#dc2626' : '#d97706',
+            paddingVertical: 6,
+            alignItems: 'center',
+          }}>
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 3 }}>
+              {tallyState === 'program' ? '● ON AIR' : '● STAND BY'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* TOP BAR */}
       <View style={s.topBar}>
