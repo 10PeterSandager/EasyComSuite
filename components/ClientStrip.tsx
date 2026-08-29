@@ -22,6 +22,7 @@ type Props = {
   connectedSources?: Client[]
   tallyState?: 'program' | 'preview' | 'off'
   onTallySet?: (state: 'program' | 'preview' | 'off') => void
+  gpoActive?: boolean
 }
 
 const defaultIFB = (): IFBSettings => ({ active: false, channels: {} })
@@ -50,7 +51,7 @@ const ClientStrip: React.FC<Props> = ({
   onHijack = () => {}, onMapKey = () => {},
   isMixerOpen = false, onToggleMixer = () => {},
   feedSources = [], allClients = [], roles = [], connectedSources = [],
-  tallyState = 'off', onTallySet
+  tallyState = 'off', onTallySet, gpoActive = false
 }) => {
 
   const [snd, setSnd] = useState(0)
@@ -273,6 +274,13 @@ const ClientStrip: React.FC<Props> = ({
                 title="Preview tally"
               >P</button>
             </div>
+            {gpoActive && (
+              <span
+                className="text-[7px] font-black px-0.5 rounded leading-none animate-pulse"
+                style={{ background: '#f59e0b', color: '#000' }}
+                title="GPO aktiv"
+              >GPO</span>
+            )}
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-zinc-700"}`} />
           </div>
         </div>

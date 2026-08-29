@@ -392,6 +392,16 @@ const HostView = (props: any) => {
     return () => { socket.off("tally:all", upd) }
   }, [])
 
+  // ── GPO states (phone → host) ────────────────────────────────────────────────
+  const [gpoStates, setGpoStates] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    socket.emit("client:gpo:all", (res: any) => setGpoStates(res ?? {}))
+    const upd = ({ clientId, active }: { clientId: string; active: boolean }) =>
+      setGpoStates(prev => ({ ...prev, [clientId]: active }))
+    socket.on("client:gpo:state", upd)
+    return () => { socket.off("client:gpo:state", upd) }
+  }, [])
+
   // ── GPI tally mappings ───────────────────────────────────────────────────────
   type GpiMapping = { pin: number; clientId: string; state: 'program' | 'preview' }
   const [gpiMappings, setGpiMappings] = useState<GpiMapping[]>(() => {
@@ -399,9 +409,20 @@ const HostView = (props: any) => {
   })
   useEffect(() => {
     try { localStorage.setItem('easycom:gpiMappings', JSON.stringify(gpiMappings)) } catch {}
-    // Resync all mappings to server
     gpiMappings.forEach(m => socket.emit('tally:gpi:map', { pin: m.pin, clientId: m.clientId, state: m.state }))
   }, [gpiMappings])
+
+  type GpoRouteItem = { clientId: string; ip: string; port: number; onMsg: string; offMsg: string }
+  const [gpoRouteItems, setGpoRouteItems] = useState<GpoRouteItem[]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom:gpoRoutes') ?? '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('easycom:gpoRoutes', JSON.stringify(gpoRouteItems)) } catch {}
+    // Resync all GPO routes to server
+    gpoRouteItems.forEach(r => socket.emit('client:gpo:route', {
+      clientId: r.clientId, route: { ip: r.ip, port: r.port, onMsg: r.onMsg, offMsg: r.offMsg }
+    }))
+  }, [gpoRouteItems])
 
   // 🔥 Update mixer when mobile client changes gain
   useEffect(() => {
@@ -641,6 +662,7 @@ const HostView = (props: any) => {
                         roles={roles}
                         tallyState={tallyStates[c.id] ?? 'off'}
                         onTallySet={(state) => socket.emit('tally:set', { clientId: c.id, state })}
+                        gpoActive={!!gpoStates[c.id]}
                         connectedSources={(() => {
                           // Find other online clients that share a bridge channel with this card
                           const myBridgeChannels = new Set(
@@ -857,12 +879,20 @@ const HostView = (props: any) => {
                   clients={regularClients}
                   mappings={gpiMappings}
                   onMappingsChange={(m) => {
-                    setGpiMappings(m)
-                    // Remove deleted pins from server
                     const newPins = new Set(m.map(x => x.pin))
                     gpiMappings.forEach(old => {
                       if (!newPins.has(old.pin)) socket.emit('tally:gpi:map', { pin: old.pin, clientId: old.clientId, state: 'remove' })
                     })
+                    setGpiMappings(m)
+                  }}
+                  gpoRoutes={gpoRouteItems}
+                  onGpoRoutesChange={(r) => {
+                    // Notify server of removed routes
+                    const newIds = new Set(r.map(x => x.clientId))
+                    gpoRouteItems.forEach(old => {
+                      if (!newIds.has(old.clientId)) socket.emit('client:gpo:route', { clientId: old.clientId, route: null })
+                    })
+                    setGpoRouteItems(r)
                   }}
                   themeColor={themeColor}
                 />
@@ -2105,20 +2135,31 @@ function EasyComLicense() {
 // ── Tally / GPI mapping tab ──────────────────────────────────────────────────
 type GpiMappingRow = { pin: number; clientId: string; state: 'program' | 'preview' }
 
+type GpoRouteRow = { clientId: string; ip: string; port: number; onMsg: string; offMsg: string }
+
 function TallyGPITab({
   clients,
   mappings,
   onMappingsChange,
+  gpoRoutes,
+  onGpoRoutesChange,
   themeColor,
 }: {
   clients: { id: string; name: string }[]
   mappings: GpiMappingRow[]
   onMappingsChange: (m: GpiMappingRow[]) => void
+  gpoRoutes: GpoRouteRow[]
+  onGpoRoutesChange: (r: GpoRouteRow[]) => void
   themeColor: string
 }) {
   const [newPin, setNewPin]         = React.useState<number>(1)
   const [newClient, setNewClient]   = React.useState(clients[0]?.id ?? '')
   const [newState, setNewState]     = React.useState<'program' | 'preview'>('program')
+  const [gpoClient, setGpoClient]   = React.useState(clients[0]?.id ?? '')
+  const [gpoIp, setGpoIp]           = React.useState('192.168.1.100')
+  const [gpoPort, setGpoPort]       = React.useState(9001)
+  const [gpoOnMsg, setGpoOnMsg]     = React.useState('GPO_ON')
+  const [gpoOffMsg, setGpoOffMsg]   = React.useState('GPO_OFF')
   const accent = themeColor === 'orange' ? '#f97316' : '#3b82f6'
 
   const addMapping = () => {
@@ -2228,6 +2269,81 @@ function TallyGPITab({
         <p className="text-white/35 leading-relaxed">
           Klik <span className="font-bold text-red-400">R</span> eller <span className="font-bold text-amber-400">P</span> direkte på et client-kort i grid-visningen for at sætte tally manuelt.
         </p>
+      </div>
+
+      {/* ── GPO routing: phone button → UDP out ── */}
+      <div className="border-t border-white/5 pt-4">
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">GPO-routing (telefon → UDP ud)</h3>
+        <p className="text-white/35 mb-3 leading-relaxed">
+          Når en journalist trykker begge øverste TB-knapper samtidig (GPO aktiveret i telefon-settings), sender serveren en UDP-besked til den konfigurerede IP:port.
+        </p>
+
+        {/* Add GPO route */}
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">Client</span>
+            <select value={gpoClient} onChange={e => setGpoClient(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs">
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">IP</span>
+            <input value={gpoIp} onChange={e => setGpoIp(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono"
+              placeholder="192.168.1.100" />
+            <span className="text-white/40 shrink-0">Port</span>
+            <input type="number" value={gpoPort} onChange={e => setGpoPort(parseInt(e.target.value) || 9001)}
+              className="w-16 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono text-center" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">ON msg</span>
+            <input value={gpoOnMsg} onChange={e => setGpoOnMsg(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono" />
+            <span className="text-white/40 shrink-0">OFF</span>
+            <input value={gpoOffMsg} onChange={e => setGpoOffMsg(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono" />
+          </div>
+          <button
+            onClick={() => {
+              const without = gpoRoutes.filter(r => r.clientId !== gpoClient)
+              onGpoRoutesChange([...without, { clientId: gpoClient, ip: gpoIp, port: gpoPort, onMsg: gpoOnMsg, offMsg: gpoOffMsg }])
+            }}
+            className="px-3 py-1 rounded font-bold text-white text-xs"
+            style={{ background: accent }}
+          >Gem GPO-route</button>
+        </div>
+
+        {/* GPO route table */}
+        {gpoRoutes.length > 0 && (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-white/30 text-[10px] uppercase tracking-wider border-b border-white/5">
+                <th className="text-left py-1.5 px-2">Client</th>
+                <th className="text-left py-1.5 px-2">IP:Port</th>
+                <th className="text-left py-1.5 px-2">ON / OFF</th>
+                <th className="py-1.5 px-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {gpoRoutes.map(r => (
+                <tr key={r.clientId} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="py-1.5 px-2 text-white/70">{clients.find(c => c.id === r.clientId)?.name ?? r.clientId}</td>
+                  <td className="py-1.5 px-2 font-mono text-white/60 text-[10px]">{r.ip}:{r.port}</td>
+                  <td className="py-1.5 px-2 font-mono text-[10px]">
+                    <span className="text-green-400">{r.onMsg}</span>
+                    <span className="text-white/30"> / </span>
+                    <span className="text-red-400">{r.offMsg}</span>
+                  </td>
+                  <td className="py-1.5 px-2 text-right">
+                    <button onClick={() => onGpoRoutesChange(gpoRoutes.filter(x => x.clientId !== r.clientId))}
+                      className="text-white/20 hover:text-red-400 transition-colors">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
