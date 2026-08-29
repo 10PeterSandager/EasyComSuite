@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { socket } from "../client/webrtc/intercom"
 import { Client } from "../types"
-import { List, Grid3X3 } from "lucide-react"
+import { List, Grid3X3, Search, X } from "lucide-react"
 
 type Connection = {
   from: string
   to: string
   channel: number
+  toChannel?: number
+}
+
+type CtxMenu = {
+  x: number
+  y: number
+  rowClient: Client
+  colClient: Client
+  conn: Connection | null
 }
 
 type Props = {
@@ -16,127 +25,255 @@ type Props = {
 
 const channelColors = [
   "#ef4444","#3b82f6","#22c55e","#a855f7",
-  "#f97316","#06b6d4","#eab308","#ec4899"
+  "#f97316","#06b6d4","#eab308","#ec4899",
 ]
 
 export default function RoutingOverview({ clients, theme = "orange" }: Props) {
 
   const [connections, setConnections] = useState<Connection[]>([])
-  const [view, setView] = useState<"list" | "matrix">("list")
+  const [view, setView]               = useState<"list" | "matrix">("list")
+  const [ctxMenu, setCtxMenu]         = useState<CtxMenu | null>(null)
+  const [filterId, setFilterId]       = useState("")
+  const [searchText, setSearchText]   = useState("")
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const themeColor = theme === "orange" ? "orange" : "blue"
 
-  /* ---------- LOAD ---------- */
+  /* ── data ── */
 
   useEffect(() => {
-    const refresh = (list: Connection[]) => setConnections(list)
+    const refresh = (list: Connection[]) => setConnections(Array.isArray(list) ? list : [])
     socket.emit("connections:list", refresh)
     socket.on("connections:all", refresh)
     return () => { socket.off("connections:all", refresh) }
   }, [])
 
-  /* ---------- HELPERS ---------- */
+  /* ── close context menu on outside click ── */
+
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setCtxMenu(null)
+    }
+    window.addEventListener("mousedown", handler)
+    return () => window.removeEventListener("mousedown", handler)
+  }, [ctxMenu])
+
+  /* ── helpers ── */
 
   const getName = (id: string) =>
-    clients.find(c => c.id === id)?.name ?? id.slice(0, 6)
+    clients.find(c => c.id === id)?.name ?? id.slice(0, 8)
 
-  const channelColor = (ch: number) =>
-    channelColors[(ch - 1) % channelColors.length]
+  const chColor = (ch: number) => channelColors[(ch - 1) % channelColors.length]
 
-  /* ---------- DISCONNECT ---------- */
-
-  const disconnect = (c: Connection) => {
-    socket.emit("connection:remove", c)
+  const removeConn = (c: Connection) => {
+    socket.emit("connection:remove", { ...c, bidirectional: false })
+    setCtxMenu(null)
   }
 
-  const clearAll = () => {
+  const createConn = (from: string, to: string, ch: number) => {
+    socket.emit("connection:create", { from, to, channel: ch, bidirectional: false })
+    setCtxMenu(null)
+  }
+
+  const clearAll = () =>
     connections.forEach(c => socket.emit("connection:remove", { ...c, bidirectional: false }))
-  }
 
-  /* ---------- LIST VIEW ---------- */
+  /* ── filtered list ── */
+
+  const filtered = connections.filter(c => {
+    if (filterId && c.from !== filterId && c.to !== filterId) return false
+    if (searchText) {
+      const q = searchText.toLowerCase()
+      if (!getName(c.from).toLowerCase().includes(q) &&
+          !getName(c.to).toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  /* ── LIST VIEW ── */
 
   const ListView = () => (
-    <div className="overflow-auto">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="text-white/30 border-b border-white/5">
-            <th className="text-left py-2 px-3">Fra</th>
-            <th className="text-left py-2 px-3">Til</th>
-            <th className="text-left py-2 px-3">Kanal</th>
-            <th className="py-2 px-3" />
-          </tr>
-        </thead>
-        <tbody>
-          {connections.length === 0 && (
-            <tr>
-              <td colSpan={4} className="text-center py-8 text-white/20">
-                Ingen aktive forbindelser
-              </td>
-            </tr>
-          )}
-          {connections.map((c, i) => (
-            <tr key={i} className="border-b border-white/5 hover:bg-white/5">
-              <td className="py-2 px-3 font-bold">{getName(c.from)}</td>
-              <td className="py-2 px-3 font-bold">{getName(c.to)}</td>
-              <td className="py-2 px-3">
-                <span
-                  className="px-2 py-0.5 rounded text-[10px] font-bold"
-                  style={{
-                    background: channelColor(c.channel) + "33",
-                    color: channelColor(c.channel)
-                  }}
-                >
-                  CH {c.channel}
-                </span>
-              </td>
-              <td className="py-2 px-3 text-right">
-                <button
-                  onClick={() => disconnect(c)}
-                  className="text-white/20 hover:text-red-400 text-[10px]"
-                >
-                  ✕
-                </button>
-              </td>
-            </tr>
+    <div>
+      {/* search bar */}
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+          <input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search…"
+            className="w-full pl-7 pr-2 py-1.5 rounded text-[11px] bg-white/5 border border-white/10 text-white placeholder-white/25 outline-none focus:border-white/20 transition-colors"
+          />
+        </div>
+        <select
+          value={filterId}
+          onChange={e => setFilterId(e.target.value)}
+          className="px-2 py-1.5 rounded text-[11px] bg-white/5 border border-white/10 text-white outline-none cursor-pointer"
+          style={{ maxWidth: 150 }}
+        >
+          <option value="">All clients</option>
+          {clients.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
-        </tbody>
-      </table>
+        </select>
+        {(filterId || searchText) && (
+          <button
+            onClick={() => { setFilterId(""); setSearchText("") }}
+            className="px-2 rounded text-white/40 hover:text-white bg-white/5 border border-white/10 transition-colors"
+            title="Clear filter"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* table */}
+      <div className="overflow-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="text-white/30 border-b border-white/5 text-[10px] uppercase tracking-wider">
+              <th className="text-left py-2 px-3 font-semibold">From</th>
+              <th className="text-left py-2 px-3 font-semibold">To</th>
+              <th className="text-left py-2 px-3 font-semibold">Channel</th>
+              <th className="py-2 px-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center py-10 text-white/20 text-xs">
+                  {filterId || searchText ? "No matching connections" : "No active connections"}
+                </td>
+              </tr>
+            )}
+            {filtered.map((c, i) => (
+              <tr key={i} className="border-b border-white/5 hover:bg-white/4 group">
+                <td className="py-2 px-3 font-bold text-white/80">{getName(c.from)}</td>
+                <td className="py-2 px-3 font-bold text-white/80">{getName(c.to)}</td>
+                <td className="py-2 px-3">
+                  <span
+                    className="px-2 py-0.5 rounded text-[10px] font-bold"
+                    style={{ background: chColor(c.channel) + "33", color: chColor(c.channel) }}
+                  >
+                    CH {c.channel}
+                  </span>
+                  {c.toChannel != null && (
+                    <span className="ml-1.5 text-white/30 text-[9px]">TB{c.toChannel}</span>
+                  )}
+                </td>
+                <td className="py-2 px-3 text-right">
+                  <button
+                    onClick={() => removeConn(c)}
+                    className="text-white/15 hover:text-red-400 transition-colors text-[11px] opacity-0 group-hover:opacity-100"
+                    title="Remove connection"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 
-  /* ---------- MATRIX VIEW ---------- */
+  /* ── MATRIX VIEW ── */
 
   const MatrixView = () => {
-
     const activeIds = Array.from(new Set([
       ...connections.map(c => c.from),
-      ...connections.map(c => c.to)
+      ...connections.map(c => c.to),
     ]))
+    const cols = clients.filter(c => activeIds.includes(c.id))
 
-    const relevantClients = clients.filter(c => activeIds.includes(c.id))
-
-    if (relevantClients.length === 0) {
+    if (cols.length === 0) {
       return (
         <div className="flex items-center justify-center py-16 text-white/20 text-sm">
-          Ingen aktive forbindelser
+          No active connections
         </div>
       )
     }
 
+    const COL_W      = 52   // px per column cell
+    const LABEL_W    = 128  // px for the row-label column
+    const HEADER_H   = 100  // px for the rotated column headers
+
+    const onCtx = (
+      e: React.MouseEvent,
+      row: Client,
+      col: Client,
+      conn: Connection | null
+    ) => {
+      e.preventDefault()
+      // keep menu within viewport
+      const mw = 200, mh = conn ? 80 : 120
+      const x = Math.min(e.clientX, window.innerWidth  - mw - 8)
+      const y = Math.min(e.clientY, window.innerHeight - mh - 8)
+      setCtxMenu({ x, y, rowClient: row, colClient: col, conn })
+    }
+
     return (
       <div className="overflow-auto">
-        <table className="text-[10px] border-collapse">
+        <table
+          className="text-[10px] border-collapse"
+          style={{ tableLayout: "fixed", borderSpacing: 0 }}
+        >
+          <colgroup>
+            <col style={{ width: LABEL_W }} />
+            {cols.map(c => <col key={c.id} style={{ width: COL_W }} />)}
+          </colgroup>
           <thead>
             <tr>
-              {/* top-left corner */}
-              <th className="w-24 h-24 relative">
-                <div className="absolute bottom-2 left-2 text-white/20 text-[9px]">FRA ↓ / TIL →</div>
+              {/* ── corner ── */}
+              <th
+                className="border-r border-b border-white/8 relative select-none"
+                style={{ width: LABEL_W, height: HEADER_H }}
+              >
+                {/* diagonal rule */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  viewBox={`0 0 ${LABEL_W} ${HEADER_H}`}
+                  preserveAspectRatio="none"
+                >
+                  <line
+                    x1="0" y1="0" x2={LABEL_W} y2={HEADER_H}
+                    stroke="rgba(255,255,255,0.06)" strokeWidth="1"
+                  />
+                </svg>
+                <span
+                  className="absolute top-2 right-2 text-white/25"
+                  style={{ fontSize: 9, letterSpacing: "0.04em" }}
+                >
+                  TO →
+                </span>
+                <span
+                  className="absolute bottom-2 left-2 text-white/25"
+                  style={{ fontSize: 9, letterSpacing: "0.04em" }}
+                >
+                  FROM ↓
+                </span>
               </th>
-              {relevantClients.map(c => (
-                <th key={c.id} className="h-24 w-16 align-bottom pb-2">
+
+              {/* ── column headers (rotated) ── */}
+              {cols.map(c => (
+                <th
+                  key={c.id}
+                  className="border-r border-b border-white/8 align-bottom"
+                  style={{ width: COL_W, height: HEADER_H, paddingBottom: 6 }}
+                >
                   <div
-                    className="whitespace-nowrap origin-bottom-left text-white/60 font-bold"
-                    style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", maxHeight: 88 }}
+                    className="text-white/55 font-semibold overflow-hidden mx-auto"
+                    style={{
+                      writingMode: "vertical-rl",
+                      transform: "rotate(180deg)",
+                      maxHeight: HEADER_H - 12,
+                      fontSize: 10,
+                      lineHeight: 1.2,
+                      width: "fit-content",
+                    }}
                   >
                     {c.name}
                   </div>
@@ -144,39 +281,57 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
               ))}
             </tr>
           </thead>
+
           <tbody>
-            {relevantClients.map(rowClient => (
-              <tr key={rowClient.id} className="border-b border-white/5">
-                <td className="py-1 pr-3 font-bold text-white/60 whitespace-nowrap border-r border-white/5">
-                  {rowClient.name}
+            {cols.map(row => (
+              <tr key={row.id} className="border-b border-white/5">
+                {/* row label */}
+                <td
+                  className="py-1.5 pl-3 pr-2 font-semibold text-white/55 whitespace-nowrap border-r border-white/8"
+                  style={{ fontSize: 11, width: LABEL_W }}
+                >
+                  {row.name}
                 </td>
-                {relevantClients.map(colClient => {
+
+                {/* cells */}
+                {cols.map(col => {
                   const conn = connections.find(
-                    c => c.from === rowClient.id && c.to === colClient.id
+                    c => c.from === row.id && c.to === col.id
                   )
-                  const isSelf = rowClient.id === colClient.id
+                  const isSelf = row.id === col.id
 
                   return (
-                    <td key={colClient.id} className="w-16 h-8 text-center">
+                    <td
+                      key={col.id}
+                      className="text-center border-r border-white/5"
+                      style={{ width: COL_W, height: 36 }}
+                      onContextMenu={isSelf ? undefined : e => onCtx(e, row, col, conn ?? null)}
+                    >
                       {isSelf ? (
-                        <div className="w-full h-full bg-white/3 flex items-center justify-center">
-                          <span className="text-white/10">—</span>
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-white/8 text-[10px]">╲</span>
                         </div>
                       ) : conn ? (
                         <button
-                          onClick={() => disconnect(conn)}
-                          className="w-8 h-8 mx-auto rounded flex items-center justify-center font-bold hover:opacity-70 transition-opacity"
+                          onClick={() => removeConn(conn)}
+                          onContextMenu={e => onCtx(e, row, col, conn)}
+                          className="w-8 h-8 mx-auto flex items-center justify-center font-bold rounded transition-opacity hover:opacity-70"
                           style={{
-                            background: channelColor(conn.channel) + "33",
-                            color: channelColor(conn.channel),
-                            border: `1px solid ${channelColor(conn.channel)}66`
+                            background: chColor(conn.channel) + "33",
+                            color: chColor(conn.channel),
+                            border: `1px solid ${chColor(conn.channel)}66`,
+                            fontSize: 11,
                           }}
-                          title={`CH ${conn.channel} – klik for at fjerne`}
+                          title={`CH ${conn.channel} — right-click for options`}
                         >
                           {conn.channel}
                         </button>
                       ) : (
-                        <div className="w-8 h-8 mx-auto rounded border border-white/5" />
+                        <div
+                          className="w-8 h-8 mx-auto rounded border border-white/5 hover:border-white/20 hover:bg-white/3 transition-all cursor-context-menu"
+                          onContextMenu={e => onCtx(e, row, col, null)}
+                          title="Right-click to create connection"
+                        />
                       )}
                     </td>
                   )
@@ -189,23 +344,85 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
     )
   }
 
-  /* ---------- RENDER ---------- */
+  /* ── CONTEXT MENU ── */
+
+  const ContextMenu = () => {
+    if (!ctxMenu) return null
+    const { x, y, rowClient, colClient, conn } = ctxMenu
+    return (
+      <div
+        ref={menuRef}
+        className="fixed z-50 rounded-xl shadow-2xl overflow-hidden"
+        style={{
+          left: x, top: y,
+          background: "#1c1c1e",
+          border: "1px solid rgba(255,255,255,0.1)",
+          minWidth: 190,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        }}
+        onContextMenu={e => e.preventDefault()}
+      >
+        {/* header */}
+        <div className="px-3 py-2 border-b border-white/8">
+          <div className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+            {conn ? "Connection" : "New connection"}
+          </div>
+          <div className="text-xs text-white/70 font-bold mt-0.5">
+            {rowClient.name} → {colClient.name}
+          </div>
+        </div>
+
+        {conn ? (
+          /* remove */
+          <button
+            onClick={() => removeConn(conn)}
+            className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <span className="text-[11px]">✕</span>
+            Remove CH {conn.channel}
+          </button>
+        ) : (
+          /* create — pick channel */
+          <div className="p-3 space-y-2">
+            <div className="text-[10px] text-white/35">Select channel:</div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(ch => (
+                <button
+                  key={ch}
+                  onClick={() => createConn(rowClient.id, colClient.id, ch)}
+                  className="h-7 rounded text-[10px] font-bold flex items-center justify-center transition-opacity hover:opacity-75"
+                  style={{
+                    background: chColor(ch) + "33",
+                    color: chColor(ch),
+                    border: `1px solid ${chColor(ch)}55`,
+                  }}
+                >
+                  {ch}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /* ── RENDER ── */
 
   return (
     <div className="h-full flex flex-col">
 
-      {/* HEADER */}
+      {/* header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
         <div>
-          <h2 className="text-sm font-bold">Routing oversigt</h2>
-          <p className="text-[10px] text-white/30">{connections.length} aktive forbindelser</p>
+          <h2 className="text-sm font-bold">Routing overview</h2>
+          <p className="text-[10px] text-white/30">{connections.length} active connections</p>
         </div>
         <div className="flex gap-1 items-center">
           {connections.length > 0 && (
             <button
               onClick={clearAll}
-              className="px-2 py-1 rounded text-[9px] font-black text-red-400/70 hover:text-red-400 hover:bg-red-950/30 transition-colors border border-transparent hover:border-red-500/20 mr-1"
-              title="Remove all connections"
+              className="px-2 py-1 rounded text-[9px] font-black text-red-400/60 hover:text-red-400 hover:bg-red-950/30 transition-colors border border-transparent hover:border-red-500/20 mr-1"
             >
               Clear all
             </button>
@@ -225,11 +442,12 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
         </div>
       </div>
 
-      {/* CONTENT */}
+      {/* content */}
       <div className="flex-1 overflow-auto p-4">
         {view === "list" ? <ListView /> : <MatrixView />}
       </div>
 
+      <ContextMenu />
     </div>
   )
 }
