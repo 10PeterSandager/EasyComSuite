@@ -2054,110 +2054,353 @@ function EasyComManual() {
   return (
     <div className="space-y-0 max-w-2xl">
       <DocH1>EasyCom — Brugermanual</DocH1>
-      <p className="text-[9px] text-white/25 uppercase tracking-widest mb-6">Version 1.0 · Broadcast Intercom System</p>
+      <p className="text-[9px] text-white/25 uppercase tracking-widest mb-6">Version 2.0 · Broadcast Intercom System</p>
 
+      {/* ── 1. OVERSIGT ─────────────────────────────────────────── */}
       <DocH2>1. Oversigt</DocH2>
       <DocP>
-        EasyCom er et professionelt broadcast intercom-system til tv- og radioproduktioner. Systemet bruger WebRTC til lav-latens audiokommunikation over LAN eller internet.
-        Arkitekturen består af en HOST-server der kører på en Mac, og klienter der forbinder via webbrowser eller mobilapp.
+        EasyCom er et professionelt broadcast intercom-system til tv-, radio- og eventproduktioner.
+        Systemet bruger WebRTC til lav-latens audiokommunikation (typisk 150–250 ms) over LAN eller internet.
+        Arkitekturen består af én HOST-server der kører på en Mac, og klienter der forbinder via webbrowser eller iOS-app.
+        Alt signal transporteres som krypteret WebRTC — ingen separat krypterings-lag er nødvendigt.
       </DocP>
 
+      {/* ── 2. KLIENTTYPER ──────────────────────────────────────── */}
       <DocH2>2. Klienttyper</DocH2>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi><span className="text-white font-bold">Desktop</span> — PC/Mac-klient med op til 16 talekanaler (TB1–TB16) og 16 modtagekanaler.</DocLi>
-        <DocLi><span className="text-white font-bold">Mobile</span> — iOS-app med 4 talekanaler og 8 modtagekanaler. Optimeret til håndholdt brug.</DocLi>
-        <DocLi><span className="text-white font-bold">Remote</span> — Web-baseret klient til iPad/tablet. Ingen installation — åbnes i browser via QR-kode.</DocLi>
-        <DocLi><span className="text-white font-bold">BASE</span> — Serverens egen mikrofon og højttaleroutput. Altid til stede som "producer-65".</DocLi>
+        <DocLi><span className="text-white font-bold">Desktop</span> — PC/Mac-klient der åbnes i browser. Op til 16 talekanaler (TB1–TB16) og 16 modtagekanaler. Fuld opsætnings-adgang via SETUP-panel.</DocLi>
+        <DocLi><span className="text-white font-bold">Mobile</span> — iOS-app (EasyCom Mobile). 4 taleknapper og op til 8 modtagekanaler. Optimeret til håndholdt brug under optagelse.</DocLi>
+        <DocLi><span className="text-white font-bold">Remote</span> — Webbaseret iPad/tablet-klient. Åbnes i Safari — ingen installation. 4×4 gitterlayout med konfigurerbare kanalknapper.</DocLi>
+        <DocLi><span className="text-white font-bold">BASE</span> — Serverens egen mikrofon/højtaler-output. Altid til stede som intern klient (producer-65). Styres via ProducerStrip i GRID-panelet.</DocLi>
       </ul>
 
+      {/* ── 3. FØRSTE OPSÆTNING ─────────────────────────────────── */}
       <DocH2>3. Første opsætning</DocH2>
       <DocP>
-        Installér serveren via EasyCom Server DMG. Efter installation startes serveren automatisk og er tilgængelig på{" "}
+        Installér serveren via EasyCom Server DMG (Mac). Serveren startes automatisk og er tilgængelig på{" "}
         <span className="font-mono text-orange-400">http://localhost:3000/host</span> fra HOST-maskinen.
+        Ved første start anbefales følgende opsætnings-rækkefølge:
       </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi>Åbn SETUP → Network → indtast Server IP (LAN-IP eller domæne).</DocLi>
-        <DocLi>For internet-adgang: konfigurér TURN-server (anbefales metered.ca).</DocLi>
-        <DocLi>Cloudflare Tunnel startes automatisk og giver en sikker HTTPS-adresse.</DocLi>
+        <DocLi>Åbn SETUP → Network → angiv serverens IP-adresse (se afsnit 7 for detaljer).</DocLi>
+        <DocLi>Opret klienter i GRID-tabben (afsnit 4).</DocLi>
+        <DocLi>Opsæt forbindelser via klik eller drag-to-connect (afsnit 5).</DocLi>
+        <DocLi>Konfigurér Audio I/O hvis eksternt lydkort bruges (afsnit 9).</DocLi>
+        <DocLi>Aktivér Cloudflare Tunnel for internet-adgang (afsnit 7.3).</DocLi>
       </ul>
 
-      <DocH2>4. Oprette klienter</DocH2>
+      {/* ── 4. OPRETTE OG ADMINISTRERE KLIENTER ────────────────── */}
+      <DocH2>4. Oprette og administrere klienter</DocH2>
       <DocP>
-        I GRID-tabben trykkes <span className="text-white font-bold">＋</span> for at oprette en ny klient. Angiv navn, type (desktop/mobile/remote) og en 4-cifret PIN-kode.
-        Klienten forbinder via QR-kode eller URL og logger ind med PIN.
-      </DocP>
-
-      <DocH2>5. Forbindelser</DocH2>
-      <DocP>
-        Klik på et klientkort for at åbne forbindelses-panelet. Her opsættes talk- og modtageforbindelser per kanal.
+        I GRID-tabben trykkes <span className="text-white font-bold">＋</span> (øverst til højre) for at oprette én eller flere klienter ad gangen.
+        Angiv antal, navn og type. Systemet tildeler automatisk en unik ID og 4-cifret PIN.
       </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi><span className="text-white font-bold">TALK</span> — udgående kommunikation. Klienten trykker på TB-knappen for at tale.</DocLi>
-        <DocLi><span className="text-white font-bold">RECEIVE</span> — indgående lyd til klientens høretelefoner.</DocLi>
-        <DocLi>Forbindelser kan trækkes med mus i GRID-visning (drag-to-connect).</DocLi>
-        <DocLi>Bidirektionelle forbindelser oprettes automatisk ved gruppeaktivering.</DocLi>
+        <DocLi><span className="text-white font-bold">PIN-kode</span> — vises på klientkortet. Klienten indtaster PIN ved første forbindelse.</DocLi>
+        <DocLi><span className="text-white font-bold">Skjul klient</span> — højreklik på kortet → "Skjul". Klienten forbliver aktiv men vises ikke i gitteret.</DocLi>
+        <DocLi><span className="text-white font-bold">Omdøb</span> — dobbeltklik på klientnavnet på kortet.</DocLi>
+        <DocLi><span className="text-white font-bold">Kortets farve</span> — afspejler klienttypen: grøn = online, grå = offline, rød = fejl.</DocLi>
+        <DocLi><span className="text-white font-bold">Zoom</span> — skaleringsskyder i topmenu justerer kortstørrelse (40–160%).</DocLi>
+        <DocLi><span className="text-white font-bold">Rækkefølge</span> — klik og træk kort for at omarrangere gitteret. Rækkefølgen gemmes.</DocLi>
       </ul>
+      <DocP>
+        Højreklik på et klientkort åbner en kontekstmenu med muligheder for lydkimse (tonetest), IFB, kanalforbindelser og sletning.
+      </DocP>
 
+      {/* ── 5. FORBINDELSER ─────────────────────────────────────── */}
+      <DocH2>5. Forbindelser og kanaler</DocH2>
+      <DocP>
+        Forbindelser definerer hvem der kan tale til hvem, og på hvilken kanal. Hvert par af klienter kan have uafhængige
+        tale- og lytteforbindelser per kanal (1–16).
+      </DocP>
+      <DocP>
+        <span className="text-white font-bold">Åbn forbindelses-panelet</span> ved at klikke direkte på et klientkort (ikke højreklik).
+        Panelet viser alle aktive TALK- og RECEIVE-forbindelser for den valgte klient.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">TALK</span> — udgående lyd. Kilde-klienten trykker en TB-knap → destinationens modtager hører lyden. Kanal og TB-nummer vælges uafhængigt.</DocLi>
+        <DocLi><span className="text-white font-bold">RECEIVE</span> — indgående lyd til klientens øretelefon/højtaler.</DocLi>
+        <DocLi><span className="text-white font-bold">Drag-to-connect</span> — træk fra et klientkort til et andet i GRID-visning for at oprette en hurtig bidirektionel forbindelse.</DocLi>
+        <DocLi><span className="text-white font-bold">Kanal vs. TB-knap</span> — kanalnummeret (1–16) er routing-bussen i serveren. TB-knappen er den fysiske knap klienten trykker. De kan sættes til samme nummer (typisk) eller adskilles.</DocLi>
+        <DocLi><span className="text-white font-bold">Lydkort-output</span> — i forbindelses-panelet kan en klient routes direkte til en hardware-outputkanal på serverens lydkort.</DocLi>
+      </ul>
+      <DocP>
+        <span className="text-white font-bold">ROUTING OVERVIEW</span> (vises via Route-ikonet i topmenuen) giver et grafisk overblik over alle aktive forbindelser på tværs af klienter og kanaler.
+      </DocP>
+
+      {/* ── 6. GRUPPER ──────────────────────────────────────────── */}
       <DocH2>6. Grupper</DocH2>
       <DocP>
-        I GROUP-panelet oprettes grupper af klienter der alle skal høre hinanden. Grupper har en dedikeret kanal og kan aktiveres/deaktiveres med ét klik.
-        PTT (push-to-talk) og LATCH (låst tale) styres per gruppe.
+        Grupper samler flere klienter i en fælles talk-kanal. Alle gruppemedlemmer hører hinanden, og én aktivering opretter automatisk alle par-forbindelser.
       </DocP>
-
-      <DocH2>7. IFB — In-Fold Back</DocH2>
       <DocP>
-        IFB sender programmets lyd til klientens øre med reduceret lydstyrke (ducking) når taleknappen aktiveres.
-        Klik på headphone-ikonet ⊕ på klientkortet for at konfigurere IFB per klient.
-        Standardindstillinger for alle klienter sættes i SETUP → Global Setup.
+        <span className="text-white font-bold">Opret gruppe:</span> Vælg 2+ klientkort (Shift+klik eller klik flere) → tryk CREATE GROUP i topmenuen.
+        I oprettelses-formularen vælges:
       </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi><span className="text-white font-bold">Duck-niveau</span> — procentdel der sænkes (0% = ingen sænkning, 100% = fuld mute).</DocLi>
-        <DocLi><span className="text-white font-bold">Kanal mute</span> — kanalers IFB-lyd kan slukkes individuelt.</DocLi>
+        <DocLi><span className="text-white font-bold">Navn og farve</span> — identificerer gruppen i GROUP-panelet.</DocLi>
+        <DocLi><span className="text-white font-bold">Kanal (1–16)</span> — den audio-routing-bus gruppen bruger. Modtagerne hører lyden på dette kanalnummer.</DocLi>
+        <DocLi><span className="text-white font-bold">TB-knap (1–8)</span> — hvilken taleknap gruppemedlemmerne trykker for at sende. Følger automatisk kanal-valget, men kan sættes separat. TB 1–4 virker på både telefon og desktop; TB 5–8 kun på desktop.</DocLi>
+      </ul>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">Aktivér gruppe</span> — tryk ▶ på gruppen i GROUP-panelet. Alle forbindelser oprettes øjeblikkeligt.</DocLi>
+        <DocLi><span className="text-white font-bold">Deaktivér gruppe</span> — tryk ■. Alle gruppens forbindelser fjernes.</DocLi>
+        <DocLi><span className="text-white font-bold">PTT i GROUP-panel</span> — klienten holder knappen nede for at tale til gruppen (push-to-talk).</DocLi>
+        <DocLi><span className="text-white font-bold">LATCH</span> — låser talen åben indtil LATCH trykkes igen.</DocLi>
+        <DocLi><span className="text-white font-bold">Rediger</span> — klik på gruppenavnet for at tilføje/fjerne medlemmer eller ændre kanal.</DocLi>
       </ul>
 
-      <DocH2>8. Audio I/O</DocH2>
+      {/* ── 7. NETVÆRK ──────────────────────────────────────────── */}
+      <DocH2>7. Netværk og forbindelsestyper</DocH2>
       <DocP>
-        I SETUP → Audio I/O konfigureres serverens lydkort. Inputkanaler bruges til at injicere eksternt audiosignal (f.eks. programmix).
-        Outputkanaler bruges til at sende intercom-lyd til eksterne enheder.
+        EasyCom understøtter tre overordnede netværksscenarier. Vælg det der passer til produktionens setup.
+      </DocP>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">7.1 LAN (lokalt netværk)</p>
+      <DocP>
+        Den enkleste opsætning. Server og alle klienter er på samme netværk (f.eks. produktions-wifi eller ethernetswitch).
+        Mobiltelefoner og tablets forbinder til serverens LAN-IP på port 3001 (HTTP — ingen SSL nødvendigt på LAN).
+        Desktop-klienter forbinder til port 3000 (HTTPS eller HTTP, afhænger af SSL-konfiguration).
       </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi>Klik ⚙️ på en kanal for at konfigurere gain og routing.</DocLi>
-        <DocLi>Bridge-kanaler vises i forbindelses-panelet og kan tildeles til klienter.</DocLi>
+        <DocLi>Find serverens LAN-IP: SETUP → Network → "Server IP". Typisk <span className="font-mono text-orange-400">192.168.x.x</span>.</DocLi>
+        <DocLi>Mobil: brug <span className="font-mono text-orange-400">http://192.168.x.x:3001</span> som server-URL i iOS-appen.</DocLi>
+        <DocLi>Desktop/Remote: åbn <span className="font-mono text-orange-400">http://192.168.x.x:3000/desktop</span> i browser.</DocLi>
+        <DocLi>TURN-server er ikke nødvendig på LAN — WebRTC forbinder direkte (peer-to-peer via server).</DocLi>
       </ul>
 
-      <DocH2>9. Snapshots</DocH2>
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">7.2 Internet via TURN-server</p>
       <DocP>
-        Gem hele opsætningen (klienter, forbindelser, grupper) som et snapshot. Snapshots kan indlæses igen ved næste produktion.
-        Klik på disk-ikonet i topmenuén for at gemme/indlæse.
+        Når klienter er på forskellige netværk (f.eks. journalist på location, host i studiet) kræver WebRTC en TURN-server
+        som relæ. TURN omgår NAT og firewalls ved at videresende al lyd via TURN-serverens IP.
       </DocP>
-
-      <DocH2>10. Remote (iPad/Tablet)</DocH2>
-      <DocP>
-        Remote-klienter åbner EasyCom i Safari på en tablet — ingen installation nødvendig.
-        Scan QR-koden fra SETUP → QR-kode (eller åbn{" "}
-        <span className="font-mono text-orange-400">http://localhost:3000/qr</span> på HOST-maskinen).
-        Remote-klienten tilbyder taleknapper og modtagekanaler tilsvarende en desktop-klient.
-      </DocP>
-
-      <DocH2>11. Sikkerhed</DocH2>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi>Session-adgangskode beskytter mod uautoriseret adgang (sættes i SETUP → Network).</DocLi>
-        <DocLi>SSL-certifikat konfigureres i SETUP → Network → SSL for HTTPS på eget domæne.</DocLi>
-        <DocLi>Cloudflare Tunnel giver automatisk HTTPS uden SSL-certifikat.</DocLi>
-        <DocLi>Klienternes PIN-kode er 4-cifret og unikt per klient.</DocLi>
+        <DocLi><span className="text-white font-bold">Anbefalet udbyder:</span> metered.ca — gratis op til 50 GB/måned. Opret konto, kopiér TURN URL, brugernavn og adgangskode.</DocLi>
+        <DocLi>Konfigurér i SETUP → Network → TURN Server: indsæt URL (<span className="font-mono text-orange-400">turn:eu.relay.metered.ca:80</span>), brugernavn og adgangskode.</DocLi>
+        <DocLi>TURN kræver at serveren er tilgængelig fra internet — kombinér med Cloudflare Tunnel (7.3) eller fast domæne (7.4).</DocLi>
+        <DocLi>Latens stiger typisk 20–80 ms ved TURN-relæ afhængigt af geografi.</DocLi>
       </ul>
 
-      <DocH2>12. Fejlfinding</DocH2>
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">7.3 Cloudflare Tunnel (anbefalet til internet)</p>
+      <DocP>
+        Cloudflare Tunnel opretter en sikker HTTPS-tunnel fra serveren til Cloudflares netværk — uden port-forwarding, fast IP
+        eller SSL-certifikat. Tunnelen starter automatisk og giver en unik URL (f.eks.{" "}
+        <span className="font-mono text-orange-400">https://xxxx.trycloudflare.com</span>).
+      </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
-        <DocLi><span className="text-white font-bold">Ingen lyd:</span> Tjek at browseren har givet mikrofonrettighed. iOS kræver HTTPS.</DocLi>
-        <DocLi><span className="text-white font-bold">Kan ikke forbinde:</span> Kontrollér at TURN-server er konfigureret ved internet-adgang.</DocLi>
-        <DocLi><span className="text-white font-bold">QR fejler:</span> Sørg for at Cloudflare Tunnel er aktiv (grønt ikon i topmenu).</DocLi>
-        <DocLi><span className="text-white font-bold">Server starter ikke:</span> Kør geninstallation fra EasyCom Server DMG.</DocLi>
-        <DocLi><span className="text-white font-bold">Factory Reset:</span> SETUP → Reset sletter alle klienter og forbindelser (netværksindstillinger bevares).</DocLi>
+        <DocLi>Aktiver i SETUP → Network → slå "Cloudflare Tunnel" til. Tunnelen starter og URL vises i topmenuen (globus-ikon).</DocLi>
+        <DocLi>URL skifter ved genstart af tunnel. Del den aktuelle URL med klienter via QR-kode (SETUP → QR-kode).</DocLi>
+        <DocLi>Mobil iOS-app: brug tunnel-URL + port 3001 ELLER kun tunnel-URL hvis serveren er konfigureret til kun HTTPS (port 3000).</DocLi>
+        <DocLi><span className="text-white font-bold">Vigtigt:</span> Socket.IO skal bruge WebSocket-transport (ikke HTTP long-polling) — iOS-appen er konfigureret korrekt hertil. Desktop-browsere forbinder automatisk korrekt.</DocLi>
+        <DocLi>Tunnel-status vises i topmenuen: grønt globus-ikon = aktiv, orange = starter, grå = inaktiv.</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">7.4 Fast domæne med SSL-certifikat</p>
+      <DocP>
+        For permanente installationer med fast IP eller domænenavn kan der konfigureres et SSL-certifikat (TLS).
+        Dette giver en fast HTTPS-adresse der ikke skifter ved genstart.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>SETUP → Network → SSL: angiv sti til <span className="font-mono text-orange-400">.crt</span>-certifikat og <span className="font-mono text-orange-400">.key</span>-nøglefil.</DocLi>
+        <DocLi>Anbefalet: Let's Encrypt certifikat via Certbot (gratis, auto-fornyelse).</DocLi>
+        <DocLi>Serveren genstarter automatisk efter SSL-konfiguration og kører herefter på HTTPS.</DocLi>
+        <DocLi>iOS-klienter skal stole på certifikatet: åbn <span className="font-mono text-orange-400">https://server-ip/cert</span> i Safari og installér certifikatet som profil.</DocLi>
+        <DocLi>Port 3000 = HTTPS (krypteret), port 3001 = HTTP (kun til LAN-klienter der ikke kan installere certifikat).</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">7.5 Session-adgangskode</p>
+      <DocP>
+        Beskytter mod uautoriseret adgang til systemet. Alle klienter der ikke forbinder fra localhost skal angive adgangskoden.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Sættes i SETUP → Network → Session Password. Tom = ingen adgangskode (åbent system).</DocLi>
+        <DocLi>Desktop og Remote: adgangskoden gemmes i browser og bruges automatisk ved genstart.</DocLi>
+        <DocLi>iOS-app: adgangskoden indtastes ved første forbindelse og gemmes i appen.</DocLi>
+        <DocLi>Localhost-forbindelser (HOST-maskinen selv) er altid tilladt uanset adgangskode.</DocLi>
+      </ul>
+
+      {/* ── 8. BACKUP OG FAILOVER ───────────────────────────────── */}
+      <DocH2>8. Backup og automatisk failover</DocH2>
+      <DocP>
+        EasyCom understøtter en aktiv/passiv failover-arkitektur med to servere: én <span className="text-white font-bold">main</span>-server
+        der håndterer al produktion, og én <span className="text-white font-bold">backup</span>-server der løbende modtager
+        en kopi af systemets tilstand. Hvis main-serveren falder ud, kan backup overtage på sekunder.
+      </DocP>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">8.1 Sådan virker det</p>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Main-serveren sender automatisk et state-snapshot (routing, grupper, klienter) til backup hvert 5. sekund.</DocLi>
+        <DocLi>Klienter modtager backup-serverens URL ved tilslutning og gemmer den lokalt.</DocLi>
+        <DocLi>Hvis main-serveren forsvinder, forsøger klienter automatisk at forbinde til backup-URL efter 10 sekunder.</DocLi>
+        <DocLi>Backup-operatøren kan manuelt udløse takeover med TAKE OVER-knappen — dette loader det seneste snapshot og broadcaster til alle klienter at backup nu er main.</DocLi>
+        <DocLi>Ved takeover genoprettes alle WebRTC-forbindelser (2–5 sekunders pause i lyd er uundgåeligt).</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">8.2 Opsætning — trin for trin</p>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">Trin 1 — Backup-server:</span> Installér EasyCom Server på backup-maskinen. Åbn host-UI → SETUP → Backup → tryk "Skift til BACKUP".</DocLi>
+        <DocLi><span className="text-white font-bold">Trin 2 — Main-server:</span> Åbn SETUP → Backup → indtast backup-serverens URL (f.eks. <span className="font-mono text-orange-400">https://192.168.1.200:3000</span>) → Gem. Sync-status skifter til grønt inden for 5 sekunder.</DocLi>
+        <DocLi><span className="text-white font-bold">Trin 3 — Verificér:</span> Backup-serverens SETUP → Backup viser "State modtaget fra main" og tidsstempel for seneste sync.</DocLi>
+        <DocLi><span className="text-white font-bold">Trin 4 — Test:</span> Stop main-serveren. Klienter skifter automatisk til backup inden for 10–15 sekunder.</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">8.3 Takeover-procedure (manuel)</p>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Åbn backup-serverens host-UI (f.eks. <span className="font-mono text-orange-400">https://backup-ip:3000/host</span>).</DocLi>
+        <DocLi>Gå til SETUP → Backup. Kontrollér at "State modtaget fra main" er grønt og tidsstemplet er aktuelt.</DocLi>
+        <DocLi>Tryk <span className="text-white font-bold">TAKE OVER SOM MAIN</span>. Bekræft i dialogboksen.</DocLi>
+        <DocLi>Backup loader seneste snapshot og sender automatisk et omstillings-signal til alle forbundne klienter.</DocLi>
+        <DocLi>Klienter der endnu ikke har forbundet til backup, finder vej dertil automatisk inden for 10 sekunder via den gemte backup-URL.</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">8.4 Netværkskrav til backup</p>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Backup-serveren skal være tilgængelig fra main-serverens netværk for at modtage sync (HTTP POST til <span className="font-mono text-orange-400">/api/backup/sync</span>).</DocLi>
+        <DocLi>Klienterne skal kunne nå backup-serverens URL — konfigurér samme netværksadgang som main (TURN, SSL, tunnel).</DocLi>
+        <DocLi>Backup og main kan være på helt forskellige netværk/lokationer. Internetforbindelse på begge er tilstrækkeligt.</DocLi>
+        <DocLi>Backup-serveren behøver ikke have et Cloudflare Tunnel aktivt — en fast IP eller domæne anbefales til backup.</DocLi>
+      </ul>
+
+      {/* ── 9. AUDIO I/O ────────────────────────────────────────── */}
+      <DocH2>9. Audio I/O — eksternt lydkort</DocH2>
+      <DocP>
+        I SETUP → Audio I/O konfigureres serverens lydkort. Dette giver mulighed for at injicere eksternt audiosignal
+        (f.eks. programmix, øregangslyd, send-lyd fra mixer) direkte ind i intercom-systemet.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">Input-kanaler (Bridge)</span> — hardware-input fra lydkortet, f.eks. kanal 1 = programmix. Vises som "Bridge CH1" i forbindelses-panelet og kan routes til en eller flere klienter.</DocLi>
+        <DocLi><span className="text-white font-bold">Output-kanaler</span> — send intercom-lyd fra en klient til et hardware-output (f.eks. højtaler i regirum).</DocLi>
+        <DocLi><span className="text-white font-bold">Stereo par</span> — to inputkanaler kan bindes som et stereopar og routes samlet til klienter.</DocLi>
+        <DocLi><span className="text-white font-bold">Gain</span> — justeres per kanal i konfigurationspanelet (⚙️ ved siden af kanalen).</DocLi>
+      </ul>
+      <DocP>
+        Bridge-kanaler vises med grønt indikatorlys i topmenuen når der er aktivt signal. Klik på indikatoren for at se niveauer.
+      </DocP>
+
+      {/* ── 10. IFB ─────────────────────────────────────────────── */}
+      <DocH2>10. IFB — In-Fold Back</DocH2>
+      <DocP>
+        IFB (In-Fold Back) sender programlyd (f.eks. transmission eller miks) til en klients øre.
+        Når klienten aktiverer en taleknap, sænkes (dukkes) programlyden automatisk så den ikke overdøver talen.
+      </DocP>
+      <DocP>
+        Klik på headphone-ikonet (🎧) på klientkortet for at åbne IFB-konfiguration:
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">IFB Aktiv</span> — toggle aktiverer/deaktiverer IFB for klienten. Telefonens skærm viser en aktiv IFB-indikator.</DocLi>
+        <DocLi><span className="text-white font-bold">Duck-niveau</span> — globalt: justerer duck-mængden for alle kanaler på én gang (0% = ingen sænkning, 100% = komplet mute).</DocLi>
+        <DocLi><span className="text-white font-bold">Per-kanal duck</span> — hvert kanalnummer har sit eget duck-niveau og mute-knap, så f.eks. kanal 1 (programmix) dukkes 70% mens kanal 3 (vært) ikke dukkes.</DocLi>
+        <DocLi><span className="text-white font-bold">Mute alle / Unmute alle</span> — slår alle kanaler til/fra med ét klik.</DocLi>
+        <DocLi><span className="text-white font-bold">Standardindstillinger</span> — i SETUP → Global Setup sættes standardindstillinger der gælder for alle nye klienter.</DocLi>
+      </ul>
+
+      {/* ── 11. TALLY OG GPO ────────────────────────────────────── */}
+      <DocH2>11. Tally og GPO</DocH2>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">11.1 Tally (ON AIR / STAND BY)</p>
+      <DocP>
+        Tally-systemet signalerer til klienter om de er "ON AIR" (rød) eller "STAND BY" (grøn).
+        Host-operatøren kan manuelt styre tally på hvert klientkort (klik på R/P-badge).
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Tally-statussen vises som et farvet badge på klientkortet (R = Recording/Program, P = Preview/Standby).</DocLi>
+        <DocLi>Mobiltelefoner viser et stort overlay på skærmen: rød "ON AIR" eller grøn "STAND BY".</DocLi>
+        <DocLi>GPI (General Purpose Input) fra hardware (Arduino, tally-controller) kan konfigureres til automatisk at styre tally-status via UDP-signaler.</DocLi>
+      </ul>
+
+      <p className="text-[9px] text-white/50 uppercase tracking-widest font-bold mb-1 mt-3">11.2 GPO (General Purpose Output)</p>
+      <DocP>
+        GPO giver mobiltelefoner mulighed for at sende et signal til en ekstern enhed (f.eks. en tally-light, et kamerasignal
+        eller et advarselssystem) via UDP.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Aktivér GPO-tilstand i telefonens indstillinger → GPO-knap vises som knap 4 (nederst til højre).</DocLi>
+        <DocLi>Tryk og hold GPO-knappen → et UDP-signal sendes til det konfigurerede IP:port.</DocLi>
+        <DocLi>GPO-routing konfigureres i SETUP → Tally/GPI: angiv mål-IP, port og UDP-besked for ON og OFF.</DocLi>
+        <DocLi>Tally/GPI-fanen viser status for alle konfigurerede GPI/GPO-ruter.</DocLi>
+      </ul>
+
+      {/* ── 12. LYDKIMSE (TONETEST) ─────────────────────────────── */}
+      <DocH2>12. Lydkimse — kanaltest</DocH2>
+      <DocP>
+        Lydkimse-funktionen sender en testtone (sinus, firkant eller savtand) fra serverens BASE-klient til én specifik klients
+        lyttekanal. Bruges til at verificere at routing og niveau er korrekt konfigureret.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Højreklik på klientkortet → "Lydkimser" → vælg kanal og frekvens.</DocLi>
+        <DocLi>Tonen sendes specifikt til den valgte klients lyttekanal — andre klienter hører ikke tonen.</DocLi>
+        <DocLi>Tilstand "Auto": tonen sendes automatisk ved klik. Tilstand "Manual": hold PTT-knap i Lydkimse-panelet for at sende.</DocLi>
+        <DocLi>Niveau-meter viser udgangsniveauet i realtid. Juster volumen med slideren.</DocLi>
+      </ul>
+
+      {/* ── 13. SNAPSHOTS ───────────────────────────────────────── */}
+      <DocH2>13. Snapshots</DocH2>
+      <DocP>
+        Et snapshot gemmer hele produktionsopsætningen: klienter, forbindelser, grupper og panel-layouts.
+        Snapshots bruges til at gendanne en production-state ved næste brug, eller til at skifte hurtigt mellem to produktioner.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Gem snapshot: klik disk-ikonet (💾) i topmenuen → angiv filnavn → Gem.</DocLi>
+        <DocLi>Indlæs snapshot: disk-ikon → vælg fil → Indlæs. Alle aktive forbindelser erstattes.</DocLi>
+        <DocLi>Serveren gemmer automatisk tilstanden til <span className="font-mono text-orange-400">data.json</span> og gendanner den ved genstart. Snapshots er manuelt gemte versioner heraf.</DocLi>
+      </ul>
+
+      {/* ── 14. REMOTE PANEL (IPAD) ─────────────────────────────── */}
+      <DocH2>14. Remote panel (iPad/tablet)</DocH2>
+      <DocP>
+        Remote-klienten er en webbaseret intercom-klient optimeret til iPad og tablets. Den åbnes i Safari og kræver ingen app-installation.
+        Layoutet viser op til 16 konfigurerbare kanalknapper i et gitter.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>QR-kode: SETUP → QR-kode på HOST-maskinen → scan med tablet. Giver direkte adgang til Remote-URL.</DocLi>
+        <DocLi>Remote-URL: <span className="font-mono text-orange-400">https://server-adresse/remote</span></DocLi>
+        <DocLi>Host-operatøren kan push-konfigurere Remote-panelet fra GRID → REMOTE-tabben: tildel klientknapper til hvert slot.</DocLi>
+        <DocLi>Remote-klienten kræver HTTPS (mobilbrowsere blokerer mikrofon på HTTP). Brug Cloudflare Tunnel eller SSL-certifikat.</DocLi>
+        <DocLi>Remote-klienten fungerer som en fuld desktop-klient med PTT og LATCH per kanal.</DocLi>
+      </ul>
+
+      {/* ── 15. MIDI-REMOTE (ARDUINO) ───────────────────────────── */}
+      <DocH2>15. Fysisk remote — Arduino MIDI</DocH2>
+      <DocP>
+        En Arduino Pro Micro (ATmega32U4) med KPD-01 trykknap-keypad kan bruges som fysisk remote til iOS-appen.
+        Boardet vises som USB-MIDI-enhed og styrer TB-knapper og systemvolumen direkte fra håndholdte knapper.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi>Knapper: TB1–TB4 sender MIDI Note On/Off (note 60–63). Midterste knap skifter til volumen-tilstand.</DocLi>
+        <DocLi>Volumen: op/ned-knapper sender MIDI note 64/65 for volumen±6% per tryk.</DocLi>
+        <DocLi>Forbind boardet til iPhone via USB-C → Lightning/USB-C adapter. iOS registrerer automatisk CoreMIDI.</DocLi>
+        <DocLi>Boardet kan parallelkobles med et headset-forstærker-kredsløb for ekstern høretelefon-output (analog, ingen Arduino-involvering).</DocLi>
+      </ul>
+
+      {/* ── 16. GLOBAL SETUP ────────────────────────────────────── */}
+      <DocH2>16. Global Setup</DocH2>
+      <DocP>
+        SETUP → Global Setup indeholder standardindstillinger der gælder for alle klienter medmindre de tilsidesættes per klient.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">Standard IFB</span> — duck-niveau og kanal-konfiguration der anvendes ved nye klienters oprettelse.</DocLi>
+        <DocLi><span className="text-white font-bold">Roller</span> — tildel navne til klientroller (f.eks. "Journalist", "Vært", "Producer") til hurtig identifikation.</DocLi>
+        <DocLi><span className="text-white font-bold">Anvend IFB på alle</span> — overskriver IFB-indstillinger for samtlige aktive klienter med globalindstillingerne.</DocLi>
+      </ul>
+
+      {/* ── 17. DIAGNOSTIK ──────────────────────────────────────── */}
+      <DocH2>17. Diagnostik og fejlfinding</DocH2>
+      <DocP>
+        Åbn <span className="font-mono text-orange-400">http://localhost:3000/debug</span> i en browser på HOST-maskinen for adgang til live diagnostik-panel.
+        Panelet viser alle aktive forbindelser, producere, klienter og TB-tilstande i realtid.
+      </DocP>
+      <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
+        <DocLi><span className="text-white font-bold">Ingen lyd:</span> Tjek at browseren/appen har givet mikrofonrettighed. iOS og macOS kræver HTTPS for mikrofon-adgang.</DocLi>
+        <DocLi><span className="text-white font-bold">Kan ikke forbinde via internet:</span> Kontrollér at TURN-server er konfigureret og aktiv. Tjek TURN URL og credentials i SETUP → Network.</DocLi>
+        <DocLi><span className="text-white font-bold">Cloudflare Tunnel starter ikke:</span> Kontrollér internetforbindelsen. Genstart tunnel fra SETUP → Network.</DocLi>
+        <DocLi><span className="text-white font-bold">iOS stoler ikke på SSL-certifikat:</span> Åbn <span className="font-mono text-orange-400">https://server-ip/cert</span> i Safari → installer certifikatprofil → Indstillinger → Generelt → Om → Certifikatets tillid.</DocLi>
+        <DocLi><span className="text-white font-bold">Lyd forsinket:</span> 150–250 ms er normalt for WebRTC. Over 400 ms indikerer TURN-relæ med høj latens — prøv et TURN-server tættere på.</DocLi>
+        <DocLi><span className="text-white font-bold">Backup syncer ikke:</span> Kontrollér at backup-URL er korrekt og at backup-serveren er tilgængelig fra main-netværket. Tjek sync-status i SETUP → Backup.</DocLi>
+        <DocLi><span className="text-white font-bold">Factory Reset:</span> SETUP → Reset sletter alle klienter og forbindelser. Netværksindstillinger og SSL bevares.</DocLi>
       </ul>
 
       <div className="mt-6 pt-4 border-t border-white/5">
-        <p className="text-[9px] text-white/20">EasyCom Broadcast Intercom System · Version 1.0 · © 2025 EasyCom Systems</p>
+        <p className="text-[9px] text-white/20">EasyCom Broadcast Intercom System · Version 2.0 · © 2025 EasyCom Systems</p>
       </div>
     </div>
   )
