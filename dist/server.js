@@ -11,6 +11,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const socket_io_1 = require("socket.io");
 const signaling_1 = require("./signaling");
+const backup_1 = require("./backup");
 const mediasoup_1 = require("./mediasoup");
 const audioCapture_1 = require("./audioCapture");
 const tunnel_1 = require("./tunnel");
@@ -39,7 +40,7 @@ if (fs_1.default.existsSync(desktopDist)) {
     console.log("🖥️  Desktop app served at /desktop");
 }
 // Serve easycom-broadcast-intercom (host UI) at /host
-const hostDist = path_1.default.join(__dirname, "../../../easycom-broadcast-intercom.nosync/dist");
+const hostDist = path_1.default.join(__dirname, "../../../easycom-broadcast-intercom/dist");
 if (fs_1.default.existsSync(hostDist)) {
     app.use("/host", express_1.default.static(hostDist));
     app.get("/host/{*splat}", (_, res) => res.sendFile(path_1.default.join(hostDist, "index.html")));
@@ -438,6 +439,9 @@ async function start() {
         /* SIGNALING */
         (0, signaling_1.setupSignaling)(io);
         console.log("✅ Signaling ready");
+        /* BACKUP / FAILOVER */
+        (0, backup_1.setupBackupRoutes)(app, io, signaling_1.getPersistedState, signaling_1.applyBackupState);
+        console.log("✅ Backup failover ready");
         /* AUDIO CAPTURE BRIDGE */
         (0, audioCapture_1.setupAudioCapture)(io);
         console.log("✅ Audio capture bridge ready");

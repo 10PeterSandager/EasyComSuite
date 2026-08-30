@@ -1,6 +1,4 @@
 import { Server } from "socket.io"
-import os from "os"
-import dgram from "dgram"
 import { router, createTransport, connectTransport, produce, consume, getProducer, setAnnouncedIp } from "./mediasoup"
 import {
   startOutputRoute, stopOutputRoute, stopAllForClient,
@@ -8,6 +6,7 @@ import {
 } from "./audioOutput"
 import { startTunnel, stopTunnel, getTunnelUrl, getTunnelStatus } from "./tunnel"
 import { loadState, scheduleSave, PersistedState } from "./persist"
+import { emitBackupConfig } from "./backup"
 import fs from "fs"
 import path from "path"
 
@@ -47,9 +46,6 @@ const terminals = new Map<string, Terminal>()
 // Used by the grace-period timer to avoid premature connection cleanup when a
 // client disconnects, reconnects, then disconnects again before the first timer fires.
 const disconnectTimes = new Map<string, number>()
-// Preserves client data (incl. PIN code) during the 8-second grace period so
-// client:auth can still verify the PIN before client:register fires.
-const offlineClients = new Map<string, any>()
 const directVideoOffers = new Map<string, string>() // cache: sourceId → sdp
 const producers = new Map<string, string>()
 const videoProducers = new Map<string, string>() // clientId → videoProducerId
@@ -66,38 +62,22 @@ const producerOutputs = new Map<string, any>()
 // Populated when the host sends audio:bridge:channelInfo:set.
 const outputBridgeChannels = new Set<number>()
 
-// ── Tally ────────────────────────────────────────────────────────────────────
-// tallyStates: clientId → current tally state
-// gpiTallyMap: GPI pin number → { clientId, state } (configured by host)
-type TallyState = 'program' | 'preview' | 'off'
-const tallyStates = new Map<string, TallyState>()
-const gpiTallyMap = new Map<number, { clientId: string; state: TallyState }>()
-
-// ── GPO (phone → host) ───────────────────────────────────────────────────────
-// gpoStates: clientId → currently active (buttons held)
-// gpoRoutes: clientId → UDP route to trigger on GPO (configured by host)
-type GpoRoute = { ip: string; port: number; onMsg: string; offMsg: string }
-const gpoStates = new Map<string, boolean>()
-const gpoRoutes = new Map<string, GpoRoute>()
-let gpoSendSocket: ReturnType<typeof dgram.createSocket> | null = null
-
 // ── Restore persisted state ───────────────────────────────────────────────────
 ;(function restoreState() {
   const s = loadState()
-  s.connections.forEach(c => connections.set(connKey(c), c))
+  s.connections.forEach(c => connections.set(`${c.from}-${c.to}-${c.channel}`, c))
   s.groups.forEach(g => groups.push(g))
-  s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data: { ...data, status: "offline" } }))
+  s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }))
   s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r as AudioRoute))
   s.terminals?.forEach(t => terminals.set(t.id, t))
-  s.videoRouting?.forEach(({ clientId, sources }) => videoRouting.set(clientId, sources))
   bridgeChannelInfo = s.bridgeChannelInfo
   s.outputBridgeChannels.forEach(ch => outputBridgeChannels.add(ch))
   if (s.connections.length > 0)
-    console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals, ${videoRouting.size} videoRouting entries`)
+    console.log(`[persist] restored ${s.connections.length} connections, ${s.groups.length} groups, ${s.clients.length} clients, ${terminals.size} terminals`)
 })()
 
 // Collects current state for saving to disk
-function getPersistedState(): PersistedState {
+export function getPersistedState(): PersistedState {
   return {
     connections:          Array.from(connections.values()),
     groups:               [...groups],
@@ -133,11 +113,7 @@ const activeOutputKeys = new Set<string>()
 // Connections with toChannel are only included in routing when that channel is active.
 const mobileActiveTb = new Map<string, Set<number>>()
 
-function connKey(c: Connection) {
-  return c.toChannel != null
-    ? `${c.from}-${c.to}-${c.channel}-tc${c.toChannel}`
-    : `${c.from}-${c.to}-${c.channel}`
-}
+function connKey(c: Connection) { return `${c.from}-${c.to}-${c.channel}` }
 function getConnectionsArray(): Connection[] { return Array.from(connections.values()) }
 
 export function getDebugState() {
@@ -294,14 +270,38 @@ export function factoryReset(io: Server) {
   console.log("[signaling] ⚠️  Factory reset — all state cleared")
 }
 
-function setTally(io: Server, clientId: string, state: TallyState) {
-  if (state === 'off') tallyStates.delete(clientId)
-  else tallyStates.set(clientId, state)
-  const entry = clients.get(clientId)
-  if (entry?.socketId) {
-    io.to(entry.socketId).emit('tally:update', { state })
+// Applies a state snapshot from the main server (used by backup on takeover).
+// Restores connections, groups, clients and broadcasts updated state to all
+// currently connected clients so they see the correct routing immediately.
+export function applyBackupState(s: PersistedState, io: Server) {
+  connections.clear()
+  groups.splice(0, groups.length)
+  // Keep live clients (those already connected to this backup server);
+  // only restore persisted client metadata, not socketIds from old main.
+  for (const [id, v] of clients.entries()) {
+    if (!v.socketId) clients.delete(id)  // ghost from old state — remove
   }
-  io.emit('tally:all', Object.fromEntries(tallyStates))
+  s.connections.forEach(c => connections.set(`${c.from}-${c.to}-${c.channel}`, c))
+  s.groups.forEach(g => groups.push(g))
+  s.clients.forEach(({ id, data }) => {
+    if (!clients.has(id)) clients.set(id, { socketId: "", data })
+    else clients.set(id, { ...clients.get(id)!, data })
+  })
+  audioRoutes.clear()
+  s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r as AudioRoute))
+  bridgeChannelInfo = s.bridgeChannelInfo ?? []
+  outputBridgeChannels.clear()
+  s.outputBridgeChannels?.forEach(ch => outputBridgeChannels.add(ch))
+
+  save()
+  broadcastRouting(io)
+
+  const clientsObj: Record<string, any> = {}
+  for (const [id, v] of clients.entries()) clientsObj[id] = { ...v.data, status: v.socketId ? "online" : "offline" }
+  io.emit("clients:update", clientsObj)
+  io.emit("groups:update", [...groups])
+  io.emit("connections:all", Array.from(connections.values()))
+  console.log(`[backup] applied snapshot: ${s.connections.length} conns, ${s.groups.length} groups, ${s.clients.length} clients`)
 }
 
 export function setupSignaling(io: Server) {
@@ -323,9 +323,10 @@ export function setupSignaling(io: Server) {
     socket.on("client:register", (client, cb) => {
       // Cancel any pending grace-period cleanup for this client
       disconnectTimes.delete(client.id)
-      offlineClients.delete(client.id)
 
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
+        // Tell client about the backup server URL (if configured)
+        emitBackupConfig(socket)
         // Track TB gating state for this mobile/remote (empty = no TB pressed)
         if (!mobileActiveTb.has(client.id)) mobileActiveTb.set(client.id, new Set())
         // Send eksisterende video producers til ny mobil client
@@ -364,18 +365,6 @@ export function setupSignaling(io: Server) {
       }
       const existing = clients.get(client.id)
 
-      // Host batch-registration always sends type:"" — keep offline, just sync name/code.
-      if (client.type === "") {
-        if (existing) {
-          clients.set(client.id, { socketId: "", data: { ...existing.data, name: client.name, code: client.code } })
-        } else {
-          clients.set(client.id, { socketId: "", data: { ...client, status: "offline" } })
-        }
-        io.emit("clients:update", { id: client.id, updates: { name: client.name, code: client.code } })
-        cb?.({ ok: true })
-        return
-      }
-
       if (existing && existing.socketId !== socket.id && client.type !== "mobile" && client.type !== "remote" && client.type !== "desktop") {
         // Tjek om den eksisterende socket stadig er connected
         // Kun relevant for ikke-mobile clients: forhindrer host-appens batch-re-registrering
@@ -400,15 +389,33 @@ export function setupSignaling(io: Server) {
       save()
       cb?.({ ok: true })
 
-      // Auto-create TB return so the host can consume the phone's mic when TB1 is pressed.
-      // IFB (bridge → client) is NOT auto-created — set it up via ConnectionsPopup for a clean slate.
+      // When a new mobile/remote registers, replicate any active IFB slot routings
+      // that were established via bridge:ifb:set for existing mobile clients.
+      // Falls back to bridge-ch1 → client on slot 1 if no existing IFB routing found.
       if (client.type === "mobile" || client.type === "remote" || client.type === "desktop") {
-        const tbReturnKey = connKey({ from: client.id, to: "producer-65", channel: 1, toChannel: 1 })
-        if (!connections.has(tbReturnKey)) {
-          connections.set(tbReturnKey, { from: client.id, to: "producer-65", channel: 1, toChannel: 1 })
-          console.log(`[signaling] auto TB return: ${client.id} → producer-65 ch1 (TB1-gated)`)
+        const existingMobiles = Array.from(clients.keys()).filter(id => id !== client.id && (clients.get(id)?.data?.type === "mobile" || clients.get(id)?.data?.type === "remote" || clients.get(id)?.data?.type === "desktop"))
+        const seen = new Set<string>()
+        for (const otherId of existingMobiles) {
+          for (const conn of connections.values()) {
+            if (conn.to === otherId && conn.from.startsWith("bridge-ch") && !seen.has(conn.from + ":" + conn.channel)) {
+              seen.add(conn.from + ":" + conn.channel)
+              const ifbKey = connKey({ from: conn.from, to: client.id, channel: conn.channel })
+              if (!connections.has(ifbKey)) {
+                connections.set(ifbKey, { from: conn.from, to: client.id, channel: conn.channel })
+                console.log(`[signaling] replicated IFB: ${conn.from} → ${client.id} ch${conn.channel}`)
+              }
+            }
+          }
         }
-        broadcastRouting(io)
+        // Fallback: if no IFB routing established yet, use bridge-ch1 as default slot 1
+        if (seen.size === 0 && producers.has("bridge-ch1")) {
+          const k = connKey({ from: "bridge-ch1", to: client.id, channel: 1 })
+          if (!connections.has(k)) {
+            connections.set(k, { from: "bridge-ch1", to: client.id, channel: 1 })
+            console.log(`[signaling] default IFB: bridge-ch1 → ${client.id} ch1`)
+          }
+        }
+        if (seen.size > 0) broadcastRouting(io)
       }
 
       // Always send current routing to mobile/remote clients on register.
@@ -422,62 +429,11 @@ export function setupSignaling(io: Server) {
     })
 
     socket.on("client:auth", ({ clientId, code }: { clientId: string, code: string }, cb) => {
-      const clientData = clients.get(clientId)?.data ?? offlineClients.get(clientId)
-      const storedCode = clientData?.code || "0000"
+      const client = clients.get(clientId)
+      const storedCode = client?.data?.code || "0000"
       const ok = code === storedCode
       console.log(`[signaling] auth ${clientId}: ${ok ? '✅' : '❌'} (entered: ${code}, stored: ${storedCode})`)
       cb?.({ ok })
-    })
-
-    /* ---------- TALLY ---------- */
-
-    socket.on("tally:set", ({ clientId, state }: { clientId: string; state: TallyState }) => {
-      setTally(io, clientId, state)
-    })
-
-    socket.on("tally:all", (cb) => {
-      if (typeof cb === "function") cb(Object.fromEntries(tallyStates))
-    })
-
-    // GPI pin → client+state mapping (configured by host)
-    socket.on("tally:gpi:map", ({ pin, clientId, state }: { pin: number; clientId: string; state: TallyState | 'remove' }) => {
-      if (state === 'remove') gpiTallyMap.delete(pin)
-      else gpiTallyMap.set(pin, { clientId, state })
-    })
-
-    /* ---------- GPO (phone → host → external) ---------- */
-
-    socket.on("client:gpo:trigger", () => {
-      const clientId = (socket as any).clientId as string | undefined
-      if (!clientId) return
-      gpoStates.set(clientId, true)
-      io.emit("client:gpo:state", { clientId, active: true })
-      const route = gpoRoutes.get(clientId)
-      if (route && gpoSendSocket) {
-        gpoSendSocket.send(Buffer.from(route.onMsg), route.port, route.ip)
-      }
-    })
-
-    socket.on("client:gpo:release", () => {
-      const clientId = (socket as any).clientId as string | undefined
-      if (!clientId) return
-      gpoStates.set(clientId, false)
-      io.emit("client:gpo:state", { clientId, active: false })
-      const route = gpoRoutes.get(clientId)
-      if (route && gpoSendSocket) {
-        gpoSendSocket.send(Buffer.from(route.offMsg), route.port, route.ip)
-      }
-    })
-
-    // Host configures GPO → UDP route for a client
-    socket.on("client:gpo:route", ({ clientId, route }: { clientId: string; route: GpoRoute | null }) => {
-      if (route) gpoRoutes.set(clientId, route)
-      else gpoRoutes.delete(clientId)
-    })
-
-    // Host requests current GPO states
-    socket.on("client:gpo:all", (cb) => {
-      if (typeof cb === "function") cb(Object.fromEntries(gpoStates))
     })
 
     socket.on("client:update", ({ id, updates }, cb) => {
@@ -625,7 +581,6 @@ export function setupSignaling(io: Server) {
         connections.set(k, { from: bch, to: mobileId, channel: slot })
       }
       broadcastRouting(io)
-      save()
       console.log(`[signaling] IFB slot${slot} → ${bch} for ${mobileIds.length} client(s)`)
     })
 
@@ -662,7 +617,6 @@ export function setupSignaling(io: Server) {
     socket.on("video:routing:update", ({ clientId, videoSources }: { clientId: string; videoSources: number[] }) => {
       const prevSources = videoRouting.get(clientId) || []
       videoRouting.set(clientId, videoSources)
-      save()
       console.log(`[signaling] video routing: ${clientId} → sources [${videoSources}] (prev: [${prevSources}])`)
 
       // Find mobilens socket via clients map (ikke socket-attributten som er undefined)
@@ -783,14 +737,9 @@ export function setupSignaling(io: Server) {
       cb?.({ ok: true })
     })
 
-    socket.on("connection:remove", ({ from, to, channel, toChannel, bidirectional = true }) => {
-      // Delete matching connections — check both TB-gated and non-TB variants
-      for (const [k, c] of connections.entries()) {
-        const matchFwd = c.from === from && c.to === to && c.channel === channel &&
-          (toChannel == null || c.toChannel === toChannel)
-        const matchRev = bidirectional && c.from === to && c.to === from && c.channel === channel
-        if (matchFwd || matchRev) connections.delete(k)
-      }
+    socket.on("connection:remove", ({ from, to, channel, bidirectional = true }) => {
+      connections.delete(connKey({ from, to, channel }))
+      if (bidirectional) connections.delete(connKey({ from: to, to: from, channel }))
       broadcastRouting(io)
       save()
     })
@@ -997,19 +946,6 @@ export function setupSignaling(io: Server) {
           if (conn.from === clientId) update[`recv_${conn.to}`] = level
         }
       }
-      // Stereo-par sender ikke egne level-events — beregn niveau som max(chL, chR)
-      for (const stereoId of producers.keys()) {
-        const m = stereoId.match(/^bridge-stereo-(\d+)-(\d+)$/)
-        if (!m) continue
-        const lvL = levels[`bridge-ch${m[1]}`] ?? 0
-        const lvR = levels[`bridge-ch${m[2]}`] ?? 0
-        const stereoLevel = Math.max(lvL, lvR)
-        if (stereoLevel <= 0) continue
-        update[stereoId] = stereoLevel
-        for (const conn of connections.values()) {
-          if (conn.from === stereoId) update[`recv_${conn.to}`] = stereoLevel
-        }
-      }
       if (Object.keys(update).length > 0) {
         io.emit("audio:levels", update)
       }
@@ -1100,17 +1036,6 @@ export function setupSignaling(io: Server) {
         if (consumer.kind === 'video') {
           try { await consumer.requestKeyFrame() } catch {}
         }
-        cb?.({ ok: true })
-      } catch (e) { cb?.({ error: String(e) }) }
-    })
-
-    socket.on("consumer:pause", async ({ consumerId }, cb) => {
-      try {
-        const { getConsumer } = await import("./mediasoup")
-        const consumer = getConsumer(consumerId)
-        if (!consumer) { cb?.({ error: 'consumer not found' }); return }
-        await consumer.pause()
-        console.log(`[signaling] consumer paused: ${consumerId} (kind: ${consumer.kind})`)
         cb?.({ ok: true })
       } catch (e) { cb?.({ error: String(e) }) }
     })
@@ -1315,22 +1240,6 @@ export function setupSignaling(io: Server) {
     })
 
     /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
-
-    socket.on("server:network:info", (cb) => {
-      if (typeof cb !== "function") return
-      const lanPort = parseInt(process.env.LAN_PORT ?? "3001")
-      let lanIp = "127.0.0.1"
-      for (const ifaces of Object.values(os.networkInterfaces())) {
-        for (const iface of ifaces ?? []) {
-          if (iface.family === "IPv4" && !iface.internal && !iface.address.startsWith("169.254.")) {
-            lanIp = iface.address
-            break
-          }
-        }
-        if (lanIp !== "127.0.0.1") break
-      }
-      cb({ lanIp, lanPort, port: lanPort })
-    })
 
     socket.on("server:config:get", (cb) => {
       if (typeof cb !== "function") return
@@ -1560,13 +1469,7 @@ export function setupSignaling(io: Server) {
         stopAllForClient(clientId).catch(() => {})
 
         mobileActiveTb.delete(clientId)
-        const existingEntry = clients.get(clientId)
-        offlineClients.set(clientId, existingEntry?.data)
-        // Keep client in Map as "offline" so phone can still find it in clients:list.
-        // Grace period timer uses socketId check to detect reconnect instead of clients.has().
-        if (existingEntry) {
-          clients.set(clientId, { socketId: "", data: { ...existingEntry.data, status: "offline" } })
-        }
+        clients.delete(clientId)
 
         // Grace period: give the client 8 seconds to reconnect before wiping connections.
         // Use a timestamp so that a rapid disconnect→reconnect→disconnect sequence doesn't
@@ -1577,14 +1480,11 @@ export function setupSignaling(io: Server) {
         setTimeout(() => {
           // Abort if a newer disconnect has since occurred for this client
           if (disconnectTimes.get(clientId) !== disconnectTime) return
-          const reconnected = clients.get(clientId)
-          if (reconnected?.socketId) { disconnectTimes.delete(clientId); return }
+          if (clients.has(clientId)) { disconnectTimes.delete(clientId); return }
           disconnectTimes.delete(clientId)
-          offlineClients.delete(clientId)
           producers.delete(clientId)
           for (const [k, c] of connections) {
-            // Keep bridge→client connections — operator set these intentionally.
-            if ((c.from === clientId || c.to === clientId) && !c.from.startsWith("bridge-")) connections.delete(k)
+            if (c.from === clientId || c.to === clientId) connections.delete(k)
           }
           broadcastRouting(io)
           save()
@@ -1594,40 +1494,6 @@ export function setupSignaling(io: Server) {
       broadcastRouting(io)
     })
   })
-
-  // ── UDP GPI tally listener ────────────────────────────────────────────────
-  // Listens on port 9000 (UDP) for incoming GPI tally triggers.
-  // Supported message formats:
-  //   PROGRAM:<clientId>   → set program tally for that client
-  //   PREVIEW:<clientId>   → set preview tally
-  //   OFF:<clientId>       → clear tally
-  //   GPI:<pinNumber>      → trigger via gpiTallyMap (pin→client mapping set by host)
-  // Shared UDP send socket for GPO output signals
-  gpoSendSocket = dgram.createSocket('udp4')
-  gpoSendSocket.on('error', (err: Error) => console.warn('[GPO] UDP send error:', err.message))
-
-  try {
-    const gpiServer = dgram.createSocket('udp4')
-    gpiServer.on('message', (msg: Buffer) => {
-      const str = msg.toString().trim()
-      const colon = str.indexOf(':')
-      if (colon < 0) return
-      const cmd = str.slice(0, colon).toUpperCase()
-      const arg = str.slice(colon + 1)
-      if (cmd === 'PROGRAM' && arg) setTally(io, arg, 'program')
-      else if (cmd === 'PREVIEW' && arg) setTally(io, arg, 'preview')
-      else if (cmd === 'OFF' && arg) setTally(io, arg, 'off')
-      else if (cmd === 'GPI') {
-        const pin = parseInt(arg, 10)
-        const mapping = gpiTallyMap.get(pin)
-        if (mapping) setTally(io, mapping.clientId, mapping.state)
-      }
-    })
-    gpiServer.on('error', (err: Error) => console.warn('[tally] GPI UDP error:', err.message))
-    gpiServer.bind(9000, () => console.log('[tally] GPI UDP listener on port 9000'))
-  } catch (e) {
-    console.warn('[tally] Could not start GPI UDP listener:', e)
-  }
 }
 
 

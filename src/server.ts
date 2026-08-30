@@ -6,7 +6,8 @@ import fs from "fs"
 import path from "path"
 import { Server } from "socket.io"
 
-import { setupSignaling, streamDeckManager, clearAllConnections, getDebugState, factoryReset } from "./signaling"
+import { setupSignaling, streamDeckManager, clearAllConnections, getDebugState, factoryReset, getPersistedState, applyBackupState } from "./signaling"
+import { setupBackupRoutes } from "./backup"
 import { initMediasoup } from "./mediasoup"
 import { setupAudioCapture } from "./audioCapture"
 import { startTunnel, tunnelEvents, getTunnelUrl, getTunnelStatus } from "./tunnel"
@@ -41,7 +42,7 @@ if (fs.existsSync(desktopDist)) {
 }
 
 // Serve easycom-broadcast-intercom (host UI) at /host
-const hostDist = path.join(__dirname, "../../../easycom-broadcast-intercom.nosync/dist")
+const hostDist = path.join(__dirname, "../../../easycom-broadcast-intercom/dist")
 if (fs.existsSync(hostDist)) {
   app.use("/host", express.static(hostDist))
   app.get("/host/{*splat}", (_, res) => res.sendFile(path.join(hostDist, "index.html")))
@@ -464,6 +465,10 @@ async function start() {
     /* SIGNALING */
     setupSignaling(io)
     console.log("✅ Signaling ready")
+
+    /* BACKUP / FAILOVER */
+    setupBackupRoutes(app, io, getPersistedState, applyBackupState)
+    console.log("✅ Backup failover ready")
 
     /* AUDIO CAPTURE BRIDGE */
     setupAudioCapture(io)
