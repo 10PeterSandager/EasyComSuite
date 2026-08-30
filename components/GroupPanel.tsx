@@ -8,6 +8,7 @@ type Group = {
   name: string
   members: string[]
   channel: number
+  tbChannel?: number
   color: string
   isLatched?: boolean
 }
@@ -88,12 +89,14 @@ export default function GroupPanel({ clients, theme = "orange", myId }: Props) {
 
   const startPTT = (group: Group) => {
     if (!myId) return
+    const tb = group.tbChannel ?? group.channel
     group.members.forEach(memberId => {
       if (memberId === myId) return
       socket.emit("connection:create", {
         from: myId,
         to: memberId,
         channel: group.channel,
+        toChannel: tb,
         replace: false
       })
     })
@@ -118,6 +121,7 @@ export default function GroupPanel({ clients, theme = "orange", myId }: Props) {
   const toggleLatch = (group: Group) => {
     if (!myId) return
     const isActive = activeGroups.has(group.id)
+    const tb = group.tbChannel ?? group.channel
 
     if (isActive) {
       // UNLATCH – remove connections
@@ -138,6 +142,7 @@ export default function GroupPanel({ clients, theme = "orange", myId }: Props) {
           from: myId,
           to: memberId,
           channel: group.channel,
+          toChannel: tb,
           replace: false
         })
       })

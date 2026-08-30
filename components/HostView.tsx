@@ -236,6 +236,8 @@ const HostView = (props: any) => {
   const [showGroupCreate, setShowGroupCreate] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupColor, setNewGroupColor] = useState("#3b82f6")
+  const [newGroupChannel, setNewGroupChannel] = useState(1)
+  const [newGroupTbChannel, setNewGroupTbChannel] = useState(1)
   const GROUP_COLORS_HV = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899"]
 
   const [qrModal, setQrModal] = useState<null | 'remote' | 'ios'>(null)
@@ -269,7 +271,8 @@ const HostView = (props: any) => {
       id: crypto.randomUUID(),
       name: newGroupName.trim(),
       members: selectedIds,
-      channel: 1,
+      channel: newGroupChannel,
+      tbChannel: newGroupTbChannel,
       color: newGroupColor
     }
     socket.emit("group:create", group, () => {
@@ -288,8 +291,10 @@ const HostView = (props: any) => {
         pairs.push([group.members[i], group.members[j]])
       }
     }
+    const tb = group.tbChannel ?? group.channel
     pairs.forEach(([a, b]) => {
-      socket.emit("connection:create", { from: a, to: b, channel: group.channel, bidirectional: true })
+      socket.emit("connection:create", { from: a, to: b, channel: group.channel, toChannel: tb, bidirectional: false })
+      socket.emit("connection:create", { from: b, to: a, channel: group.channel, toChannel: tb, bidirectional: false })
     })
     setActiveGroupIds(prev => new Set([...prev, group.id]))
   }
@@ -588,34 +593,93 @@ const HostView = (props: any) => {
 
             {/* INLINE GROUP CREATE FORM */}
             {showGroupCreate && selectedIds.length >= 2 && (
-              <div className="flex items-center gap-2 mb-3 p-2 rounded-xl"
+              <div className="flex flex-col gap-2 mb-3 p-2 rounded-xl"
                 style={{ background: "rgba(59,130,246,0.08)", border: "1px solid #3b82f630" }}>
-                <input
-                  autoFocus
-                  value={newGroupName}
-                  onChange={e => setNewGroupName(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") createGroupFromSelection() }}
-                  placeholder={`Group name (${selectedIds.length} members)...`}
-                  className="flex-1 bg-black border border-white/10 rounded px-2 py-1 text-xs text-white"
-                />
-                <div className="flex gap-1">
-                  {GROUP_COLORS_HV.map(c => (
-                    <button key={c} onClick={() => setNewGroupColor(c)}
-                      className="w-4 h-4 rounded-full border-2 transition-transform hover:scale-110"
-                      style={{ background: c, borderColor: newGroupColor === c ? "#fff" : "transparent" }} />
-                  ))}
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") createGroupFromSelection() }}
+                    placeholder={`Group name (${selectedIds.length} members)...`}
+                    className="flex-1 bg-black border border-white/10 rounded px-2 py-1 text-xs text-white"
+                  />
+                  <div className="flex gap-1">
+                    {GROUP_COLORS_HV.map(c => (
+                      <button key={c} onClick={() => setNewGroupColor(c)}
+                        className="w-4 h-4 rounded-full border-2 transition-transform hover:scale-110"
+                        style={{ background: c, borderColor: newGroupColor === c ? "#fff" : "transparent" }} />
+                    ))}
+                  </div>
+                  <button
+                    onClick={createGroupFromSelection}
+                    disabled={!newGroupName.trim()}
+                    className="px-3 py-1 rounded text-xs font-bold"
+                    style={{ background: newGroupName.trim() ? "#3b82f6" : "rgba(255,255,255,0.08)", color: "#fff" }}
+                  >
+                    Create
+                  </button>
+                  <button onClick={() => setShowGroupCreate(false)} className="text-white/30 hover:text-white">
+                    <X size={14} />
+                  </button>
                 </div>
-                <button
-                  onClick={createGroupFromSelection}
-                  disabled={!newGroupName.trim()}
-                  className="px-3 py-1 rounded text-xs font-bold"
-                  style={{ background: newGroupName.trim() ? "#3b82f6" : "rgba(255,255,255,0.08)", color: "#fff" }}
-                >
-                  Create
-                </button>
-                <button onClick={() => setShowGroupCreate(false)} className="text-white/30 hover:text-white">
-                  <X size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-white/30 uppercase tracking-widest shrink-0">Kanal</span>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: 16 }, (_, i) => i + 1).map(ch => (
+                      <button
+                        key={ch}
+                        onClick={() => { setNewGroupChannel(ch); setNewGroupTbChannel(Math.min(ch, 8)) }}
+                        className="w-6 h-6 rounded text-[9px] font-bold transition-all"
+                        style={{
+                          background: newGroupChannel === ch ? newGroupColor : "rgba(255,255,255,0.06)",
+                          color: newGroupChannel === ch ? "#fff" : "rgba(255,255,255,0.3)",
+                          border: `1px solid ${newGroupChannel === ch ? newGroupColor : "rgba(255,255,255,0.08)"}`,
+                          boxShadow: newGroupChannel === ch ? `0 0 6px ${newGroupColor}60` : "none"
+                        }}
+                      >
+                        {ch}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-white/30 uppercase tracking-widest shrink-0">TB-knap</span>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 4 }, (_, i) => i + 1).map(ch => (
+                      <button
+                        key={ch}
+                        onClick={() => setNewGroupTbChannel(ch)}
+                        className="w-6 h-6 rounded text-[9px] font-bold transition-all"
+                        style={{
+                          background: newGroupTbChannel === ch ? newGroupColor : "rgba(255,255,255,0.06)",
+                          color: newGroupTbChannel === ch ? "#fff" : "rgba(255,255,255,0.3)",
+                          border: `1px solid ${newGroupTbChannel === ch ? newGroupColor : "rgba(255,255,255,0.08)"}`,
+                          boxShadow: newGroupTbChannel === ch ? `0 0 6px ${newGroupColor}60` : "none"
+                        }}
+                      >
+                        {ch}
+                      </button>
+                    ))}
+                    <span className="text-[8px] text-white/15 mx-1">📱+🖥</span>
+                    {Array.from({ length: 4 }, (_, i) => i + 5).map(ch => (
+                      <button
+                        key={ch}
+                        onClick={() => setNewGroupTbChannel(ch)}
+                        className="w-6 h-6 rounded text-[9px] font-bold transition-all"
+                        style={{
+                          background: newGroupTbChannel === ch ? newGroupColor : "rgba(255,255,255,0.04)",
+                          color: newGroupTbChannel === ch ? "#fff" : "rgba(255,255,255,0.2)",
+                          border: `1px solid ${newGroupTbChannel === ch ? newGroupColor : "rgba(255,255,255,0.05)"}`,
+                          boxShadow: newGroupTbChannel === ch ? `0 0 6px ${newGroupColor}60` : "none"
+                        }}
+                      >
+                        {ch}
+                      </button>
+                    ))}
+                    <span className="text-[8px] text-white/15 ml-1">🖥</span>
+                  </div>
+                </div>
               </div>
             )}
 

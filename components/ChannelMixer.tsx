@@ -133,7 +133,7 @@ async function startTone(freq: number, wave: OscillatorType, level: number, clie
     osc.connect(gain); gain.connect(analyser); analyser.connect(dest)
     osc.start(); gActive = true; gClientId = clientId; gIsProducing = false; notifyToneState(true)
     startToneLevelMeter(analyser, "producer-65")
-    if (mode === "auto") { try { await ((window as any).__easycomStopMicFully?.() ?? Promise.resolve()); await produceStream(dest.stream); gIsProducing = true; acquireConnection("producer-65", clientId, 1); socket.emit("tone:start", { clientId, freq, wave, level, mode }) } catch (e) { console.error(e) } }
+    if (mode === "auto") { try { await ((window as any).__easycomStopMicFully?.() ?? Promise.resolve()); await produceStream(dest.stream); gIsProducing = true; acquireConnection("producer-65", clientId, ch); socket.emit("tone:start", { clientId, freq, wave, level, mode }) } catch (e) { console.error(e) } }
     return null
   } catch (e: any) { gActive = false; notifyToneState(false); return e?.message ?? "Error" }
 }
@@ -144,7 +144,7 @@ function stopToneGlobal() {
   if (gCtx) { gCtx.close().catch(() => {}); gCtx = null }
   gGain = null; gAnalyser = null; gDest = null
   if (gActive && gClientId) {
-    if (gMode === "auto") releaseConnection("producer-65", gClientId, 1)
+    if (gMode === "auto") releaseConnection("producer-65", gClientId, gCh)
     socket.emit("tone:stop", { clientId: gClientId })
     if (gIsProducing) { stopProducing().catch(() => {}); gIsProducing = false }
   }

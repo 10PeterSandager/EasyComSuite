@@ -8,6 +8,7 @@ export type Group = {
   name: string
   members: string[]
   channel: number
+  tbChannel?: number
   color: string
 }
 
