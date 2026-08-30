@@ -18,6 +18,13 @@ static MIDIPortRef    _midiInputPort = 0;
 static MPVolumeView  *_volumeView    = nil;
 static UISlider      *_volumeSlider  = nil;
 
+// Forward-declare private methods so the static C callbacks below can call them
+@interface MIDIController ()
+- (void)connectAllSources;
+- (void)changeVolume:(float)delta;
+- (void)setupVolumeSlider;
+@end
+
 // ─── CoreMIDI packet callback ─────────────────────────────────────────────
 static void MIDICallback(const MIDIPacketList *pktList,
                          void *readRefCon,
