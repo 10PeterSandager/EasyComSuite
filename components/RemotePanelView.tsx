@@ -48,7 +48,24 @@ const LayoutWorkspace: React.FC<{
 }> = ({ panel, clients, mappings, setMappings, theme, linkedClientId }) => {
   const accentColor = theme === 'orange' ? '#f97316' : '#3b82f6'
   const [groups, setGroups] = useState<PanelGroup[]>([])
-  const [slots, setSlots] = useState<(SlotData | null)[]>(Array(panel.slotCount).fill(null))
+  const [slots, setSlots] = useState<(SlotData | null)[]>(() => {
+    if (mappings && mappings.length > 0) {
+      return Array(panel.slotCount).fill(null).map((_, i) => {
+        const m = mappings[i]
+        if (!m) return null
+        return {
+          clientId: m.isGroupLatch ? undefined : m.id,
+          groupId: m.isGroupLatch ? m.id : undefined,
+          name: m.name,
+          color: m.color,
+          isGroup: !!m.isGroupLatch,
+          memberIds: m.memberIds,
+          textScale: 1
+        } as SlotData
+      })
+    }
+    return Array(panel.slotCount).fill(null)
+  })
   const [selected, setSelected] = useState<number[]>([]) // selected slot indices
   const [showGroupEditor, setShowGroupEditor] = useState(false)
   const [editGroup, setEditGroup] = useState<PanelGroup | null>(null)

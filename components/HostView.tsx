@@ -270,6 +270,10 @@ const HostView = (props: any) => {
 
   useEffect(() => {
     fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
+    fetch('/api/network').then(r => r.json()).then(d => {
+      if (d.lanIp) setQrLanIp(d.lanIp)
+      if (d.lanPort) setQrLanPort(d.lanPort)
+    }).catch(() => {})
     socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
       if (info?.lanIp) setQrLanIp(info.lanIp)
       if (info?.lanPort) setQrLanPort(info.lanPort)
@@ -1471,7 +1475,8 @@ const HostView = (props: any) => {
       {qrModal && (() => {
         const isIos = qrModal === 'ios'
         const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
-        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : ''
+        const remoteLanUrl = qrLanIp ? `https://${qrLanIp}:${qrLanPort}/remote` : ''
+        const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : remoteLanUrl
         const qrData = isIos ? iosUrl : remoteUrl
         const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
         return (
