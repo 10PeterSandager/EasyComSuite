@@ -358,7 +358,13 @@ const HostView = (props: any) => {
   }, [remotePanels])
   useEffect(() => {
     try { localStorage.setItem('easycom:panelMappings', JSON.stringify(panelMappings)) } catch {}
-  }, [panelMappings])
+    // Push each panel's layout to the server so remote pads receive it
+    remotePanels.forEach(panel => {
+      if (!panel.linkedClientId) return
+      const slots = (panelMappings[panel.id] ?? []).map(m => m ?? null)
+      socket.emit('panel:layout:set', { clientId: panel.linkedClientId, slots })
+    })
+  }, [panelMappings, remotePanels])
 
   // Drag-to-reorder
   const [gridOrder, setGridOrder] = useState<string[]>([])
