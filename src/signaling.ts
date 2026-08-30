@@ -42,6 +42,8 @@ type Terminal = { id: string; name: string; code: string; pairedClientId?: strin
 const connections = new Map<string, Connection>()
 const clients = new Map<string, { socketId: string; data?: any }>()
 const terminals = new Map<string, Terminal>()
+// Panel layouts keyed by linkedClientId — pushed from host, served to remote pads
+const panelLayouts = new Map<string, { slots: any[]; bgImage?: string }>()
 // Tracks the timestamp of the last disconnect for each clientId.
 // Used by the grace-period timer to avoid premature connection cleanup when a
 // client disconnects, reconnects, then disconnects again before the first timer fires.
@@ -439,6 +441,7 @@ export function setupSignaling(io: Server) {
     socket.on("client:update", ({ id, updates }, cb) => {
       const existing = clients.get(id)
       if (existing) clients.set(id, { ...existing, data: { ...(existing.data || {}), ...updates } })
+      save()
       io.emit("clients:update", { id, updates })
       cb?.({ ok: true })
     })
@@ -450,7 +453,7 @@ export function setupSignaling(io: Server) {
         name:   c.data?.name   || "",
         type:   c.data?.type   || "",
         code:   c.data?.code   || "0000",
-        status: c.data?.status || "online",
+        status: c.socketId ? "online" : "offline",
         color:  c.data?.color  || undefined,
       })).filter(c => c.id !== "" && c.id !== "host-ui")
 
@@ -1417,6 +1420,23 @@ export function setupSignaling(io: Server) {
         })()),
       }))
       cb(list)
+    })
+
+    // Host: push panel layout for a linked client → stored server-side + pushed live to connected pad
+    socket.on("panel:layout:set", ({ clientId, slots, bgImage }: { clientId: string; slots: any[]; bgImage?: string }) => {
+      panelLayouts.set(clientId, { slots, bgImage })
+      // Live push to the pad if it's currently connected
+      const target = clients.get(clientId)
+      if (target?.socketId) {
+        io.to(target.socketId).emit("panel:layout", { slots, bgImage })
+      }
+    })
+
+    // Remote pad: fetch its assigned layout
+    socket.on("panel:layout:get", ({ clientId }: { clientId: string }, cb) => {
+      if (typeof cb !== "function") return
+      const layout = panelLayouts.get(clientId)
+      cb({ slots: layout?.slots ?? null, bgImage: layout?.bgImage })
     })
 
     // Host: create terminal

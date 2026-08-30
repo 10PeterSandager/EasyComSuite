@@ -9,6 +9,7 @@ const http_1 = __importDefault(require("http"));
 const https_1 = __importDefault(require("https"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 const socket_io_1 = require("socket.io");
 const signaling_1 = require("./signaling");
 const backup_1 = require("./backup");
@@ -55,6 +56,23 @@ app.get("/health", (_, res) => {
 // Returns current Cloudflare Tunnel status and URL
 app.get("/api/tunnel", (_, res) => {
     res.json({ status: (0, tunnel_1.getTunnelStatus)(), url: (0, tunnel_1.getTunnelUrl)() });
+});
+// Returns LAN IP and HTTPS port so the host UI can build QR codes for local access
+app.get("/api/network", (_, res) => {
+    const nets = os_1.default.networkInterfaces();
+    let lanIp = "127.0.0.1";
+    for (const ifaces of Object.values(nets)) {
+        for (const iface of ifaces ?? []) {
+            if (iface.family === "IPv4" && !iface.internal) {
+                lanIp = iface.address;
+                break;
+            }
+        }
+        if (lanIp !== "127.0.0.1")
+            break;
+    }
+    const httpsPort = parseInt(process.env.PORT ?? "3000");
+    res.json({ lanIp, lanPort: httpsPort });
 });
 // Dynamic QR code page — always shows the current tunnel URL
 // Open http://localhost:3000/qr on the host, then scan with the tablet
@@ -136,8 +154,9 @@ app.get("/api/ice-config", (_, res) => {
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
     ];
-    const turnUrl = process.env.TURN_URL;
-    if (turnUrl) {
+    const rawTurn = process.env.TURN_URL;
+    if (rawTurn) {
+        const turnUrl = /^(turn:|turns:|stun:)/i.test(rawTurn) ? rawTurn : `turn:${rawTurn}`;
         iceServers.push({
             urls: turnUrl,
             username: process.env.TURN_USERNAME ?? "",

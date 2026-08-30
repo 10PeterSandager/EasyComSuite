@@ -81,6 +81,8 @@ function persistEnvVars(vars) {
 const connections = new Map();
 const clients = new Map();
 const terminals = new Map();
+// Panel layouts keyed by linkedClientId — pushed from host, served to remote pads
+const panelLayouts = new Map();
 // Tracks the timestamp of the last disconnect for each clientId.
 // Used by the grace-period timer to avoid premature connection cleanup when a
 // client disconnects, reconnects, then disconnects again before the first timer fires.
@@ -117,7 +119,7 @@ function getPersistedState() {
         connections: Array.from(connections.values()),
         groups: [...groups],
         clients: Array.from(clients.entries())
-            .filter(([, v]) => v.data && v.data.type !== "mobile" && v.data.type !== "remote" && v.data.type !== "desktop")
+            .filter(([, v]) => v.data)
             .map(([id, v]) => ({ id, data: v.data })),
         audioRoutes: Array.from(audioRoutes.values()),
         bridgeChannelInfo: bridgeChannelInfo,
@@ -455,6 +457,7 @@ function setupSignaling(io) {
             const existing = clients.get(id);
             if (existing)
                 clients.set(id, { ...existing, data: { ...(existing.data || {}), ...updates } });
+            save();
             io.emit("clients:update", { id, updates });
             cb?.({ ok: true });
         });
@@ -466,7 +469,7 @@ function setupSignaling(io) {
                 name: c.data?.name || "",
                 type: c.data?.type || "",
                 code: c.data?.code || "0000",
-                status: c.data?.status || "online",
+                status: c.socketId ? "online" : "offline",
                 color: c.data?.color || undefined,
             })).filter(c => c.id !== "" && c.id !== "host-ui");
             // Find the requesting client (not host-ui)
@@ -1431,6 +1434,22 @@ function setupSignaling(io) {
                 })()),
             }));
             cb(list);
+        });
+        // Host: push panel layout for a linked client → stored server-side + pushed live to connected pad
+        socket.on("panel:layout:set", ({ clientId, slots, bgImage }) => {
+            panelLayouts.set(clientId, { slots, bgImage });
+            // Live push to the pad if it's currently connected
+            const target = clients.get(clientId);
+            if (target?.socketId) {
+                io.to(target.socketId).emit("panel:layout", { slots, bgImage });
+            }
+        });
+        // Remote pad: fetch its assigned layout
+        socket.on("panel:layout:get", ({ clientId }, cb) => {
+            if (typeof cb !== "function")
+                return;
+            const layout = panelLayouts.get(clientId);
+            cb({ slots: layout?.slots ?? null, bgImage: layout?.bgImage });
         });
         // Host: create terminal
         socket.on("terminal:create", ({ name, code }, cb) => {
