@@ -31,7 +31,7 @@ import {
 } from "lucide-react"
 
 type ContextMenu = { clientId: string; x: number; y: number }
-type SetupTab = "global" | "audio" | "network" | "tally" | "documents" | "reset"
+type SetupTab = "global" | "audio" | "network" | "tally" | "documents" | "backup" | "reset"
 
 const CLIENT_TYPES = ["mobile", "desktop", "remote"] as const
 const CLIENT_COLORS = [
@@ -242,6 +242,29 @@ const HostView = (props: any) => {
 
   const [qrModal, setQrModal] = useState<null | 'remote' | 'ios'>(null)
   const [qrTunnelUrl, setQrTunnelUrl] = useState("")
+
+  // ── Backup / failover state ──────────────────────────────────────────────
+  const [backupStatus, setBackupStatus] = useState<{
+    role: "main" | "backup"; backupUrl: string | null
+    lastSendAt: number | null; lastSyncAt: number | null
+    syncOk: boolean; hasState: boolean
+  } | null>(null)
+  const [backupUrlInput, setBackupUrlInput] = useState("")
+  const [backupTakingOver, setBackupTakingOver] = useState(false)
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/backup/status")
+        const d = await r.json()
+        setBackupStatus(d)
+        setBackupUrlInput(d.backupUrl ?? "")
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 5000)
+    return () => clearInterval(t)
+  }, [])
   const [qrLanIp, setQrLanIp] = useState("")
   const [qrLanPort, setQrLanPort] = useState(3001)
 
@@ -852,6 +875,7 @@ const HostView = (props: any) => {
                   { id: "tally",     label: "Tally / GPI" },
                   { id: "documents", label: "Documents" },
                   { id: "global",    label: "Global Setup" },
+                  { id: "backup",    label: "Backup" },
                   { id: "reset",     label: "Reset" },
                 ] as const).map(t => (
                   <button key={t.id} onClick={() => setSetupTab(t.id)}
@@ -962,6 +986,31 @@ const HostView = (props: any) => {
                 />
               ) : setupTab === "documents" ? (
                 <DocumentsTab />
+              ) : setupTab === "backup" ? (
+                <BackupTab
+                  status={backupStatus}
+                  urlInput={backupUrlInput}
+                  onUrlChange={setBackupUrlInput}
+                  takingOver={backupTakingOver}
+                  onSave={async (url, role) => {
+                    await fetch("/api/backup/config", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ backupUrl: url, role }),
+                    })
+                    const r = await fetch("/api/backup/status")
+                    setBackupStatus(await r.json())
+                  }}
+                  onTakeover={async () => {
+                    if (!confirm("Er du sikker? Backup overtager som main — alle clients omstilles.")) return
+                    setBackupTakingOver(true)
+                    try {
+                      await fetch("/api/backup/takeover", { method: "POST" })
+                    } finally {
+                      setBackupTakingOver(false)
+                    }
+                  }}
+                />
               ) : setupTab === "reset" ? (
                 <FactoryResetTab
                   onReset={() => {
@@ -2409,6 +2458,133 @@ function TallyGPITab({
           </table>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── BACKUP TAB ──────────────────────────────────────────────────────────────
+function BackupTab({
+  status, urlInput, onUrlChange, takingOver, onSave, onTakeover
+}: {
+  status: { role: "main" | "backup"; backupUrl: string | null; lastSendAt: number | null; lastSyncAt: number | null; syncOk: boolean; hasState: boolean } | null
+  urlInput: string
+  onUrlChange: (v: string) => void
+  takingOver: boolean
+  onSave: (url: string, role: "main" | "backup") => void
+  onTakeover: () => void
+}) {
+  const role = status?.role ?? "main"
+  const isBackup = role === "backup"
+
+  const fmtAge = (ts: number | null) => {
+    if (!ts) return "—"
+    const s = Math.round((Date.now() - ts) / 1000)
+    if (s < 60) return `${s}s siden`
+    return `${Math.round(s / 60)}min siden`
+  }
+
+  return (
+    <div className="h-full overflow-y-auto px-4 py-4 space-y-5">
+
+      {/* Role indicator */}
+      <div className="flex items-center gap-3 p-3 rounded-xl"
+        style={{ background: isBackup ? "rgba(168,85,247,0.08)" : "rgba(34,197,94,0.08)", border: `1px solid ${isBackup ? "#a855f730" : "#22c55e30"}` }}>
+        <div className="w-2.5 h-2.5 rounded-full" style={{ background: isBackup ? "#a855f7" : "#22c55e", boxShadow: `0 0 6px ${isBackup ? "#a855f7" : "#22c55e"}` }} />
+        <div>
+          <p className="text-xs font-bold" style={{ color: isBackup ? "#a855f7" : "#22c55e" }}>
+            {isBackup ? "BACKUP SERVER" : "MAIN SERVER"}
+          </p>
+          <p className="text-[9px] text-white/30">{isBackup ? "Modtager sync fra main · klar til takeover" : "Sender sync til backup"}</p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={() => onSave(urlInput, isBackup ? "main" : "backup")}
+            className="px-3 py-1 rounded text-[10px] font-bold"
+            style={{ background: isBackup ? "rgba(34,197,94,0.15)" : "rgba(168,85,247,0.15)", border: `1px solid ${isBackup ? "#22c55e40" : "#a855f740"}`, color: isBackup ? "#22c55e" : "#a855f7" }}
+          >
+            {isBackup ? "Skift til MAIN" : "Skift til BACKUP"}
+          </button>
+        </div>
+      </div>
+
+      {/* Backup URL config (only relevant on main) */}
+      {!isBackup && (
+        <div className="space-y-2">
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Backup server URL</p>
+          <p className="text-[9px] text-white/20">Den URL som main sender sync til. Skal pege på backup-serverens adresse.</p>
+          <div className="flex gap-2">
+            <input
+              value={urlInput}
+              onChange={e => onUrlChange(e.target.value)}
+              placeholder="https://192.168.1.200:3000"
+              className="flex-1 bg-black border border-white/10 rounded px-2 py-1.5 text-xs text-white font-mono"
+            />
+            <button
+              onClick={() => onSave(urlInput, "main")}
+              className="px-3 py-1.5 rounded text-xs font-bold bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30"
+            >
+              Gem
+            </button>
+          </div>
+
+          {/* Sync status */}
+          <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+            <div className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: status?.syncOk ? "#22c55e" : "#ef4444", boxShadow: status?.syncOk ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
+            <div>
+              <p className="text-[9px] text-white/50">{status?.syncOk ? "Sync OK" : "Sync fejlet / ingen backup konfigureret"}</p>
+              <p className="text-[9px] text-white/20">Sidst sendt: {fmtAge(status?.lastSendAt ?? null)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backup state info (only on backup) */}
+      {isBackup && (
+        <div className="space-y-2">
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Modtaget state</p>
+          <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+            <div className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: status?.hasState ? "#22c55e" : "#ef4444", boxShadow: status?.hasState ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
+            <div>
+              <p className="text-[9px] text-white/50">{status?.hasState ? "State modtaget fra main" : "Ingen state endnu — afventer sync"}</p>
+              <p className="text-[9px] text-white/20">Sidst modtaget: {fmtAge(status?.lastSyncAt ?? null)}</p>
+            </div>
+          </div>
+
+          {/* TAKE OVER button */}
+          <button
+            onClick={onTakeover}
+            disabled={!status?.hasState || takingOver}
+            className="w-full py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all"
+            style={{
+              background: status?.hasState ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${status?.hasState ? "#ef444450" : "rgba(255,255,255,0.08)"}`,
+              color: status?.hasState ? "#ef4444" : "rgba(255,255,255,0.2)",
+              boxShadow: status?.hasState ? "0 0 20px rgba(239,68,68,0.15)" : "none",
+              cursor: status?.hasState ? "pointer" : "not-allowed",
+            }}
+          >
+            {takingOver ? "Overtager…" : "⚡ TAKE OVER SOM MAIN"}
+          </button>
+          <p className="text-[8px] text-white/20 text-center">
+            Loader seneste sync fra main · sender host:relocated til alle clients
+          </p>
+        </div>
+      )}
+
+      {/* How it works */}
+      <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+        <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Sådan virker det</p>
+        <div className="space-y-1 text-[9px] text-white/25 leading-relaxed">
+          <p>1. Main sender state til backup hvert 5. sekund (routing, grupper, klienter)</p>
+          <p>2. Clients modtager backup-URL automatisk ved tilslutning</p>
+          <p>3. Hvis main forsvinder: clients forsøger automatisk backup efter 10 sek</p>
+          <p>4. Backup operatør trykker TAKE OVER → overtager som main</p>
+          <p>5. WebRTC re-etableres automatisk (2–5 sek pause i lyd)</p>
+        </div>
+      </div>
+
     </div>
   )
 }

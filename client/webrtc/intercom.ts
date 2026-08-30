@@ -18,11 +18,11 @@ export const socket: Socket = io(SERVER_URL, {
   auth: { sessionPassword: _sessionPw }
 })
 
+let _failoverTimer: ReturnType<typeof setTimeout> | null = null
+
 socket.on("connect", () => {
   console.log(`[socket] connected as ${socket.id}`)
-  // Re-request connection state after reconnect so consumers are rebuilt when
-  // the server restarts. Delay slightly to let the server-side socket registration
-  // complete before we ask for the connection list.
+  if (_failoverTimer) { clearTimeout(_failoverTimer); _failoverTimer = null }
   setTimeout(() => socket.emit("connections:list"), 300)
 })
 
@@ -47,7 +47,41 @@ socket.on("client:gain", ({ clientId, channel, gain, bridgeId }: { clientId: str
     })
   }
 })
-socket.on("disconnect", () => console.log("[socket] disconnected"))
+// ── Backup / failover ────────────────────────────────────────────────────────
+// Server sends backup URL on client:register so clients know where to fall back.
+socket.on("backup:config", ({ backupUrl }: { backupUrl: string | null }) => {
+  if (backupUrl) {
+    localStorage.setItem("easycom_backup_url", backupUrl)
+    console.log(`[backup] stored backup URL: ${backupUrl}`)
+  } else {
+    localStorage.removeItem("easycom_backup_url")
+  }
+})
+
+// When the backup server takes over it emits host:relocated.
+// url=null means "you are already on the new main" (clients that already reconnected here).
+socket.on("host:relocated", ({ url }: { url: string | null }) => {
+  if (url) {
+    localStorage.setItem("easycom_backup_url", url)
+    window.location.href = url + "/host"
+  }
+  // url=null → already on backup, just reload to reinitialize WebRTC cleanly
+  else window.location.reload()
+})
+
+// Auto-failover: if disconnected for >10s, try backup URL
+socket.on("disconnect", () => {
+  console.log("[socket] disconnected")
+  const backupUrl = localStorage.getItem("easycom_backup_url")
+  if (!backupUrl) return
+  _failoverTimer = setTimeout(() => {
+    // Still disconnected — redirect to backup
+    if (!socket.connected) {
+      console.log(`[backup] failover → ${backupUrl}`)
+      window.location.href = backupUrl + "/host"
+    }
+  }, 10000)
+})
 
 // Clean up stale consumer when a remote producer closes (e.g. phone releases TB).
 // Without this, consumers.has(clientId) stays true and the next routing:update skips re-consuming.
