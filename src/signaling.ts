@@ -374,20 +374,25 @@ export function setupSignaling(io: Server) {
         // Mobile clients SKAL altid opdatere socketId, da de er det rigtige bruger-device.
         const existingSocket = io.sockets.sockets.get(existing.socketId)
         if (existingSocket && existingSocket.connected) {
-          clients.set(client.id, {
-            socketId: existing.socketId,
-            data: { ...existing.data, ...client }
-          })
+          const merged = { ...existing.data, ...client, type: existing.data?.type || client.type }
+          clients.set(client.id, { socketId: existing.socketId, data: merged })
           ;(socket as any).clientId = client.id
-          io.emit("clients:update", { id: client.id, updates: client })
+          io.emit("clients:update", { id: client.id, updates: merged })
           cb?.({ ok: true })
           return
         }
       }
 
-      clients.set(client.id, { socketId: socket.id, data: client })
+      const mergedData = existing?.data && !client.type
+        ? { ...existing.data, ...client, type: existing.data.type }
+        : client
+      // Batch registrations from host (type="") don't change socketId — they're placeholders
+      const isRealDevice = client.type === "mobile" || client.type === "remote" || client.type === "desktop"
+      const storedSocketId = isRealDevice ? socket.id : (existing?.socketId ?? "")
+      clients.set(client.id, { socketId: storedSocketId, data: mergedData })
       ;(socket as any).clientId = client.id
-      io.emit("clients:update", { id: client.id, updates: { ...client, status: "online" } })
+      const statusUpdate = isRealDevice ? "online" : (existing?.socketId ? "online" : "offline")
+      io.emit("clients:update", { id: client.id, updates: { ...mergedData, status: statusUpdate } })
       save()
       cb?.({ ok: true })
 
