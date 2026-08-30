@@ -82,7 +82,7 @@ export function getPersistedState(): PersistedState {
     connections:          Array.from(connections.values()),
     groups:               [...groups],
     clients:              Array.from(clients.entries())
-                            .filter(([, v]) => v.data && v.data.type !== "mobile" && v.data.type !== "remote" && v.data.type !== "desktop")
+                            .filter(([, v]) => v.data)
                             .map(([id, v]) => ({ id, data: v.data })),
     audioRoutes:          Array.from(audioRoutes.values()),
     bridgeChannelInfo:    bridgeChannelInfo,

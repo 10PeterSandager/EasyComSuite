@@ -4,6 +4,7 @@ import http from "http"
 import https from "https"
 import fs from "fs"
 import path from "path"
+import os from "os"
 import { Server } from "socket.io"
 
 import { setupSignaling, streamDeckManager, clearAllConnections, getDebugState, factoryReset, getPersistedState, applyBackupState } from "./signaling"
@@ -60,6 +61,20 @@ app.get("/health", (_, res) => {
 // Returns current Cloudflare Tunnel status and URL
 app.get("/api/tunnel", (_, res) => {
   res.json({ status: getTunnelStatus(), url: getTunnelUrl() })
+})
+
+// Returns LAN IP and HTTPS port so the host UI can build QR codes for local access
+app.get("/api/network", (_, res) => {
+  const nets = os.networkInterfaces()
+  let lanIp = "127.0.0.1"
+  for (const ifaces of Object.values(nets)) {
+    for (const iface of ifaces ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) { lanIp = iface.address; break }
+    }
+    if (lanIp !== "127.0.0.1") break
+  }
+  const httpsPort = parseInt(process.env.PORT ?? "3000")
+  res.json({ lanIp, lanPort: httpsPort })
 })
 
 // Dynamic QR code page — always shows the current tunnel URL
@@ -144,8 +159,9 @@ app.get("/api/ice-config", (_, res) => {
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
   ]
-  const turnUrl = process.env.TURN_URL
-  if (turnUrl) {
+  const rawTurn = process.env.TURN_URL
+  if (rawTurn) {
+    const turnUrl = /^(turn:|turns:|stun:)/i.test(rawTurn) ? rawTurn : `turn:${rawTurn}`
     iceServers.push({
       urls: turnUrl,
       username: process.env.TURN_USERNAME ?? "",
