@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { RTCView } from 'react-native-webrtc'
+import { NativeModules, NativeEventEmitter } from 'react-native'
 
 const ACCENT = '#f97316'
 const BG     = '#09090b'
@@ -145,6 +146,26 @@ export default function IntercomScreen({
       cleanup = () => { s.off('ifb:duck', handler); applyIFBDuck(false) }
     })
     return () => { cleanup?.() }
+  }, [])
+
+  // Physical remote — Arduino Pro Micro USB-MIDI → CoreMIDI → TB buttons + volume
+  const handleTalkInRef  = useRef(handleTalkIn)
+  const handleTalkOutRef = useRef(handleTalkOut)
+  useEffect(() => { handleTalkInRef.current  = handleTalkIn  })
+  useEffect(() => { handleTalkOutRef.current = handleTalkOut })
+
+  useEffect(() => {
+    const midi = NativeModules.MIDIController
+    if (!midi) return  // module absent on Android or before build
+    const emitter = new NativeEventEmitter(midi)
+    const noteToKey: Record<number, string> = { 60:'talk1', 61:'talk2', 62:'talk3', 63:'talk4' }
+    const onPress   = emitter.addListener('MIDITalkPress',   ({ note }: { note: number }) => {
+      const k = noteToKey[note]; if (k) handleTalkInRef.current(k)
+    })
+    const onRelease = emitter.addListener('MIDITalkRelease', ({ note }: { note: number }) => {
+      const k = noteToKey[note]; if (k) handleTalkOutRef.current(k, 0)
+    })
+    return () => { onPress.remove(); onRelease.remove() }
   }, [])
 
   // Host matrix OFF → stop video slot on mobile

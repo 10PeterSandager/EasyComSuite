@@ -13,6 +13,9 @@
 		7B24E9FFECE5A1012C371C28 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		94F3AFF830261401008299DC /* EasyComAudio.m in Sources */ = {isa = PBXBuildFile; fileRef = 94F3AFF730261401008299DC /* EasyComAudio.m */; };
+		BB0001000000000000000001 /* MIDIController.m in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000002 /* MIDIController.m */; };
+		BB0001000000000000000004 /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000005 /* CoreMIDI.framework */; };
+		BB0001000000000000000006 /* MediaPlayer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000007 /* MediaPlayer.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,7 +30,11 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = EasyComMobile/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		94F3AFF630261401008299DC /* EasyComAudio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EasyComAudio.h; sourceTree = "<group>"; };
 		94F3AFF730261401008299DC /* EasyComAudio.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EasyComAudio.m; sourceTree = "<group>"; };
+		BB0001000000000000000003 /* MIDIController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MIDIController.h; sourceTree = "<group>"; };
+		BB0001000000000000000002 /* MIDIController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MIDIController.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		BB0001000000000000000005 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
+		BB0001000000000000000007 /* MediaPlayer.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MediaPlayer.framework; path = System/Library/Frameworks/MediaPlayer.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,6 +43,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-EasyComMobile.a in Frameworks */,
+				BB0001000000000000000004 /* CoreMIDI.framework in Frameworks */,
+				BB0001000000000000000006 /* MediaPlayer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +67,8 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
+				BB0001000000000000000005 /* CoreMIDI.framework */,
+				BB0001000000000000000007 /* MediaPlayer.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-EasyComMobile.a */,
 			);
 			name = Frameworks;
@@ -75,6 +86,8 @@
 			children = (
 				94F3AFF630261401008299DC /* EasyComAudio.h */,
 				94F3AFF730261401008299DC /* EasyComAudio.m */,
+				BB0001000000000000000003 /* MIDIController.h */,
+				BB0001000000000000000002 /* MIDIController.m */,
 				13B07FAE1A68108700A75B9A /* EasyComMobile */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
@@ -254,6 +267,7 @@
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				94F3AFF830261401008299DC /* EasyComAudio.m in Sources */,
+				BB0001000000000000000001 /* MIDIController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
