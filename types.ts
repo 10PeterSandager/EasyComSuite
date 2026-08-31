@@ -193,6 +193,7 @@ export interface RemotePanelNode {
   slotCount: number
   linkedClientId?: string
   audioInputChannel?: number
+  audioSource?: 'remote' | 'host'
 }
 
 /* ------------------------------------------------ */

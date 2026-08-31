@@ -285,20 +285,19 @@ export default function RoutingOverview({ clients, theme = "orange" }: Props) {
                           <span className="text-white/8 text-[10px]">╲</span>
                         </div>
                       ) : conn ? (
-                        <button
-                          onClick={() => removeConn(conn)}
+                        <div
                           onContextMenu={e => onCtx(e, row, col, conn)}
-                          className="w-8 h-8 mx-auto flex items-center justify-center font-bold rounded transition-opacity hover:opacity-70"
+                          className="w-8 h-8 mx-auto flex items-center justify-center font-bold rounded cursor-context-menu"
                           style={{
                             background: chColor(conn.channel) + "33",
                             color: chColor(conn.channel),
                             border: `1px solid ${chColor(conn.channel)}66`,
                             fontSize: 11,
                           }}
-                          title="Click to remove — right-click for options"
+                          title="Right-click to remove or edit"
                         >
                           {conn.channel}
-                        </button>
+                        </div>
                       ) : (
                         <div
                           className="w-8 h-8 mx-auto rounded border border-white/5 hover:border-white/20 hover:bg-white/3 transition-all cursor-context-menu"

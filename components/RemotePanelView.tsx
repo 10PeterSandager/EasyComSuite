@@ -429,6 +429,27 @@ const RemotePanelView: React.FC<RemotePanelViewProps> = ({
                </div>
             </div>
             <div className="space-y-3">
+              {/* Audio source toggle */}
+              <div>
+                <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-1 block">Audio Source</label>
+                <div className="flex rounded-lg overflow-hidden border border-white/10">
+                  {(['remote', 'host'] as const).map(src => {
+                    const active = (panel.audioSource ?? 'remote') === src
+                    return (
+                      <button key={src} onClick={() => setRemotePanels(prev => prev.map(p => p.id === panel.id ? { ...p, audioSource: src } : p))}
+                        className="flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all"
+                        style={active
+                          ? { background: src === 'remote' ? 'rgba(251,146,60,0.25)' : 'rgba(59,130,246,0.25)', color: src === 'remote' ? '#fb923c' : '#60a5fa', borderBottom: `2px solid ${src === 'remote' ? '#fb923c' : '#60a5fa'}` }
+                          : { background: 'transparent', color: 'rgba(255,255,255,0.25)' }}>
+                        {src === 'remote' ? 'Remote (iPad)' : 'Host Soundcard'}
+                      </button>
+                    )
+                  })}
+                </div>
+                {(panel.audioSource ?? 'remote') === 'host' && (
+                  <p className="text-[7px] text-blue-400/60 mt-1">Use FEED button on clients to route host soundcard audio</p>
+                )}
+              </div>
               {/* Client selector – only available remote clients */}
               {(() => {
                 const usedIds = remotePanels.filter(p => p.id !== panel.id && p.linkedClientId).map(p => p.linkedClientId!)

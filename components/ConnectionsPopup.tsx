@@ -83,8 +83,13 @@ export default function ConnectionsPopup({
   const isMobile = sourceClient.type === "mobile"
   const isBase = sourceClient.id === BASE_ID
 
-  const clientTalkChCount = (clientId: string) =>
-    clientId === BASE_ID ? 1 : (clients.find(c => c.id === clientId)?.type === "mobile" ? TALK_CH : RECV_CH)
+  const clientTalkChCount = (clientId: string) => {
+    if (clientId === BASE_ID) return 1
+    const type = clients.find(c => c.id === clientId)?.type
+    if (type === "mobile") return TALK_CH
+    if (type === "remote") return 1
+    return RECV_CH
+  }
   const clientRecvChCount = (clientId: string) => {
     if (clientId === BASE_ID) return 1
     const type = clients.find(c => c.id === clientId)?.type ?? (clientId === sourceClient.id ? sourceClient.type : "desktop")
