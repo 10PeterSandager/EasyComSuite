@@ -452,14 +452,16 @@ function setupSignaling(io) {
                     const hasConns = Array.from(connections.values()).some(c => c.from === client.id || c.to === client.id);
                     if (!hasConns) {
                         // Rebuild from stored layout (same logic as panel:layout:set)
-                        const kHost = connKey({ from: client.id, to: "producer-65", channel: 1 });
-                        connections.set(kHost, { from: client.id, to: "producer-65", channel: 1 });
-                        layout.slots.filter(s => s && s.id && !s.isGroupLatch).forEach((slot, i) => {
+                        ;
+                        layout.slots.filter(s => s && (s.id || s.clientId) && !s.isGroupLatch).forEach((slot, i) => {
+                            const slotId = slot.id || slot.clientId;
                             const ch = i + 1;
-                            const k1 = connKey({ from: client.id, to: slot.id, channel: ch });
-                            connections.set(k1, { from: client.id, to: slot.id, channel: ch, toChannel: ch });
-                            const k3 = connKey({ from: slot.id, to: client.id, channel: ch });
-                            connections.set(k3, { from: slot.id, to: client.id, channel: ch });
+                            const k1 = connKey({ from: client.id, to: slotId, channel: ch });
+                            connections.set(k1, { from: client.id, to: slotId, channel: ch, toChannel: ch });
+                            const kHost = connKey({ from: client.id, to: "producer-65", channel: ch });
+                            connections.set(kHost, { from: client.id, to: "producer-65", channel: ch, toChannel: ch });
+                            const k3 = connKey({ from: slotId, to: client.id, channel: ch });
+                            connections.set(k3, { from: slotId, to: client.id, channel: ch });
                         });
                         console.log(`[signaling] restored panel routing for remote "${client.id}"`);
                         broadcastRouting(io);
@@ -1486,15 +1488,15 @@ function setupSignaling(io) {
             //   remote → producer-65 (gated: host hears remote when any button is pressed)
             //   slotClient → remote (always: remote hears slot client)
             const assignedSlots = slots.filter(s => s && (s.clientId || s.id));
-            // Always-on: host hears remote pad whenever its mic is active
-            const kHost = connKey({ from: clientId, to: "producer-65", channel: 1 });
-            connections.set(kHost, { from: clientId, to: "producer-65", channel: 1 });
             assignedSlots.forEach((slot, i) => {
                 const slotClientId = slot.clientId || slot.id;
                 const ch = i + 1;
-                // Gated: remote speaks to slot client only when pressing button ch
+                // Gated: remote speaks to slot client AND host on channel ch when pressing button ch
                 const k1 = connKey({ from: clientId, to: slotClientId, channel: ch });
                 connections.set(k1, { from: clientId, to: slotClientId, channel: ch, toChannel: ch });
+                // Gated: host receives on channel ch (matches the button pressed — per-channel routing)
+                const kHost = connKey({ from: clientId, to: "producer-65", channel: ch });
+                connections.set(kHost, { from: clientId, to: "producer-65", channel: ch, toChannel: ch });
                 // Always-on: slot client feeds back to remote so remote can hear them
                 const k3 = connKey({ from: slotClientId, to: clientId, channel: ch });
                 connections.set(k3, { from: slotClientId, to: clientId, channel: ch });
