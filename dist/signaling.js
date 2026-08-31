@@ -108,6 +108,7 @@ const outputBridgeChannels = new Set();
     s.clients.forEach(({ id, data }) => clients.set(id, { socketId: "", data }));
     s.audioRoutes.forEach(r => audioRoutes.set(`${r.deviceId}-${r.channel}`, r));
     s.terminals?.forEach(t => terminals.set(t.id, t));
+    s.panelLayouts?.forEach(({ clientId, slots, bgImage }) => panelLayouts.set(clientId, { slots, bgImage }));
     bridgeChannelInfo = s.bridgeChannelInfo;
     s.outputBridgeChannels.forEach(ch => outputBridgeChannels.add(ch));
     if (s.connections.length > 0)
@@ -127,6 +128,7 @@ function getPersistedState() {
         streamDeckLayout: exports.streamDeckManager.getCurrentLayout?.() ?? [],
         terminals: Array.from(terminals.values()),
         videoRouting: Array.from(videoRouting.entries()).map(([clientId, sources]) => ({ clientId, sources })),
+        panelLayouts: Array.from(panelLayouts.entries()).map(([clientId, v]) => ({ clientId, slots: v.slots, bgImage: v.bgImage })),
     };
 }
 function save() { (0, persist_1.scheduleSave)(getPersistedState); }
@@ -295,7 +297,7 @@ function factoryReset(io) {
     (0, persist_1.scheduleSave)(() => ({
         connections: [], groups: [], clients: [],
         audioRoutes: [], bridgeChannelInfo: [], outputBridgeChannels: [], streamDeckLayout: [],
-        terminals: [], videoRouting: [],
+        terminals: [], videoRouting: [], panelLayouts: [],
     }));
     io.emit("connections:all", []);
     io.emit("routing:update", []);
@@ -462,6 +464,14 @@ function setupSignaling(io) {
                         console.log(`[signaling] restored panel routing for remote "${client.id}"`);
                         broadcastRouting(io);
                     }
+                }
+            }
+            // Send stored panel layout to remote pad on connect (so UI is correct even if
+            // the host hasn't re-sent panel:layout:set yet after restart).
+            if (client.type === "remote") {
+                const layout = panelLayouts.get(client.id);
+                if (layout) {
+                    socket.emit("panel:layout", { slots: layout.slots, bgImage: layout.bgImage });
                 }
             }
             // Always send current routing to mobile/remote clients on register.
@@ -1490,6 +1500,7 @@ function setupSignaling(io) {
                 connections.set(k3, { from: slotClientId, to: clientId, channel: ch });
             });
             broadcastRouting(io);
+            save();
             // Live push layout to the pad if it's currently connected
             const target = clients.get(clientId);
             if (target?.socketId) {
