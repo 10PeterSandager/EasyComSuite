@@ -975,7 +975,7 @@ function setupSignaling(io) {
         });
         socket.on("audio:level", ({ clientId, level }) => {
             const update = { [clientId]: level };
-            for (const conn of connections.values()) {
+            for (const conn of getEffectiveConnections()) {
                 if (conn.from === clientId)
                     update[`recv_${conn.to}`] = level;
             }
@@ -984,10 +984,11 @@ function setupSignaling(io) {
         // 🔥 Batched bridge levels – ét event for alle kanaler
         socket.on("bridge:levels", (levels) => {
             const update = {};
+            const effectiveConns = getEffectiveConnections();
             for (const [clientId, level] of Object.entries(levels)) {
                 update[clientId] = level;
                 // Find alle connections fra denne bridge-kanal og sæt recv-niveauer
-                for (const conn of connections.values()) {
+                for (const conn of effectiveConns) {
                     if (conn.from === clientId)
                         update[`recv_${conn.to}`] = level;
                 }
