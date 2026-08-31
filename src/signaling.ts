@@ -425,6 +425,29 @@ export function setupSignaling(io: Server) {
         if (seen.size > 0) broadcastRouting(io)
       }
 
+      // Re-apply panel layout routing for remote pads that reconnect after connections
+      // were cleared by the 8-second disconnect grace period.
+      if (client.type === "remote") {
+        const layout = panelLayouts.get(client.id)
+        if (layout?.slots) {
+          const hasConns = Array.from(connections.values()).some(c => c.from === client.id || c.to === client.id)
+          if (!hasConns) {
+            // Rebuild from stored layout (same logic as panel:layout:set)
+            const kHost = connKey({ from: client.id, to: "producer-65", channel: 1 })
+            connections.set(kHost, { from: client.id, to: "producer-65", channel: 1 })
+            ;(layout.slots as any[]).filter(s => s && s.id && !s.isGroupLatch).forEach((slot, i) => {
+              const ch = i + 1
+              const k1 = connKey({ from: client.id, to: slot.id, channel: ch })
+              connections.set(k1, { from: client.id, to: slot.id, channel: ch, toChannel: ch })
+              const k3 = connKey({ from: slot.id, to: client.id, channel: ch })
+              connections.set(k3, { from: slot.id, to: client.id, channel: ch })
+            })
+            console.log(`[signaling] restored panel routing for remote "${client.id}"`)
+            broadcastRouting(io)
+          }
+        }
+      }
+
       // Always send current routing to mobile/remote clients on register.
       // Covers both first-time connect and socket.io auto-reconnects where the
       // server deleted the client entry on disconnect (so `existing` is always null).
@@ -1430,7 +1453,38 @@ export function setupSignaling(io: Server) {
     // Host: push panel layout for a linked client → stored server-side + pushed live to connected pad
     socket.on("panel:layout:set", ({ clientId, slots, bgImage }: { clientId: string; slots: any[]; bgImage?: string }) => {
       panelLayouts.set(clientId, { slots, bgImage })
-      // Live push to the pad if it's currently connected
+
+      // Auto-create routing connections for the remote pad based on its slot layout.
+      // Remove all previous connections from/to this remote client so we get a clean slate.
+      for (const [k, c] of connections) {
+        if (c.from === clientId || c.to === clientId) connections.delete(k)
+      }
+
+      // For each assigned slot, wire up bidirectional audio:
+      //   remote → slotClient (gated: only when that slot's button is pressed)
+      //   remote → producer-65 (gated: host hears remote when any button is pressed)
+      //   slotClient → remote (always: remote hears slot client)
+      const assignedSlots = (slots as any[]).filter(s => s && (s.clientId || s.id))
+      // Always-on: host hears remote pad whenever its mic is active
+      const kHost = connKey({ from: clientId, to: "producer-65", channel: 1 })
+      connections.set(kHost, { from: clientId, to: "producer-65", channel: 1 })
+
+      assignedSlots.forEach((slot, i) => {
+        const slotClientId: string = slot.clientId || slot.id
+        const ch = i + 1
+
+        // Gated: remote speaks to slot client only when pressing button ch
+        const k1 = connKey({ from: clientId, to: slotClientId, channel: ch })
+        connections.set(k1, { from: clientId, to: slotClientId, channel: ch, toChannel: ch })
+
+        // Always-on: slot client feeds back to remote so remote can hear them
+        const k3 = connKey({ from: slotClientId, to: clientId, channel: ch })
+        connections.set(k3, { from: slotClientId, to: clientId, channel: ch })
+      })
+
+      broadcastRouting(io)
+
+      // Live push layout to the pad if it's currently connected
       const target = clients.get(clientId)
       if (target?.socketId) {
         io.to(target.socketId).emit("panel:layout", { slots, bgImage })
