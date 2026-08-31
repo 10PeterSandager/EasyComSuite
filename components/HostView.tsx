@@ -27,7 +27,7 @@ import {
   Keyboard, CheckSquare, Square, Smartphone,
   Monitor, Tablet, Video, Link2, Settings2,
   ZoomIn, ZoomOut, GitFork, Camera, Users, X,
-  SlidersHorizontal, UserX, QrCode
+  SlidersHorizontal, UserX, QrCode, Globe
 } from "lucide-react"
 
 type ContextMenu = { clientId: string; x: number; y: number }
@@ -242,6 +242,7 @@ const HostView = (props: any) => {
 
   const [qrModal, setQrModal] = useState<null | 'remote' | 'ios'>(null)
   const [qrTunnelUrl, setQrTunnelUrl] = useState("")
+  const [showAddressPopover, setShowAddressPopover] = useState(false)
 
   // ── Backup / failover state ──────────────────────────────────────────────
   const [backupStatus, setBackupStatus] = useState<{
@@ -267,16 +268,19 @@ const HostView = (props: any) => {
   }, [])
   const [qrLanIp, setQrLanIp] = useState("")
   const [qrLanPort, setQrLanPort] = useState(3001)
+  const [qrHttpsPort, setQrHttpsPort] = useState(3000)
 
   useEffect(() => {
     fetch('/api/tunnel').then(r => r.json()).then(d => { if (d.url) setQrTunnelUrl(d.url) }).catch(() => {})
     fetch('/api/network').then(r => r.json()).then(d => {
       if (d.lanIp) setQrLanIp(d.lanIp)
       if (d.lanPort) setQrLanPort(d.lanPort)
+      if (d.port) setQrHttpsPort(d.port)
     }).catch(() => {})
     socket.emit('server:network:info', (info: { lanIp: string; port: number; lanPort: number }) => {
       if (info?.lanIp) setQrLanIp(info.lanIp)
       if (info?.lanPort) setQrLanPort(info.lanPort)
+      if (info?.port) setQrHttpsPort(info.port)
       // Keep NetworkPanel in sync with server's actual LAN IP and port
       if (info?.lanIp || info?.lanPort) {
         setNetwork(prev => ({
@@ -1290,6 +1294,54 @@ const HostView = (props: any) => {
               className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors whitespace-nowrap">
               <Smartphone size={13} /> iOS APP
             </button>
+            <div className="relative">
+              <button
+                ref={el => { (window as any)._addrBtnEl = el }}
+                onClick={() => setShowAddressPopover(p => !p)} title="Host adresser"
+                className={`flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${showAddressPopover ? 'text-white/80 bg-white/8' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}>
+                <Globe size={13} />
+              </button>
+              {showAddressPopover && (() => {
+                const btn = (window as any)._addrBtnEl as HTMLElement | null
+                const r = btn?.getBoundingClientRect()
+                return (
+                  <div
+                    style={{ position: 'fixed', top: (r?.bottom ?? 56) + 6, right: window.innerWidth - (r?.right ?? 0), zIndex: 9999 }}
+                    className="bg-zinc-900 border border-white/10 rounded-xl p-4 shadow-2xl min-w-64"
+                    onMouseLeave={() => setShowAddressPopover(false)}>
+                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-3">Host adresser</p>
+                    <div className="space-y-3">
+                      {qrLanIp && (() => {
+                        const https = `https://${qrLanIp}:${qrHttpsPort}`
+                        const http = `http://${qrLanIp}:${qrLanPort}`
+                        return (
+                          <>
+                            <div>
+                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Desktop / Browser</p>
+                              {['/desktop', '/host'].map(path => (
+                                <p key={path} className="text-[10px] font-mono text-white/70 select-all leading-relaxed">{https}{path}</p>
+                              ))}
+                            </div>
+                            <div>
+                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Mobil / iPad</p>
+                              <p className="text-[10px] font-mono text-white/70 select-all">{http}/remote</p>
+                            </div>
+                          </>
+                        )
+                      })()}
+                      {qrTunnelUrl && (
+                        <div>
+                          <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Tunnel (ekstern)</p>
+                          {['/remote', '/desktop', '/host'].map(path => (
+                            <p key={path} className="text-[10px] font-mono text-white/70 select-all break-all leading-relaxed">{qrTunnelUrl}{path}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         </div>
         {/* BASE section always mounted so ProducerStrip mediasoup init runs on every tab */}
