@@ -437,13 +437,12 @@ export function setupSignaling(io: Server) {
             // Rebuild from stored layout (same logic as panel:layout:set)
             ;(layout.slots as any[]).filter(s => s && (s.id || s.clientId) && !s.isGroupLatch).forEach((slot, i) => {
               const slotId: string = slot.id || slot.clientId
-              const ch = i + 1
-              const k1 = connKey({ from: client.id, to: slotId, channel: ch })
-              connections.set(k1, { from: client.id, to: slotId, channel: ch, toChannel: ch })
-              const kHost = connKey({ from: client.id, to: "producer-65", channel: ch })
-              connections.set(kHost, { from: client.id, to: "producer-65", channel: ch, toChannel: ch })
-              const k3 = connKey({ from: slotId, to: client.id, channel: ch })
-              connections.set(k3, { from: slotId, to: client.id, channel: ch })
+              const btnChannel = i + 1
+              const outChannel: number = slot.outputChannel ?? 1
+              const k1 = connKey({ from: client.id, to: slotId, channel: outChannel })
+              connections.set(k1, { from: client.id, to: slotId, channel: outChannel, toChannel: btnChannel })
+              const k3 = connKey({ from: slotId, to: client.id, channel: outChannel })
+              connections.set(k3, { from: slotId, to: client.id, channel: outChannel })
             })
             console.log(`[signaling] restored panel routing for remote "${client.id}"`)
             broadcastRouting(io)
@@ -1475,25 +1474,20 @@ export function setupSignaling(io: Server) {
 
       // For each assigned slot, wire up bidirectional audio:
       //   remote → slotClient (gated: only when that slot's button is pressed)
-      //   remote → producer-65 (gated: host hears remote when any button is pressed)
       //   slotClient → remote (always: remote hears slot client)
+      // outputChannel sets which physical output channel the audio lands on (defaults to slot index+1)
       const assignedSlots = (slots as any[]).filter(s => s && (s.clientId || s.id))
 
       assignedSlots.forEach((slot, i) => {
         const slotClientId: string = slot.clientId || slot.id
-        const ch = i + 1
+        const btnChannel = i + 1  // which button triggers this (toChannel gate)
+        const outChannel: number = slot.outputChannel ?? 1  // which output channel the audio lands on
 
-        // Gated: remote speaks to slot client AND host on channel ch when pressing button ch
-        const k1 = connKey({ from: clientId, to: slotClientId, channel: ch })
-        connections.set(k1, { from: clientId, to: slotClientId, channel: ch, toChannel: ch })
+        const k1 = connKey({ from: clientId, to: slotClientId, channel: outChannel })
+        connections.set(k1, { from: clientId, to: slotClientId, channel: outChannel, toChannel: btnChannel })
 
-        // Gated: host receives on channel ch (matches the button pressed — per-channel routing)
-        const kHost = connKey({ from: clientId, to: "producer-65", channel: ch })
-        connections.set(kHost, { from: clientId, to: "producer-65", channel: ch, toChannel: ch })
-
-        // Always-on: slot client feeds back to remote so remote can hear them
-        const k3 = connKey({ from: slotClientId, to: clientId, channel: ch })
-        connections.set(k3, { from: slotClientId, to: clientId, channel: ch })
+        const k3 = connKey({ from: slotClientId, to: clientId, channel: outChannel })
+        connections.set(k3, { from: slotClientId, to: clientId, channel: outChannel })
       })
 
       broadcastRouting(io)
