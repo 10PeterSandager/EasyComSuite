@@ -1567,7 +1567,20 @@ function setupSignaling(io) {
                 io.emit("clients:update", { id: clientId, updates: { status: "offline" } });
                 (0, audioOutput_1.stopAllForClient)(clientId).catch(() => { });
                 mobileActiveTb.delete(clientId);
-                clients.delete(clientId);
+                // Real devices (remote/mobile/desktop) keep their client entry with socketId=""
+                // so their type and name survive server restart via data.json.
+                // Ephemeral host-batch clients (type="") are deleted immediately.
+                const existingEntry = clients.get(clientId);
+                const isRealDevice = existingEntry?.data?.type === "mobile"
+                    || existingEntry?.data?.type === "remote"
+                    || existingEntry?.data?.type === "desktop";
+                if (isRealDevice) {
+                    clients.set(clientId, { socketId: "", data: existingEntry.data });
+                    save();
+                }
+                else {
+                    clients.delete(clientId);
+                }
                 // Grace period: give the client 8 seconds to reconnect before wiping connections.
                 // Use a timestamp so that a rapid disconnect→reconnect→disconnect sequence doesn't
                 // let an earlier timer prematurely delete connections for the later disconnect.
@@ -1577,7 +1590,8 @@ function setupSignaling(io) {
                     // Abort if a newer disconnect has since occurred for this client
                     if (disconnectTimes.get(clientId) !== disconnectTime)
                         return;
-                    if (clients.has(clientId)) {
+                    // Abort if client reconnected (has an active socketId)
+                    if (clients.get(clientId)?.socketId) {
                         disconnectTimes.delete(clientId);
                         return;
                     }
