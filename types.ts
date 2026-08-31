@@ -264,4 +264,5 @@ export type MappedClient = Client & {
   isGroupLatch?: boolean
   memberIds?: string[]
   isLatchCopy?: boolean
+  outputChannel?: number
 }

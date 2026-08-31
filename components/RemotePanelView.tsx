@@ -36,6 +36,7 @@ interface SlotData {
   textScale: number
   isGroup?: boolean
   memberIds?: string[]
+  outputChannel?: number
 }
 
 const SLOT_COLORS = ['#f97316','#3b82f6','#22c55e','#a855f7','#ef4444','#eab308','#06b6d4','#ec4899','#14b8a6','#f43f5e','#8b5cf6','#10b981']
@@ -60,7 +61,8 @@ const LayoutWorkspace: React.FC<{
           color: m.color,
           isGroup: !!m.isGroupLatch,
           memberIds: m.memberIds,
-          textScale: 1
+          textScale: 1,
+          outputChannel: m.outputChannel
         } as SlotData
       })
     }
@@ -77,7 +79,7 @@ const LayoutWorkspace: React.FC<{
 
   // Sync slots → mappings
   useEffect(() => {
-    const m = slots.map(s => s ? { id: s.clientId ?? s.groupId ?? '?', name: s.name, color: s.color, isGroupLatch: !!s.isGroup, memberIds: s.memberIds } as any : null)
+    const m = slots.map(s => s ? { id: s.clientId ?? s.groupId ?? '?', name: s.name, color: s.color, isGroupLatch: !!s.isGroup, memberIds: s.memberIds, outputChannel: s.outputChannel } as any : null)
     setMappings(m)
   }, [slots])
 
@@ -105,12 +107,7 @@ const LayoutWorkspace: React.FC<{
     } else if (clientId) {
       const c = clients.find(x => x.id === clientId)
       if (c) {
-        newSlots[slotIdx] = { clientId: c.id, name: c.name, color: '', textScale: slots[slotIdx]?.textScale ?? 1 }
-        // Auto-connect: link the remote's paired client → this client
-        if (linkedClientId && socket) {
-          socket.emit('connection:create', { from: linkedClientId, to: c.id, channel: 1 })
-          socket.emit('connection:create', { from: c.id, to: linkedClientId, channel: 1 })
-        }
+        newSlots[slotIdx] = { clientId: c.id, name: c.name, color: '', textScale: slots[slotIdx]?.textScale ?? 1, outputChannel: slots[slotIdx]?.outputChannel }
       }
     }
     setSlots(newSlots)
@@ -136,8 +133,15 @@ const LayoutWorkspace: React.FC<{
     setSlots(prev => prev.map((s, idx) => idx === i && s ? { ...s, name } : s))
   }
 
+  const setSelectedChannel = (ch: number) => {
+    setSlots(prev => prev.map((s, i) => selected.includes(i) && s ? { ...s, outputChannel: ch } : s))
+  }
+
   const cols = panel.gridColumns || 8
   const selSlot = selected.length === 1 ? slots[selected[0]] : null
+  const effectiveChannel = (s: SlotData | null, _idx: number) => s?.outputChannel ?? 1
+  const firstSelCh = selected.length > 0 ? effectiveChannel(slots[selected[0]], selected[0]) : 1
+  const allSameChannel = selected.every(i => effectiveChannel(slots[i], i) === firstSelCh)
 
   return (
     <div className="flex h-full overflow-hidden relative">
@@ -170,6 +174,24 @@ const LayoutWorkspace: React.FC<{
                     style={{ background: col, borderColor: selSlot?.color === col ? 'white' : 'transparent' }} />
                 ))}
               </div>
+            </div>
+            {/* Output channel */}
+            <div>
+              <p className="text-[8px] text-zinc-500 uppercase mb-1">Output channel</p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setSelectedChannel(Math.max(1, firstSelCh - 1))}
+                  className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded text-zinc-400 text-[9px] hover:text-white hover:bg-zinc-700">−</button>
+                <input type="number" min={1} max={32}
+                  value={allSameChannel ? firstSelCh : ''}
+                  placeholder={allSameChannel ? '' : '—'}
+                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 32) setSelectedChannel(v) }}
+                  className="flex-1 bg-black border border-white/10 rounded px-1 py-1 text-[9px] font-mono text-white text-center outline-none" />
+                <button onClick={() => setSelectedChannel(Math.min(32, firstSelCh + 1))}
+                  className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded text-zinc-400 text-[9px] hover:text-white hover:bg-zinc-700">+</button>
+              </div>
+              {selected.length > 1 && !allSameChannel && (
+                <p className="text-[7px] text-zinc-600 mt-0.5">Mixed — set value to apply to all</p>
+              )}
             </div>
             {/* Name edit if single */}
             {selected.length === 1 && selSlot && (
@@ -246,10 +268,16 @@ const LayoutWorkspace: React.FC<{
                   cursor: slot ? 'grab' : 'default',
                   boxShadow: isSel ? '0 0 0 2px white' : 'none'
                 }}>
-                {slot
-                  ? <span className="font-black text-white uppercase leading-tight px-1 break-all"
-                      style={{ fontSize: `${Math.round(9 * (slot.textScale ?? 1))}px` }}>{slot.name}</span>
-                  : <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.08)' }}>{i+1}</span>}
+                {slot && (
+                  <span className="font-black text-white uppercase leading-tight px-1 break-all"
+                    style={{ fontSize: `${Math.round(9 * (slot.textScale ?? 1))}px` }}>{slot.name}</span>
+                )}
+                {slot && (
+                  <span className="absolute bottom-1 left-1 text-[9px] font-mono font-bold leading-none px-1 py-0.5 rounded"
+                    style={{ background: 'rgba(0,0,0,0.55)', color: slot.color || 'rgba(255,255,255,0.5)' }}>
+                    CH{effectiveChannel(slot, i)}
+                  </span>
+                )}
                 {isSel && <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white" />}
               </div>
             )
