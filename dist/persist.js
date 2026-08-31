@@ -14,7 +14,7 @@ const DATA_FILE = path_1.default.resolve(process.cwd(), "data.json");
 const EMPTY = {
     connections: [], groups: [], clients: [],
     audioRoutes: [], bridgeChannelInfo: [], outputBridgeChannels: [], streamDeckLayout: [],
-    terminals: [], videoRouting: [],
+    terminals: [], videoRouting: [], panelLayouts: [],
 };
 function loadState() {
     try {
