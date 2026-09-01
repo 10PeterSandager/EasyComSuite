@@ -1317,14 +1317,10 @@ const HostView = (props: any) => {
                         return (
                           <>
                             <div>
-                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Desktop / Browser</p>
-                              {['/desktop', '/host'].map(path => (
-                                <p key={path} className="text-[10px] font-mono text-white/70 select-all leading-relaxed">{https}{path}</p>
+                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Desktop / Remote / Host</p>
+                              {['/desktop', '/remote', '/host'].map(path => (
+                                <p key={path} className="text-[10px] font-mono text-white/70 select-all leading-relaxed">{http}{path}</p>
                               ))}
-                            </div>
-                            <div>
-                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Mobil / iPad</p>
-                              <p className="text-[10px] font-mono text-white/70 select-all">{http}/remote</p>
                             </div>
                           </>
                         )
@@ -1533,7 +1529,7 @@ const HostView = (props: any) => {
       {qrModal && (() => {
         const isIos = qrModal === 'ios'
         const iosUrl = `easycommobile://setup?host=${encodeURIComponent(qrLanIp)}&port=${qrLanPort}&tunnel=${encodeURIComponent(qrTunnelUrl)}`
-        const remoteLanUrl = qrLanIp ? `https://${qrLanIp}:${qrLanPort}/remote` : ''
+        const remoteLanUrl = qrLanIp ? `http://${qrLanIp}:${qrLanPort}/remote` : ''
         const remoteUrl = qrTunnelUrl ? qrTunnelUrl + '/remote' : remoteLanUrl
         const qrData = isIos ? iosUrl : remoteUrl
         const qrSrc = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrData)}` : ''
@@ -2223,12 +2219,12 @@ function EasyComManual() {
       <DocP>
         Den enkleste opsætning. Server og alle klienter er på samme netværk (f.eks. produktions-wifi eller ethernetswitch).
         Mobiltelefoner og tablets forbinder til serverens LAN-IP på port 3001 (HTTP — ingen SSL nødvendigt på LAN).
-        Desktop-klienter forbinder til port 3000 (HTTPS eller HTTP, afhænger af SSL-konfiguration).
+        Desktop-klienter forbinder til port 3001 (HTTP på LAN) eller port 3000 (HTTPS eksternt).
       </DocP>
       <ul className="list-disc list-inside space-y-0 mb-3 pl-1">
         <DocLi>Find serverens LAN-IP: SETUP → Network → "Server IP". Typisk <span className="font-mono text-orange-400">192.168.x.x</span>.</DocLi>
         <DocLi>Mobil: brug <span className="font-mono text-orange-400">http://192.168.x.x:3001</span> som server-URL i iOS-appen.</DocLi>
-        <DocLi>Desktop/Remote: åbn <span className="font-mono text-orange-400">http://192.168.x.x:3000/desktop</span> i browser.</DocLi>
+        <DocLi>Desktop/Remote: åbn <span className="font-mono text-orange-400">http://192.168.x.x:3001/desktop</span> i browser.</DocLi>
         <DocLi>TURN-server er ikke nødvendig på LAN — WebRTC forbinder direkte (peer-to-peer via server).</DocLi>
       </ul>
 
