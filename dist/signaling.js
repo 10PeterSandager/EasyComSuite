@@ -50,6 +50,7 @@ const persist_1 = require("./persist");
 const backup_1 = require("./backup");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
 // settings survive a server restart.
@@ -1303,6 +1304,25 @@ function setupSignaling(io) {
             cb(clientVisibility.get(clientId) ?? []);
         });
         /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
+        socket.on("server:network:info", (cb) => {
+            if (typeof cb !== "function")
+                return;
+            const nets = os_1.default.networkInterfaces();
+            let lanIp = "127.0.0.1";
+            for (const ifaces of Object.values(nets)) {
+                for (const iface of ifaces ?? []) {
+                    if (iface.family === "IPv4" && !iface.internal) {
+                        lanIp = iface.address;
+                        break;
+                    }
+                }
+                if (lanIp !== "127.0.0.1")
+                    break;
+            }
+            const httpsPort = parseInt(process.env.PORT ?? "3000");
+            const lanPort = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1));
+            cb({ lanIp, lanPort, port: httpsPort });
+        });
         socket.on("server:config:get", (cb) => {
             if (typeof cb !== "function")
                 return;

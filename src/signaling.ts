@@ -9,6 +9,7 @@ import { loadState, scheduleSave, PersistedState } from "./persist"
 import { emitBackupConfig } from "./backup"
 import fs from "fs"
 import path from "path"
+import os from "os"
 
 // ── .env persistence ────────────────────────────────────────────────────────
 // Reads the current .env, updates specific keys, and writes it back so
@@ -1283,6 +1284,21 @@ export function setupSignaling(io: Server) {
     })
 
     /* ---------- SERVER CONFIG (internet / WebRTC settings from HOST UI) ---------- */
+
+    socket.on("server:network:info", (cb) => {
+      if (typeof cb !== "function") return
+      const nets = os.networkInterfaces()
+      let lanIp = "127.0.0.1"
+      for (const ifaces of Object.values(nets)) {
+        for (const iface of ifaces ?? []) {
+          if (iface.family === "IPv4" && !iface.internal) { lanIp = iface.address; break }
+        }
+        if (lanIp !== "127.0.0.1") break
+      }
+      const httpsPort = parseInt(process.env.PORT ?? "3000")
+      const lanPort   = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1))
+      cb({ lanIp, lanPort, port: httpsPort })
+    })
 
     socket.on("server:config:get", (cb) => {
       if (typeof cb !== "function") return

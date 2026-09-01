@@ -57,7 +57,7 @@ app.get("/health", (_, res) => {
 app.get("/api/tunnel", (_, res) => {
     res.json({ status: (0, tunnel_1.getTunnelStatus)(), url: (0, tunnel_1.getTunnelUrl)() });
 });
-// Returns LAN IP and HTTPS port so the host UI can build QR codes for local access
+// Returns LAN IP and ports so the host UI can build QR codes and address popovers
 app.get("/api/network", (_, res) => {
     const nets = os_1.default.networkInterfaces();
     let lanIp = "127.0.0.1";
@@ -72,7 +72,8 @@ app.get("/api/network", (_, res) => {
             break;
     }
     const httpsPort = parseInt(process.env.PORT ?? "3000");
-    res.json({ lanIp, lanPort: httpsPort });
+    const lanPort = parseInt(process.env.LAN_PORT ?? String(httpsPort + 1));
+    res.json({ lanIp, lanPort, port: httpsPort });
 });
 // Dynamic QR code page — always shows the current tunnel URL
 // Open http://localhost:3000/qr on the host, then scan with the tablet
