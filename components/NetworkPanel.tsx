@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { NetworkConfig, RemoteHost, HardwareInterface } from '../types'
-import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader, RotateCw, AlertTriangle } from 'lucide-react'
+import { Globe, RefreshCw, Users, Wifi, Shield, CheckCircle, Loader, RotateCw, AlertTriangle, Link } from 'lucide-react'
 import { socket } from '../client/webrtc/intercom'
 
 interface NetworkPanelProps {
@@ -30,6 +30,8 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
   const [turnUsername, setTurnUsername]       = useState(cache.turnUsername     ?? '')
   const [turnPassword, setTurnPassword]       = useState(cache.turnPassword     ?? '')
   const [sessionPassword, setSessionPassword] = useState(cache.sessionPassword  ?? '')
+  const [cfTunnelUrl, setCfTunnelUrl]         = useState(cache.cfTunnelUrl      ?? '')
+  const [cfTunnelToken, setCfTunnelToken]     = useState(cache.cfTunnelToken    ?? '')
   const [port, setPort]                       = useState(cache.port ?? 3000)
   const [lanPort, setLanPort]                 = useState(cache.lanPort ?? 3001)
   const [detecting, setDetecting]             = useState(false)
@@ -48,6 +50,8 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
         setTurnUsername(cfg.turnUsername ?? '')
         setTurnPassword(cfg.turnPassword ?? '')
         setSessionPassword(cfg.sessionPassword ?? '')
+        if (cfg.cfTunnelUrl)   setCfTunnelUrl(cfg.cfTunnelUrl)
+        if (cfg.cfTunnelToken) setCfTunnelToken(cfg.cfTunnelToken)
         if (cfg.port)    setPort(cfg.port)
         if (cfg.lanPort) setLanPort(cfg.lanPort)
       })
@@ -86,6 +90,8 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
       turnUsername:    turnUsername.trim(),
       turnPassword:    turnPassword.trim(),
       sessionPassword: sessionPassword.trim(),
+      cfTunnelUrl:     cfTunnelUrl.trim(),
+      cfTunnelToken:   cfTunnelToken.trim(),
       port,
       lanPort,
     }
@@ -227,6 +233,47 @@ const NetworkPanel: React.FC<NetworkPanelProps> = ({ network, setNetwork, remote
             <p className="text-[9px] text-white/20">
               Clients must enter this password to see your station list.
             </p>
+          </div>
+
+          {/* Cloudflare Tunnel */}
+          <div className="pt-2 border-t border-white/5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Link size={11} className="text-orange-400" />
+              <span className="text-[10px] text-white/40 uppercase tracking-wider">Cloudflare Tunnel (fast URL)</span>
+            </div>
+            <p className="text-[9px] text-white/20 leading-relaxed">
+              Giver fast ekstern adresse uden port forwarding. Opret tunnel på cloudflare.com → Zero Trust → Tunnels.
+            </p>
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">Tunnel URL</label>
+              <input
+                type="text"
+                value={cfTunnelUrl}
+                onChange={e => setCfTunnelUrl(e.target.value)}
+                placeholder="https://remote.ditdomæne.dk"
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                spellCheck={false}
+                autoCapitalize="none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider">Tunnel Token</label>
+              <input
+                type="password"
+                value={cfTunnelToken}
+                onChange={e => setCfTunnelToken(e.target.value)}
+                placeholder="eyJ… (fra Cloudflare dashboard)"
+                className="w-full mt-1 px-3 py-2 bg-black border border-white/10 rounded text-xs text-white font-mono"
+                autoComplete="new-password"
+              />
+            </div>
+            {cfTunnelUrl && cfTunnelToken && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)" }}>
+                <Globe size={10} className="text-orange-400 shrink-0" />
+                <span className="text-[9px] text-orange-300 font-mono break-all">{cfTunnelUrl}</span>
+              </div>
+            )}
+            <p className="text-[9px] text-white/20">Gemmes og tunnel genstarter automatisk ved Save.</p>
           </div>
 
           {/* Ports */}
