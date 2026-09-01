@@ -1312,16 +1312,26 @@ const HostView = (props: any) => {
                     <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-3">Åbn i browser</p>
                     <div className="space-y-4">
                       {qrLanIp && (() => {
-                        const http = `http://${qrLanIp}:${qrLanPort}`
+                        const http  = `http://${qrLanIp}:${qrLanPort}`
+                        const https = `https://${qrLanIp}:${qrHttpsPort}`
                         return (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
                               <p className="text-[7px] font-black text-green-400 uppercase tracking-widest">På samme netværk (LAN)</p>
                             </div>
-                            {['/desktop', '/remote', '/host'].map(path => (
-                              <p key={path} className="text-[10px] font-mono text-white/80 select-all leading-relaxed pl-3">{http}{path}</p>
-                            ))}
+                            <div className="pl-3 space-y-0.5">
+                              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Desktop (kræver HTTPS)</p>
+                              <p className="text-[10px] font-mono text-white/80 select-all leading-relaxed">{https}/desktop</p>
+                            </div>
+                            <div className="pl-3 space-y-0.5">
+                              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">iPad / Mobil</p>
+                              <p className="text-[10px] font-mono text-white/80 select-all leading-relaxed">{http}/remote</p>
+                            </div>
+                            <div className="pl-3 space-y-0.5">
+                              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Host</p>
+                              <p className="text-[10px] font-mono text-white/80 select-all leading-relaxed">{http}/host</p>
+                            </div>
                           </div>
                         )
                       })()}
