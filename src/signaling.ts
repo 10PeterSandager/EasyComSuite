@@ -460,6 +460,22 @@ export function setupSignaling(io: Server) {
         }
       }
 
+      // Auto-create a TB1-gated talk path from client → HOST (producer-65) if none exists.
+      // This allows any connected client to talk to the host by pressing TB button 1,
+      // without requiring manual routing setup. Remote clients with panel layouts already
+      // get routing via panel:layout:set, so this only adds a fallback if nothing is configured.
+      if (isRealDevice) {
+        const hasHostRoute = Array.from(connections.values()).some(
+          c => c.from === client.id && c.to === "producer-65"
+        )
+        if (!hasHostRoute) {
+          const k = connKey({ from: client.id, to: "producer-65", channel: 1 })
+          connections.set(k, { from: client.id, to: "producer-65", channel: 1, toChannel: 1 })
+          console.log(`[signaling] auto-created host talk route: ${client.id} → producer-65 (TB1)`)
+          broadcastRouting(io)
+        }
+      }
+
       // Always send current routing to mobile/remote clients on register.
       // Covers both first-time connect and socket.io auto-reconnects where the
       // server deleted the client entry on disconnect (so `existing` is always null).
