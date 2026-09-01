@@ -1309,28 +1309,39 @@ const HostView = (props: any) => {
                     style={{ position: 'fixed', top: (r?.bottom ?? 56) + 6, right: window.innerWidth - (r?.right ?? 0), zIndex: 9999 }}
                     className="bg-zinc-900 border border-white/10 rounded-xl p-4 shadow-2xl min-w-64"
                     onMouseLeave={() => setShowAddressPopover(false)}>
-                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-3">Host adresser</p>
-                    <div className="space-y-3">
+                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-3">Åbn i browser</p>
+                    <div className="space-y-4">
                       {qrLanIp && (() => {
-                        const https = `https://${qrLanIp}:${qrHttpsPort}`
                         const http = `http://${qrLanIp}:${qrLanPort}`
                         return (
-                          <>
-                            <div>
-                              <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Desktop / Remote / Host</p>
-                              {['/desktop', '/remote', '/host'].map(path => (
-                                <p key={path} className="text-[10px] font-mono text-white/70 select-all leading-relaxed">{http}{path}</p>
-                              ))}
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                              <p className="text-[7px] font-black text-green-400 uppercase tracking-widest">På samme netværk (LAN)</p>
                             </div>
-                          </>
+                            {['/desktop', '/remote', '/host'].map(path => (
+                              <p key={path} className="text-[10px] font-mono text-white/80 select-all leading-relaxed pl-3">{http}{path}</p>
+                            ))}
+                          </div>
                         )
                       })()}
-                      {qrTunnelUrl && (
+                      {qrTunnelUrl ? (
                         <div>
-                          <p className="text-[7px] text-zinc-500 uppercase tracking-widest mb-1.5">Tunnel (ekstern)</p>
-                          {['/remote', '/desktop', '/host'].map(path => (
-                            <p key={path} className="text-[10px] font-mono text-white/70 select-all break-all leading-relaxed">{qrTunnelUrl}{path}</p>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                            <p className="text-[7px] font-black text-orange-400 uppercase tracking-widest">Fra internet (tunnel)</p>
+                          </div>
+                          {['/desktop', '/remote', '/host'].map(path => (
+                            <p key={path} className="text-[10px] font-mono text-white/80 select-all break-all leading-relaxed pl-3">{qrTunnelUrl}{path}</p>
                           ))}
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                            <p className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Fra internet (tunnel)</p>
+                          </div>
+                          <p className="text-[9px] text-zinc-600 pl-3">Tunnel ikke aktiv — start den under Setup → Network</p>
                         </div>
                       )}
                     </div>

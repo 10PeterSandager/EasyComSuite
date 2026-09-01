@@ -107,11 +107,20 @@ const App: React.FC = () => {
 
   const [theme, setTheme] = useState<"orange" | "blue">("orange")
   const [hostName, setHostName] = useState(() => localStorage.getItem('easycom_hostname') ?? "EASYCOM-HOST")
+  const [lanIp, setLanIp]       = useState("")
+  const [lanPort, setLanPort]   = useState(3001)
 
   // Persist hostname
   React.useEffect(() => {
     localStorage.setItem('easycom_hostname', hostName)
   }, [hostName])
+
+  React.useEffect(() => {
+    fetch('/api/network').then(r => r.json()).then(d => {
+      if (d.lanIp)   setLanIp(d.lanIp)
+      if (d.lanPort) setLanPort(d.lanPort)
+    }).catch(() => {})
+  }, [])
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -669,9 +678,12 @@ const App: React.FC = () => {
 
             <div className="flex items-center gap-2 px-3 py-1.5 border rounded bg-black/40">
               <Globe size={12} className={`text-${themeColor}-500`} />
-              <span className="text-[9px] font-black uppercase">
-                {hostName}
-              </span>
+              <div className="flex flex-col leading-none">
+                <span className="text-[9px] font-black uppercase text-white">{hostName}</span>
+                {lanIp && (
+                  <span className="text-[8px] font-mono text-white/40 mt-0.5">{lanIp}:{lanPort}</span>
+                )}
+              </div>
             </div>
 
             <button
