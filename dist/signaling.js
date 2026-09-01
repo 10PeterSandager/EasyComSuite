@@ -1312,9 +1312,11 @@ function setupSignaling(io) {
                 turnUsername: process.env.TURN_USERNAME ?? "",
                 turnPassword: process.env.TURN_PASSWORD ?? "",
                 sessionPassword: process.env.SESSION_PASSWORD ?? "",
+                cfTunnelUrl: process.env.CLOUDFLARE_TUNNEL_URL ?? "",
+                cfTunnelToken: process.env.CLOUDFLARE_TUNNEL_TOKEN ?? "",
             });
         });
-        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword }, cb) => {
+        socket.on("server:config:update", ({ announcedIp, turnUrl, turnUsername, turnPassword, sessionPassword, cfTunnelUrl, cfTunnelToken }, cb) => {
             const toSave = {};
             if (announcedIp !== undefined) {
                 process.env.MEDIASOUP_ANNOUNCED_IP = announcedIp;
@@ -1338,6 +1340,28 @@ function setupSignaling(io) {
                 process.env.SESSION_PASSWORD = sessionPassword;
                 toSave["SESSION_PASSWORD"] = sessionPassword;
                 console.log(`[signaling] session password ${sessionPassword ? "set" : "cleared"}`);
+            }
+            // Cloudflare tunnel config — save and immediately restart tunnel
+            const cfChanged = cfTunnelUrl !== undefined || cfTunnelToken !== undefined;
+            if (cfTunnelUrl !== undefined) {
+                process.env.CLOUDFLARE_TUNNEL_URL = cfTunnelUrl;
+                toSave["CLOUDFLARE_TUNNEL_URL"] = cfTunnelUrl;
+            }
+            if (cfTunnelToken !== undefined) {
+                process.env.CLOUDFLARE_TUNNEL_TOKEN = cfTunnelToken;
+                toSave["CLOUDFLARE_TUNNEL_TOKEN"] = cfTunnelToken;
+            }
+            if (cfChanged) {
+                const enabled = !!(process.env.CLOUDFLARE_TUNNEL_TOKEN?.trim() && process.env.CLOUDFLARE_TUNNEL_URL?.trim());
+                process.env.CLOUDFLARE_TUNNEL = enabled ? "true" : "false";
+                toSave["CLOUDFLARE_TUNNEL"] = enabled ? "true" : "false";
+                (0, tunnel_1.stopTunnel)();
+                if (enabled) {
+                    const PORT = parseInt(process.env.PORT ?? "3000");
+                    (0, tunnel_1.startTunnel)(PORT)
+                        .then(url => console.log(`[signaling] 🌐 tunnel restarted: ${url}`))
+                        .catch(err => console.warn("[signaling] tunnel restart failed:", err.message));
+                }
             }
             persistEnvVars(toSave);
             cb?.({ ok: true });
