@@ -11,6 +11,7 @@ import MobileClientView from "./components/MobileClientView"
 import {
   Radio,
   Maximize,
+  Minimize,
   Globe,
   Activity,
   Wifi,
@@ -631,9 +632,8 @@ const App: React.FC = () => {
 
     <div className={`flex flex-col h-screen selection:bg-${themeColor}-500/30`}>
 
-      {!isFullscreen && (
-
-        <div className="flex items-center justify-between px-6 py-2 bg-black/40 border-b border-white/5">
+      <div className={`flex items-center justify-between px-6 py-2 bg-black/40 border-b border-white/20`}
+           style={{ borderBottomColor: 'rgba(249,115,22,0.25)' }}>
 
           <div className="flex items-center gap-6">
 
@@ -642,7 +642,7 @@ const App: React.FC = () => {
                 <Radio size={18} className="text-white"/>
               </div>
 
-              <span className="font-black text-white uppercase tracking-tight">
+              <span className="text-xl font-black text-white uppercase tracking-tight leading-none">
                 EASYC<span className={`text-${themeColor}-500`}>O</span>M
               </span>
             </div>
@@ -678,17 +678,15 @@ const App: React.FC = () => {
               onClick={toggleFullscreen}
               className="flex items-center gap-2 px-3 py-1.5 border rounded bg-zinc-800 text-zinc-400 hover:text-white"
             >
-              <Maximize size={12}/>
+              {isFullscreen ? <Minimize size={12}/> : <Maximize size={12}/>}
               <span className="text-[9px] font-black uppercase">
-                Fullscreen
+                {isFullscreen ? 'Exit' : 'Fullscreen'}
               </span>
             </button>
 
           </div>
 
-        </div>
-
-      )}
+      </div>
 
       <main className="flex-1 overflow-hidden">
 
