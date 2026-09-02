@@ -409,21 +409,24 @@ export default function ServerCapturePanel({ onStreamReady, stereoPairs = [], on
 
             {/* Output device selector */}
             {isActive && outputDevices.length > 0 && (
-              <div className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg"
-                style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
-                <Volume2 size={11} className="text-blue-400 shrink-0" />
-                <select
-                  value={selectedOutputId}
-                  onChange={e => handleOutputChange(e.target.value)}
-                  className="flex-1 bg-transparent text-xs text-white/80 focus:outline-none truncate"
-                  style={{ minWidth: 0 }}
-                >
-                  {outputDevices.map(d => (
-                    <option key={d.deviceId} value={d.deviceId} style={{ background: "#18181b" }}>
-                      {d.label || `Output ${d.deviceId.slice(0, 8)}`}
-                    </option>
-                  ))}
-                </select>
+              <div className="shrink-0 space-y-1">
+                <p className="text-[8px] uppercase tracking-widest font-bold px-1" style={{ color: OUT_COLOR }}>Monitor output</p>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                  <Volume2 size={11} className="text-blue-400 shrink-0" />
+                  <select
+                    value={selectedOutputId}
+                    onChange={e => handleOutputChange(e.target.value)}
+                    className="flex-1 text-xs text-white focus:outline-none"
+                    style={{ background: "transparent", minWidth: 0 }}
+                  >
+                    {outputDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId} style={{ background: "#18181b", color: "white" }}>
+                        {d.label || `Output ${d.deviceId.slice(0, 8)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 

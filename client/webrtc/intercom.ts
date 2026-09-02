@@ -695,7 +695,9 @@ export function initRouting(clientId: string) {
   // mobile client unpauses their mic (TB pressed). This eliminates the 100-300ms
   // consume-setup latency that was causing the first TB press to produce no audio.
   socket.on("connections:all", (allConnections: any[]) => {
-    const toMe = allConnections.filter(c => c.to === clientId && !c.from.startsWith("bridge-"))
+    // Exclude bridge-ch and video-audio-source — the latter is webcam embedded audio that
+    // should only play where the video player explicitly handles it, not via normal routing.
+    const toMe = allConnections.filter(c => c.to === clientId && !c.from.startsWith("bridge-") && !c.from.startsWith("video-audio-source-"))
     const activeSources = new Set(toMe.map((c: any) => c.from))
 
     // Track ALL stored phone connections so producer:ready can pre-consume on first TB press
@@ -737,7 +739,7 @@ export function initRouting(clientId: string) {
   })
 
   socket.on("routing:update", async (connections: any[]) => {
-    const toMe = connections.filter(c => c.to === clientId)
+    const toMe = connections.filter(c => c.to === clientId && !c.from.startsWith("video-audio-source-"))
     console.log(`[ROUTING] update: ${connections.length} total, ${toMe.length} to me`, toMe)
 
     const newRouting: Record<number, string[]> = {}

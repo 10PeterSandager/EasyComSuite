@@ -59,6 +59,8 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [selectedBridgeChannel, setSelectedBridgeChannel] = useState(1)
   const [allChannelLevels, setAllChannelLevels] = useState<number[]>([])
   const [showChannelPicker, setShowChannelPicker] = useState(false)
+  const [micDevices, setMicDevices] = useState<{ deviceId: string; label: string }[]>([])
+  const [selectedMicDeviceId, setSelectedMicDeviceId] = useState<string>("")
 
   /* ---- Tone generator state ---- */
   const [toneActive, setToneActive] = useState(false)
@@ -141,6 +143,23 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
     }
     if (!isMediasoupReady()) init()
     else { initRouting(PRODUCER_ID); setTransportReady(true) }
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null)
+        s?.getTracks().forEach(t => t.stop())
+        const all = await navigator.mediaDevices.enumerateDevices()
+        const ins = all
+          .filter(d => d.kind === "audioinput" && d.deviceId !== "default" && d.deviceId !== "communications")
+          .map(d => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }))
+        setMicDevices(ins)
+      } catch {}
+    }
+    load()
+    navigator.mediaDevices.addEventListener("devicechange", load)
+    return () => navigator.mediaDevices.removeEventListener("devicechange", load)
   }, [])
 
   // Expose startMic globally so ClientStrip Talk buttons can trigger it
@@ -289,9 +308,9 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
         toneRafRef.current = requestAnimationFrame(bridgeTick)
         return
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-      })
+      const audioConstraints: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      if (selectedMicDeviceId) audioConstraints.deviceId = { exact: selectedMicDeviceId }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
       micStreamRef.current = stream
       await produceStream(stream)
       hasProducedRef.current = true
@@ -548,6 +567,22 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                 )}
                 {!bridgeActive && !toneActive && (
                   <p className="text-[8px] text-white/20">No active source</p>
+                )}
+                {micDevices.length > 1 && (
+                  <div className="mt-1">
+                    <p className="text-[7px] text-white/20 uppercase tracking-widest mb-0.5">Mic input</p>
+                    <select
+                      value={selectedMicDeviceId}
+                      onChange={e => setSelectedMicDeviceId(e.target.value)}
+                      className="w-full text-[9px] rounded px-1.5 py-1 text-white"
+                      style={{ background: "#111", border: "1px solid rgba(255,255,255,0.15)" }}
+                    >
+                      <option value="">Default</option>
+                      {micDevices.map(d => (
+                        <option key={d.deviceId} value={d.deviceId} style={{ background: "#111" }}>{d.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </div>
             </div>
