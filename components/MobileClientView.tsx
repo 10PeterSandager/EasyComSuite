@@ -39,6 +39,15 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
   
   const [talkNames, setTalkNames] = useState(['Talk 1', 'Talk 2', 'Talk 3', 'Talk 4', 'Talk 5', 'Talk 6', 'Talk 7', 'Talk 8']);
 
+  // Targeted TB slots 2, 3, 4 — persisted to localStorage
+  const [tbTargets, setTbTargets] = useState<[string, string, string]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom_tb_targets') ?? 'null') ?? ['', '', ''] } catch { return ['', '', ''] }
+  })
+  const [tbSlotNames, setTbSlotNames] = useState<[string, string, string]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom_tb_slot_names') ?? 'null') ?? ['TB 2', 'TB 3', 'TB 4'] } catch { return ['TB 2', 'TB 3', 'TB 4'] }
+  })
+  const [tbTargetActive, setTbTargetActive] = useState([false, false, false])
+
   const [recvLevels, setRecvLevels] = useState<Record<number, number>>({})
 
   // TBV State: 4-way split mode
@@ -91,6 +100,8 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
 
   useEffect(() => { localStorage.setItem('easycom_ch_gains', JSON.stringify(gains)) }, [gains]);
   useEffect(() => { localStorage.setItem('easycom_ch_pans_v2', JSON.stringify(pans)) }, [pans]);
+  useEffect(() => { localStorage.setItem('easycom_tb_targets', JSON.stringify(tbTargets)) }, [tbTargets]);
+  useEffect(() => { localStorage.setItem('easycom_tb_slot_names', JSON.stringify(tbSlotNames)) }, [tbSlotNames]);
 
   useEffect(() => {
     localStorage.setItem('easycom_mobile_vvol1', videoVolume1.toString());
@@ -282,6 +293,28 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
       stopMicIfIdle(newTbActive)
     }
   };
+
+  const handleTargetedTalk = async (slotIdx: number, val: boolean) => {
+    // slotIdx 0,1,2 → TB slots 2,3,4
+    const targetId = tbTargets[slotIdx]
+    if (!targetId) return
+    const next = [...tbTargetActive] as [boolean, boolean, boolean]
+    next[slotIdx] = val
+    setTbTargetActive(next)
+    if (val) await ensureMicProducer()
+    socket.emit("talk:targeted", { targetClientId: targetId, slot: slotIdx + 2, active: val })
+    if (!val) {
+      const anyTbActive = tbActive.some(Boolean)
+      const anyTargetActive = next.some(Boolean)
+      if (!anyTbActive && !anyTargetActive) {
+        stopLevelMeterRef.current?.(); stopLevelMeterRef.current = null
+        stopProducing()
+        micStreamRef.current?.getTracks().forEach(t => t.stop())
+        micStreamRef.current = null
+        stopToneResources()
+      }
+    }
+  }
 
   const handleBacktalkToggle = (val: boolean) => {
     if (backtalkEnabled) {
@@ -499,6 +532,31 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
                  </div>
                )}
 
+               {/* TARGETED TB ROW — shown only when at least one slot is configured */}
+               {!isTBVActive && tbTargets.some(Boolean) && (
+                 <div className="grid grid-cols-3 gap-2 shrink-0">
+                   {([0, 1, 2] as const).map(slotIdx => {
+                     const hasTarget = !!tbTargets[slotIdx]
+                     const active = tbTargetActive[slotIdx]
+                     return (
+                       <button key={slotIdx}
+                         disabled={!hasTarget}
+                         onPointerDown={e => { if (!hasTarget) return; e.currentTarget.setPointerCapture(e.pointerId); handleTargetedTalk(slotIdx, true) }}
+                         onPointerUp={e => { e.currentTarget.releasePointerCapture(e.pointerId); handleTargetedTalk(slotIdx, false) }}
+                         onPointerCancel={e => { e.currentTarget.releasePointerCapture(e.pointerId); handleTargetedTalk(slotIdx, false) }}
+                         className={`h-12 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all bevel touch-none
+                           ${active ? `bg-${themeColor}-600 text-white shadow-lg` : hasTarget ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-900/50 text-zinc-700 border border-white/5'}`}
+                       >
+                         <Mic size={14} className={active ? 'text-white' : hasTarget ? 'text-zinc-500' : 'text-zinc-700'} />
+                         <span className="text-[8px] font-black uppercase tracking-widest leading-none truncate w-full text-center px-1">
+                           {hasTarget ? tbSlotNames[slotIdx] : `TB ${slotIdx + 2}`}
+                         </span>
+                       </button>
+                     )
+                   })}
+                 </div>
+               )}
+
                {isTBVActive ? (
                  <div className="grid grid-cols-2 grid-rows-2 gap-3 h-[220px]">
                     {[2, 3, 0, 1].map(idx => (
@@ -581,6 +639,53 @@ const MobileClientView: React.FC<MobileClientViewProps> = ({
                         </div>
                       </div>
                    </div>
+                </div>
+
+                <div className="bg-zinc-900/50 p-6 rounded-3xl border border-white/5 space-y-5">
+                   <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Targeted Talk (TB 2–4)</h4>
+                   <p className="text-[8px] text-zinc-600 italic px-1">Assign a specific client to each slot. Hold the button to talk — only that client receives.</p>
+                   {([0, 1, 2] as const).map(slotIdx => (
+                     <div key={slotIdx} className="space-y-2 pt-4 first:pt-0 border-t first:border-0 border-white/5">
+                       <span className={`text-[9px] font-black text-${themeColor}-400 uppercase tracking-widest`}>TB {slotIdx + 2}</span>
+                       <div className="relative">
+                         <select
+                           value={tbTargets[slotIdx]}
+                           onChange={e => {
+                             const next: [string, string, string] = [...tbTargets] as any
+                             next[slotIdx] = e.target.value
+                             setTbTargets(next)
+                             // Auto-fill name from selected client
+                             if (e.target.value) {
+                               const c = availableClients.find(x => x.id === e.target.value)
+                               if (c) {
+                                 const names: [string, string, string] = [...tbSlotNames] as any
+                                 names[slotIdx] = c.name
+                                 setTbSlotNames(names)
+                               }
+                             }
+                           }}
+                           className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black text-white outline-none appearance-none uppercase bevel-inset no-active"
+                         >
+                           <option value="">— Not assigned —</option>
+                           {availableClients
+                             .filter(c => c.id !== selectedClientId && c.status === 'online')
+                             .map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                           }
+                         </select>
+                         <ChevronDown size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
+                       </div>
+                       <input
+                         value={tbSlotNames[slotIdx]}
+                         onChange={e => {
+                           const next: [string, string, string] = [...tbSlotNames] as any
+                           next[slotIdx] = e.target.value
+                           setTbSlotNames(next)
+                         }}
+                         placeholder="Button label…"
+                         className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black text-white outline-none uppercase bevel-inset no-active"
+                       />
+                     </div>
+                   ))}
                 </div>
 
                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-white/5 space-y-5">
