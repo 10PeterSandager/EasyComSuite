@@ -1016,7 +1016,7 @@ const HostView = (props: any) => {
                     setBackupStatus(await r.json())
                   }}
                   onTakeover={async () => {
-                    if (!confirm("Er du sikker? Backup overtager som main — alle clients omstilles.")) return
+                    if (!confirm("Are you sure? Backup takes over as main — all clients will be redirected.")) return
                     setBackupTakingOver(true)
                     try {
                       await fetch("/api/backup/takeover", { method: "POST" })
@@ -1949,9 +1949,9 @@ function GlobalSetupTab({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">IFB — Standard indstillinger</p>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">IFB — Default settings</p>
             <p className="text-[9px] text-white/25 mt-0.5">
-              Sæt standard IFB-indstillinger for alle klienter. Individuelle klienter kan stadig tilpasses bagefter.
+              Set default IFB settings for all clients. Individual clients can still be adjusted afterwards.
             </p>
           </div>
         </div>
@@ -1959,7 +1959,7 @@ function GlobalSetupTab({
         {/* Duck all */}
         <div className="space-y-2 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center justify-between">
-            <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Duck-niveau (alle kanaler)</p>
+            <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Duck level (all channels)</p>
             <span className="text-xs font-black text-white/60">{getChannel(1).duckAmount}%</span>
           </div>
           <input
@@ -1969,12 +1969,12 @@ function GlobalSetupTab({
             className="w-full h-1 appearance-none cursor-pointer rounded"
             style={{ accentColor }}
           />
-          <p className="text-[9px] text-white/20">Hvor meget IFB-lyden sænkes når talekanalen er aktiv.</p>
+          <p className="text-[9px] text-white/20">How much IFB audio is ducked when the talk channel is active.</p>
         </div>
 
         {/* Per-channel grid */}
         <div className="space-y-1.5">
-          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Kanaler</p>
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Channels</p>
           <div className="grid grid-cols-8 gap-1.5">
             {Array.from({ length: 8 }, (_, i) => {
               const ch = i + 1
@@ -1989,7 +1989,7 @@ function GlobalSetupTab({
                     ? { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }
                     : { background: color + "20", border: `1px solid ${color}60` }
                   }
-                  title={`IFB ${ch} — klik for mute/unmute`}
+                  title={`IFB ${ch} — click to mute/unmute`}
                 >
                   <div className="text-[9px] font-black" style={{ color: s.muted ? "rgba(255,255,255,0.2)" : color }}>
                     {ch}
@@ -2001,7 +2001,7 @@ function GlobalSetupTab({
               )
             })}
           </div>
-          <p className="text-[8px] text-white/20">Klik for at mute/unmute en kanal. Procent viser duck-niveau.</p>
+          <p className="text-[8px] text-white/20">Click to mute/unmute a channel. Percentage shows duck level.</p>
         </div>
 
         {/* Apply button */}
@@ -2019,7 +2019,7 @@ function GlobalSetupTab({
           }
         </button>
         <p className="text-[9px] text-white/20 text-center -mt-2">
-          Individuelle klientindstillinger kan justeres via ⊕ på klientkortet.
+          Individual client settings can be adjusted via ⊕ on the client card.
         </p>
       </div>
 
@@ -2059,7 +2059,7 @@ function SSLConfigSection({ themeColor }: { themeColor: string }) {
 
   return (
     <div className="px-4 pt-3 pb-3 border-b border-white/5 shrink-0 space-y-2">
-      <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">SSL-certifikat</p>
+      <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">SSL Certificate</p>
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-white/40 w-10 shrink-0">Cert</span>
         <input
@@ -2078,16 +2078,16 @@ function SSLConfigSection({ themeColor }: { themeColor: string }) {
           className="flex-1 bg-black border border-white/10 rounded px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-white/30"
         />
       </div>
-      {hasSsl && <p className="text-[9px] text-green-400/60">✓ SSL er konfigureret</p>}
+      {hasSsl && <p className="text-[9px] text-green-400/60">✓ SSL configured</p>}
       <div className="flex items-center gap-2 pt-1">
         <button
           onClick={save} disabled={saving || saved}
           className="px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-colors text-white"
           style={{ background: saved ? "rgba(34,197,94,0.3)" : "#f97316" }}
         >
-          {saved ? "✓ Gemt — genstarter..." : saving ? "Gemmer..." : "Gem SSL"}
+          {saved ? "✓ Saved — restarting..." : saving ? "Saving..." : "Save SSL"}
         </button>
-        <p className="text-[9px] text-white/20">Kræver server-genstart.</p>
+        <p className="text-[9px] text-white/20">Requires server restart.</p>
       </div>
     </div>
   )
@@ -2802,8 +2802,8 @@ function BackupTab({
   const fmtAge = (ts: number | null) => {
     if (!ts) return "—"
     const s = Math.round((Date.now() - ts) / 1000)
-    if (s < 60) return `${s}s siden`
-    return `${Math.round(s / 60)}min siden`
+    if (s < 60) return `${s}s ago`
+    return `${Math.round(s / 60)}min ago`
   }
 
   return (
@@ -2817,7 +2817,7 @@ function BackupTab({
           <p className="text-xs font-bold" style={{ color: isBackup ? "#a855f7" : "#22c55e" }}>
             {isBackup ? "BACKUP SERVER" : "MAIN SERVER"}
           </p>
-          <p className="text-[9px] text-white/30">{isBackup ? "Modtager sync fra main · klar til takeover" : "Sender sync til backup"}</p>
+          <p className="text-[9px] text-white/30">{isBackup ? "Receiving sync from main · ready for takeover" : "Sending sync to backup"}</p>
         </div>
         <div className="ml-auto flex gap-2">
           <button
@@ -2825,7 +2825,7 @@ function BackupTab({
             className="px-3 py-1 rounded text-[10px] font-bold"
             style={{ background: isBackup ? "rgba(34,197,94,0.15)" : "rgba(168,85,247,0.15)", border: `1px solid ${isBackup ? "#22c55e40" : "#a855f740"}`, color: isBackup ? "#22c55e" : "#a855f7" }}
           >
-            {isBackup ? "Skift til MAIN" : "Skift til BACKUP"}
+            {isBackup ? "Switch to MAIN" : "Switch to BACKUP"}
           </button>
         </div>
       </div>
@@ -2834,7 +2834,7 @@ function BackupTab({
       {!isBackup && (
         <div className="space-y-2">
           <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Backup server URL</p>
-          <p className="text-[9px] text-white/20">Den URL som main sender sync til. Skal pege på backup-serverens adresse.</p>
+          <p className="text-[9px] text-white/20">The URL main sends sync to. Must point to the backup server's address.</p>
           <div className="flex gap-2">
             <input
               value={urlInput}
@@ -2846,7 +2846,7 @@ function BackupTab({
               onClick={() => onSave(urlInput, "main")}
               className="px-3 py-1.5 rounded text-xs font-bold bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30"
             >
-              Gem
+              Save
             </button>
           </div>
 
@@ -2855,8 +2855,8 @@ function BackupTab({
             <div className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ background: status?.syncOk ? "#22c55e" : "#ef4444", boxShadow: status?.syncOk ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
             <div>
-              <p className="text-[9px] text-white/50">{status?.syncOk ? "Sync OK" : "Sync fejlet / ingen backup konfigureret"}</p>
-              <p className="text-[9px] text-white/20">Sidst sendt: {fmtAge(status?.lastSendAt ?? null)}</p>
+              <p className="text-[9px] text-white/50">{status?.syncOk ? "Sync OK" : "Sync failed / no backup configured"}</p>
+              <p className="text-[9px] text-white/20">Last sent: {fmtAge(status?.lastSendAt ?? null)}</p>
             </div>
           </div>
         </div>
@@ -2865,13 +2865,13 @@ function BackupTab({
       {/* Backup state info (only on backup) */}
       {isBackup && (
         <div className="space-y-2">
-          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Modtaget state</p>
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Received state</p>
           <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
             <div className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ background: status?.hasState ? "#22c55e" : "#ef4444", boxShadow: status?.hasState ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
             <div>
-              <p className="text-[9px] text-white/50">{status?.hasState ? "State modtaget fra main" : "Ingen state endnu — afventer sync"}</p>
-              <p className="text-[9px] text-white/20">Sidst modtaget: {fmtAge(status?.lastSyncAt ?? null)}</p>
+              <p className="text-[9px] text-white/50">{status?.hasState ? "State received from main" : "No state yet — waiting for sync"}</p>
+              <p className="text-[9px] text-white/20">Last received: {fmtAge(status?.lastSyncAt ?? null)}</p>
             </div>
           </div>
 
@@ -2888,23 +2888,23 @@ function BackupTab({
               cursor: status?.hasState ? "pointer" : "not-allowed",
             }}
           >
-            {takingOver ? "Overtager…" : "⚡ TAKE OVER SOM MAIN"}
+            {takingOver ? "Taking over…" : "⚡ TAKE OVER AS MAIN"}
           </button>
           <p className="text-[8px] text-white/20 text-center">
-            Loader seneste sync fra main · sender host:relocated til alle clients
+            Loads latest sync from main · sends host:relocated to all clients
           </p>
         </div>
       )}
 
       {/* How it works */}
       <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-        <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Sådan virker det</p>
+        <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">How it works</p>
         <div className="space-y-1 text-[9px] text-white/25 leading-relaxed">
-          <p>1. Main sender state til backup hvert 5. sekund (routing, grupper, klienter)</p>
-          <p>2. Clients modtager backup-URL automatisk ved tilslutning</p>
-          <p>3. Hvis main forsvinder: clients forsøger automatisk backup efter 10 sek</p>
-          <p>4. Backup operatør trykker TAKE OVER → overtager som main</p>
-          <p>5. WebRTC re-etableres automatisk (2–5 sek pause i lyd)</p>
+          <p>1. Main sends state to backup every 5 seconds (routing, groups, clients)</p>
+          <p>2. Clients receive backup URL automatically on connect</p>
+          <p>3. If main disappears: clients automatically try backup after 10 sec</p>
+          <p>4. Backup operator presses TAKE OVER → takes over as main</p>
+          <p>5. WebRTC re-establishes automatically (2–5 sec audio pause)</p>
         </div>
       </div>
 

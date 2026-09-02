@@ -207,20 +207,19 @@ export default function ConnectionsPopup({
   }
 
   const confirmClientConnections = () => {
-    if (talkSrcCh === null || talkDestCh === null || recvMyCh === null || recvDestCh === null) return
+    if (recvMyCh === null || recvDestCh === null) return
     for (const destId of selectedDestIds) {
-      // Talk: source sends on talkSrcCh → dest receives on talkDestCh
-      socket.emit("connection:create", {
-        from: sourceClient.id, to: destId,
-        channel: talkDestCh, toChannel: talkSrcCh, bidirectional: false,
-      })
-      talkConnKeys.add(ck(sourceClient.id, destId, talkDestCh))
-      // Receive: dest sends on recvDestCh → source receives on recvMyCh
+      if (talkSrcCh !== null && talkDestCh !== null) {
+        socket.emit("connection:create", {
+          from: sourceClient.id, to: destId,
+          channel: talkDestCh, toChannel: talkSrcCh, bidirectional: false,
+        })
+        talkConnKeys.add(ck(sourceClient.id, destId, talkDestCh))
+      }
       socket.emit("connection:create", {
         from: destId, to: sourceClient.id,
         channel: recvMyCh, toChannel: recvDestCh, bidirectional: false,
       })
-      // receive connection is intentionally NOT added to talkConnKeys
     }
     saveTalkKeys()
     resetFlow()
@@ -275,8 +274,8 @@ export default function ConnectionsPopup({
     })
   }
 
-  // ── SHARED BACK BUTTON ──
-  const BackBtn = ({ to }: { to: Step | "reset" }) => (
+  // ── SHARED BACK BUTTON ── (plain function, not a component, to avoid remount-on-rerender)
+  const backBtn = (to: Step | "reset") => (
     <button
       onClick={() => to === "reset" ? resetFlow() : setStep(to)}
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
@@ -460,7 +459,7 @@ export default function ConnectionsPopup({
   // ── PICK DESTINATIONS ──
   const renderPickDestinations = () => (
     <div className="space-y-3">
-      <BackBtn to="reset" />
+      {backBtn("reset")}
       <div>
         <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">CLIENT CONNECTIONS</p>
         <p className="text-[9px] text-white/35 mt-0.5">Hold Shift to select multiple</p>
@@ -503,7 +502,23 @@ export default function ConnectionsPopup({
     const dstTalkCh = Math.min(...selectedDestIds.map(id => clientTalkChCount(id)))
     return (
       <div className="space-y-3">
-        <BackBtn to="pick-destinations" />
+        {backBtn("pick-destinations")}
+        {/* Mini-summary: selected clients */}
+        {selectedDestIds.length > 0 && (
+          <div className="flex flex-wrap gap-1 items-center px-3 py-2 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <span className="text-[8px] text-white/25 uppercase tracking-widest font-bold mr-1">To:</span>
+            {selectedDestIds.map(id => {
+              const name = clients.find(c => c.id === id)?.name ?? id
+              return (
+                <span key={id} className="text-[9px] px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: "rgba(249,115,22,0.15)", color: "rgba(249,115,22,0.8)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                  {name}
+                </span>
+              )
+            })}
+          </div>
+        )}
         <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">CHOOSE TB</p>
 
         <div className="grid grid-cols-[1fr,28px,1fr] gap-1 items-start">
@@ -560,13 +575,20 @@ export default function ConnectionsPopup({
           </div>
         </div>
 
-        {talkSrcCh !== null && talkDestCh !== null && (
-          <button onClick={() => setStep("pick-receive")}
-            className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-            style={{ background: "rgba(249,115,22,0.8)", color: "white" }}>
-            Next – choose receiving channel <ChevronRight size={14} />
+        <div className="space-y-1.5">
+          {talkSrcCh !== null && talkDestCh !== null && (
+            <button onClick={() => setStep("pick-receive")}
+              className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+              style={{ background: "rgba(249,115,22,0.8)", color: "white" }}>
+              Next – choose receiving channel <ChevronRight size={14} />
+            </button>
+          )}
+          <button onClick={() => { setTalkSrcCh(null); setTalkDestCh(null); setStep("pick-receive") }}
+            className="w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }}>
+            Skip – receive channel only <ChevronRight size={12} />
           </button>
-        )}
+        </div>
       </div>
     )
   }
@@ -606,7 +628,29 @@ export default function ConnectionsPopup({
 
     return (
       <div className="space-y-3">
-        <BackBtn to="pick-talk" />
+        {backBtn("pick-talk")}
+        {/* Mini-summary: selected clients + TB selection */}
+        <div className="flex flex-wrap gap-1 items-center px-3 py-2 rounded-lg"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <span className="text-[8px] text-white/25 uppercase tracking-widest font-bold mr-1">To:</span>
+          {selectedDestIds.map(id => {
+            const name = clients.find(c => c.id === id)?.name ?? id
+            return (
+              <span key={id} className="text-[9px] px-2 py-0.5 rounded-full font-bold"
+                style={{ background: "rgba(249,115,22,0.15)", color: "rgba(249,115,22,0.8)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                {name}
+              </span>
+            )
+          })}
+          {talkSrcCh !== null && talkDestCh !== null ? (
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-bold"
+              style={{ background: chColor(talkSrcCh) + "20", color: chColor(talkSrcCh), border: `1px solid ${chColor(talkSrcCh)}40` }}>
+              TB{talkSrcCh} → TB{talkDestCh}
+            </span>
+          ) : (
+            <span className="text-[9px] text-white/25 italic">no TB</span>
+          )}
+        </div>
         <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">CHOOSE RECEIVING CHANNEL</p>
         <p className="text-[9px] text-white/35">Pick which channel you receive on (left) and which channel {destLabel} sends on (right)</p>
 
@@ -633,8 +677,9 @@ export default function ConnectionsPopup({
         {recvMyCh !== null && recvDestCh !== null && (
           <div className="px-3 py-1.5 rounded-lg text-[9px] text-white/45"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            TB{talkSrcCh} → {destLabel} TB{talkDestCh}
-            &nbsp;·&nbsp;
+            {talkSrcCh !== null && talkDestCh !== null && (
+              <span>TB{talkSrcCh} → {destLabel} TB{talkDestCh}&nbsp;·&nbsp;</span>
+            )}
             {destLabel} CH{recvDestCh} → receive CH{recvMyCh}
           </div>
         )}
@@ -654,7 +699,7 @@ export default function ConnectionsPopup({
   // ── SOUNDCARD: PICK SOURCE ──
   const renderScPickSrc = () => (
     <div className="space-y-3">
-      <BackBtn to="reset" />
+      {backBtn("reset")}
       <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">SELECT AUDIO INTERFACE INPUT</p>
 
       {/* Stereo pairs — vist øverst i lilla */}
@@ -730,7 +775,7 @@ export default function ConnectionsPopup({
     const activePair = scIsStereo ? stereoPairs.find(p => scSrcId === `bridge-stereo-${p.chL}-${p.chR}`) : null
     return (
     <div className="space-y-3">
-      <BackBtn to="sc-pick-src" />
+      {backBtn("sc-pick-src")}
       <div className="px-3 py-2 rounded-lg"
         style={scIsStereo
           ? { background: `${STEREO_COLOR}12`, border: `1px solid ${STEREO_COLOR}40` }
@@ -788,7 +833,7 @@ export default function ConnectionsPopup({
     const myTalkCh = clientTalkChCount(sourceClient.id)
     return (
       <div className="space-y-3">
-        <BackBtn to="reset" />
+        {backBtn("reset")}
         <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
           SELECT TB CHANNEL TO SEND
         </p>
@@ -837,7 +882,7 @@ export default function ConnectionsPopup({
     const canConfirm = selectedSoundcardCh !== null && socketOk
     return (
       <div className="space-y-3">
-        <BackBtn to="output-pick-device" />
+        {backBtn("output-pick-device")}
         <div className="grid grid-cols-2 gap-2">
           <div className="px-3 py-2 rounded-lg"
             style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
@@ -892,7 +937,7 @@ export default function ConnectionsPopup({
     const canNext = selectedServerDevice >= 0 || serverOutputDevices.length === 0
     return (
       <div className="space-y-3">
-        <BackBtn to="output-pick-my-ch" />
+        {backBtn("output-pick-my-ch")}
         <div className="px-3 py-2 rounded-lg"
           style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
           <p className="text-[9px] text-white/50 uppercase tracking-widest">Sending</p>

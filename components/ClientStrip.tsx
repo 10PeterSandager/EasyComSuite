@@ -151,6 +151,7 @@ const ClientStrip: React.FC<Props> = ({
   }
 
   const isTalking = client.isTalking || client.isLatched || isTalkPressed || snd > 20
+  const micActive = isTalkPressed || client.isTalking || client.isLatched
   const isOnline = client.status === "online"
 
   useEffect(() => {
@@ -365,12 +366,12 @@ const ClientStrip: React.FC<Props> = ({
               onPointerUp={handleTalkUp}
               onPointerCancel={handleTalkUp}
               className="flex-[3] py-2 rounded flex items-center justify-center transition-colors touch-none"
-              style={isTalkPressed
+              style={micActive
                 ? { background: "#22c55e", boxShadow: "0 0 12px #22c55e60" }
                 : { background: "rgb(39,39,42)" }
               }
             >
-              <Mic size={20} style={{ color: isTalkPressed ? "white" : "rgba(255,255,255,0.7)" }} />
+              <Mic size={20} style={{ color: micActive ? "white" : "rgba(255,255,255,0.7)" }} />
             </button>
             <button
               onClick={() => onUpdate({ isMuted: !client.isMuted })}
