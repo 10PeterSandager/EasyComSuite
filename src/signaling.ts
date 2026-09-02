@@ -1254,6 +1254,40 @@ export function setupSignaling(io: Server) {
       }
     })
 
+    // Targeted TB: phone wants to talk to one specific client for the duration of a press.
+    // Uses virtual toChannel 20+slot so it slots into the existing connection/routing system.
+    socket.on("talk:targeted", ({ targetClientId, slot, active }: { targetClientId: string; slot: number; active: boolean }) => {
+      const entry = [...clients.entries()].find(([id, c]) => c.socketId === socket.id && id !== "host-ui")
+      if (!entry) return
+      const [clientId] = entry
+      const virtualCh = 20 + slot  // e.g. slot 2 → ch 22, slot 3 → ch 23, slot 4 → ch 24
+      const connKey = `targeted:${clientId}:${slot}`
+
+      if (!mobileActiveTb.has(clientId)) mobileActiveTb.set(clientId, new Set())
+      const set = mobileActiveTb.get(clientId)!
+
+      if (active) {
+        connections.set(connKey, { from: clientId, to: targetClientId, channel: 1, toChannel: virtualCh })
+        set.add(virtualCh)
+      } else {
+        connections.delete(connKey)
+        set.delete(virtualCh)
+      }
+
+      socket.emit("routing:update", getEffectiveConnections())
+      broadcastRouting(io)
+
+      const host = clients.get("host-ui")
+      if (host) {
+        const activeTbs = mobileActiveTb.get(clientId) ?? new Set<number>()
+        const isAnyActive = activeTbs.size > 0
+        io.to(host.socketId).emit("client:state:update", { clientId, isTalking: isAnyActive })
+        const levels: Record<string, number> = {}
+        levels[clientId] = isAnyActive ? 80 : 0
+        io.to(host.socketId).emit("audio:levels", levels)
+      }
+    })
+
     socket.on("client:latched", ({ isLatched }: { isLatched: boolean }) => {
       const entry = [...clients.entries()].find(([id, c]) => c.socketId === socket.id && id !== "host-ui")
       if (!entry) return
