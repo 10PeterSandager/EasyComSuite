@@ -974,6 +974,21 @@ export function setupSignaling(io: Server) {
       if (typeof cb === "function") cb(bridgeChannelInfo)
     })
 
+    // Returns all currently active audio sources (bridge channels + host mic) with human-readable names
+    socket.on("audio:sources:list", (cb) => {
+      if (typeof cb !== "function") return
+      const sources: { id: string; name: string }[] = []
+      for (const [id] of producers) {
+        if (id.startsWith("bridge-ch")) {
+          const chNum = parseInt(id.replace("bridge-ch", ""))
+          const info = bridgeChannelInfo.find((c: any) => c.channel === chNum)
+          sources.push({ id, name: info?.name || `Bridge Ch ${chNum}` })
+        }
+      }
+      if (producers.has("producer-65")) sources.push({ id: "producer-65", name: "HOST" })
+      cb(sources)
+    })
+
     // 🔥 Relay gain from mobile client to host-ui
     socket.on("client:gain", ({ channel, gain }: { channel: number; gain: number }) => {
       const hostSocket = clients.get("host-ui")?.socketId
