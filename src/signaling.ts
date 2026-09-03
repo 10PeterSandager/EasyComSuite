@@ -1659,7 +1659,7 @@ export function setupSignaling(io: Server) {
       io.emit("tally:all", map)
       // Forward tally to the client's socket if connected
       const target = clients.get(clientId)
-      if (target?.socketId) io.to(target.socketId).emit("tally:state", state)
+      if (target?.socketId) io.to(target.socketId).emit("tally:update", { state })
     })
 
     socket.on("tally:all", (cb: (map: Record<string, string>) => void) => {

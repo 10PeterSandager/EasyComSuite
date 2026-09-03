@@ -1673,7 +1673,7 @@ function setupSignaling(io) {
             // Forward tally to the client's socket if connected
             const target = clients.get(clientId);
             if (target?.socketId)
-                io.to(target.socketId).emit("tally:state", state);
+                io.to(target.socketId).emit("tally:update", { state });
         });
         socket.on("tally:all", (cb) => {
             const map = {};
