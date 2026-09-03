@@ -3,7 +3,7 @@ import { Client } from '../types'
 import { subscribeToLevels, socket, startFeedMonitor, stopFeedMonitor, setFeedMonitorVolume, getClientMonitorStream, acquireConnection, releaseConnection } from '../client/webrtc/intercom'
 import { getChannelStream } from '../client/audio/AudioBridge'
 import IFBPanel, { IFBSettings } from './IFBPanel'
-import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio, Gauge } from 'lucide-react'
+import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio, Sliders } from 'lucide-react'
 
 export type FeedSource = { id: string; label: string }
 
@@ -396,7 +396,7 @@ const ClientStrip: React.FC<Props> = ({
               <button onClick={() => { onUpdate({ status:"offline", isTalking:false, isLatched:false }); socket.emit("client:kick", { clientId: client.id }) }} className="hover:text-red-500 hover:opacity-100 p-0.5"><UserX size={14} /></button>
               <button onClick={onMapKey} className="hover:text-yellow-400 hover:opacity-100 p-0.5"><Keyboard size={14} /></button>
               <button onClick={e => { e.stopPropagation(); onToggleMixer() }} className={(isMixerOpen ? "text-blue-400" : "") + " hover:text-blue-400 hover:opacity-100 p-0.5"}><SlidersHorizontal size={14} /></button>
-              <button onClick={e => { e.stopPropagation(); setShowGain(p => !p) }} className={(showGain ? "text-yellow-400 opacity-100" : "") + " hover:text-yellow-400 hover:opacity-100 p-0.5"}><Gauge size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); setShowGain(p => !p) }} className={(showGain ? "text-yellow-400 opacity-100" : "") + " hover:text-yellow-400 hover:opacity-100 p-0.5"}><Sliders size={14} /></button>
             </div>
           </div>
 
