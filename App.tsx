@@ -105,32 +105,26 @@ export default function App() {
       })
       console.log('[App] Step 3: registered ✅')
 
-      // ✅ Start audio session BEFORE mediasoup creates any RTCPeerConnections
-      // media:'video' = speaker by default on iOS
-      startAudioSession()
-      console.log('[App] Step 4: audio session started ✅')
-
-      // ✅ Init mediasoup AFTER audio session is active
-      console.log('[App] Step 5: initMediasoup...')
+      console.log('[App] Step 4: initMediasoup...')
       await initMediasoup(client.id, client.name, client.code)
-      console.log('[App] Step 6: mediasoup ready ✅')
+      console.log('[App] Step 5: mediasoup ready ✅')
 
-      // ✅ Get mic AFTER mediasoup – then re-assert speaker because
-      // getUserMedia() resets iOS AVAudioSession routing
       try {
-        console.log('[App] Step 7: getting mic...')
-        const micStream = await getLocalAudioStream()
-        await startMicProducer(micStream as any)
-        // Re-assert speaker – getUserMedia resets iOS audio routing
-        startAudioSession()
-        console.log('[App] Step 8: mic producing + speaker re-asserted ✅')
-      } catch (micErr) {
-        console.warn('[App] mic failed (receive-only):', micErr)
-        // Still re-assert speaker even if mic fails
-        startAudioSession()
+        console.log('[App] Step 6: getUserMedia...')
+        const micStream = await Promise.race([
+          getLocalAudioStream(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getUserMedia timeout')), 10000)),
+        ])
+        console.log('[App] Step 7: mic acquired ✅')
+        await Promise.race([
+          startMicProducer(micStream as any),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('producer timeout')), 8000)),
+        ])
+        console.log('[App] Step 8: producer ready ✅')
+      } catch (micErr: any) {
+        console.warn('[App] mic failed (receive-only):', micErr.message)
       }
 
-      // ✅ Start routing LAST – now audio session is fully configured
       console.log('[App] Step 9: initRouting...')
       initRouting(client.id)
       console.log('[App] Step 10: routing init ✅')

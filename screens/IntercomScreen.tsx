@@ -68,6 +68,23 @@ export default function IntercomScreen({
   const [gpoEnabled, setGpoEnabled] = useState(false)
   const [gpoActive, setGpoActive] = useState(false)
   const gpoFiredRef = useRef(false)
+  const [peerClients,       setPeerClients]       = useState<{ id: string; name: string }[]>([])
+  const [audioSources,      setAudioSources]      = useState<{ id: string; name: string }[]>([])
+  const [tbTargets,         setTbTargets]         = useState<Record<string, { id: string; name: string }[]>>({ talk1: [], talk2: [], talk3: [], talk4: [] })
+  const [clientPickerFor,   setClientPickerFor]   = useState<string | null>(null)
+  const [chSourcePickerFor, setChSourcePickerFor] = useState<number | null>(null)
+
+  // Start audio session AFTER WebRTC audio unit is set up (intercom screen mounted).
+  // Calling InCallManager.start() during handleConnect conflicts with WebRTC's
+  // audio unit initialization and causes a native abort_with_payload crash.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import('../webrtc/intercom').then(({ startAudioSession }) => {
+        try { startAudioSession() } catch {}
+      })
+    }, 500)
+    return () => clearTimeout(t)
+  }, [])
 
   // Wire audio streams to RTCViews so react-native-webrtc activates native playback
   useEffect(() => {
@@ -409,7 +426,12 @@ export default function IntercomScreen({
     setTapNameIdx(idx); setTimeout(() => setTapNameIdx(null), 2500)
   }
   const handlePairLongPress = (pairIdx: number) => {
-    Vibration.vibrate(40); setLogicPairIdx(pairIdx)
+    Vibration.vibrate(40)
+    setLogicPairIdx(pairIdx)
+    import('../webrtc/intercom').then(({ fetchPeerClients, fetchAudioSources }) => {
+      fetchPeerClients().then(list => setPeerClients(list))
+      fetchAudioSources().then(list => setAudioSources(list))
+    })
   }
 
   // ── Channel Logic Modal ───────────────────────────────────────────────────
@@ -417,6 +439,29 @@ export default function IntercomScreen({
     if (logicPairIdx === null) return null
     const idx1 = logicPairIdx * 2
     const idx2 = logicPairIdx * 2 + 1
+
+    const makeSourceBtn = (chNum: number) => {
+      const srcs = routing[chNum] ?? []
+      const hasSource = srcs.length > 0
+      const sourceName = hasSource
+        ? (peerClients.find(c => c.id === srcs[0])?.name
+            ?? (srcs[0] === 'producer-65' ? 'HOST' : srcs[0].startsWith('bridge-ch') ? `Bridge ${srcs[0].slice(9)}` : srcs[0]))
+        : 'Auto'
+      return (
+        <TouchableOpacity
+          style={{ alignSelf: 'stretch', paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8,
+            borderWidth: 1, borderColor: hasSource ? ACCENT : BORDER,
+            backgroundColor: hasSource ? 'rgba(249,115,22,0.08)' : 'rgba(0,0,0,0.3)',
+            marginBottom: 10 }}
+          onPress={() => setChSourcePickerFor(chNum)}
+        >
+          <Text style={{ color: '#52525b', fontSize: 7, fontWeight: '900', letterSpacing: 2 }}>SOURCE</Text>
+          <Text style={{ color: hasSource ? ACCENT : '#71717a', fontSize: 11, fontWeight: '900', marginTop: 2 }} numberOfLines={1}>
+            {sourceName}
+          </Text>
+        </TouchableOpacity>
+      )
+    }
 
     return (
       <Modal
@@ -438,15 +483,210 @@ export default function IntercomScreen({
           </View>
 
           <View style={lc.fadersRow}>
-            <FaderCtrl idx={idx1} label={`CH ${idx1+1}`}
-              gains={gains} setGains={setGains}
-              pans={pans} setPans={setPans}
-              socketEmit={socketEmit} channelIndex={idx1+1} routing={routing} />
+            <View style={{ flex: 1, alignItems: 'stretch' }}>
+              {makeSourceBtn(idx1 + 1)}
+              <FaderCtrl idx={idx1} label={`CH ${idx1+1}`}
+                gains={gains} setGains={setGains}
+                pans={pans} setPans={setPans}
+                socketEmit={socketEmit} channelIndex={idx1+1} routing={routing} />
+            </View>
             <View style={lc.divider} />
-            <FaderCtrl idx={idx2} label={`CH ${idx2+1}`}
-              gains={gains} setGains={setGains}
-              pans={pans} setPans={setPans}
-              socketEmit={socketEmit} channelIndex={idx2+1} routing={routing} />
+            <View style={{ flex: 1, alignItems: 'stretch' }}>
+              {makeSourceBtn(idx2 + 1)}
+              <FaderCtrl idx={idx2} label={`CH ${idx2+1}`}
+                gains={gains} setGains={setGains}
+                pans={pans} setPans={setPans}
+                socketEmit={socketEmit} channelIndex={idx2+1} routing={routing} />
+            </View>
+          </View>
+        </View>
+        {renderChSourcePicker()}
+      </Modal>
+    )
+  }
+
+  // ── Channel source picker (on top of channel logic modal) ─────────────────
+  const renderChSourcePicker = () => {
+    if (chSourcePickerFor === null) return null
+    const ch = chSourcePickerFor
+    const currentSources = routing[ch] ?? []
+    return (
+      <Modal visible animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={st.overlay}>
+          <View style={st.header}>
+            <View>
+              <Text style={st.title}>CH {ch} · SOURCE</Text>
+              <Text style={{ color: '#52525b', fontSize: 9, letterSpacing: 2, marginTop: 4 }}>
+                MODTAG AUDIO FRA ÉN KILDE
+              </Text>
+            </View>
+            <TouchableOpacity style={st.closeBtn} onPress={() => setChSourcePickerFor(null)}>
+              <Text style={st.closeTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 10 }} keyboardShouldPersistTaps="handled">
+            {/* Auto / clear */}
+            <TouchableOpacity
+              style={[st.row, currentSources.length === 0 && { borderColor: ACCENT }]}
+              onPress={() => {
+                import('../webrtc/intercom').then(({ clearChannelSource }) => clearChannelSource(ch, currentSources))
+                setChSourcePickerFor(null)
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[st.rowLabel, currentSources.length === 0 && { color: ACCENT }]}>Auto</Text>
+                <Text style={{ color: '#52525b', fontSize: 10, marginTop: 2 }}>Brug host-konfigureret routing</Text>
+              </View>
+              {currentSources.length === 0 && <Text style={{ color: ACCENT, fontSize: 18 }}>✓</Text>}
+            </TouchableOpacity>
+
+            {/* Audio interface inputs */}
+            {audioSources.length > 0 && (
+              <>
+                <Text style={st.sectionLabel}>LYDKORT</Text>
+                {audioSources.map(src => {
+                  const isSelected = currentSources.includes(src.id)
+                  return (
+                    <TouchableOpacity
+                      key={src.id}
+                      style={[st.row, isSelected && { borderColor: ACCENT }]}
+                      onPress={() => {
+                        import('../webrtc/intercom').then(({ assignChannelSource }) =>
+                          assignChannelSource(ch, src.id, currentSources, routing)
+                        )
+                        setChSourcePickerFor(null)
+                      }}
+                    >
+                      <Text style={[st.rowLabel, isSelected && { color: ACCENT }]}>{src.name}</Text>
+                      {isSelected && <Text style={{ color: ACCENT, fontSize: 18 }}>✓</Text>}
+                    </TouchableOpacity>
+                  )
+                })}
+              </>
+            )}
+
+            {/* Other connected clients */}
+            {peerClients.length > 0 && (
+              <>
+                <Text style={st.sectionLabel}>CLIENTS</Text>
+                {peerClients.map(client => {
+                  const isSelected = currentSources.includes(client.id)
+                  return (
+                    <TouchableOpacity
+                      key={client.id}
+                      style={[st.row, isSelected && { borderColor: ACCENT }]}
+                      onPress={() => {
+                        import('../webrtc/intercom').then(({ assignChannelSource }) =>
+                          assignChannelSource(ch, client.id, currentSources, routing)
+                        )
+                        setChSourcePickerFor(null)
+                      }}
+                    >
+                      <Text style={[st.rowLabel, isSelected && { color: ACCENT }]}>{client.name}</Text>
+                      {isSelected && <Text style={{ color: ACCENT, fontSize: 18 }}>✓</Text>}
+                    </TouchableOpacity>
+                  )
+                })}
+              </>
+            )}
+
+            {audioSources.length === 0 && peerClients.length === 0 && (
+              <Text style={{ color: '#52525b', fontSize: 12, textAlign: 'center', marginTop: 24, fontWeight: '700', letterSpacing: 1 }}>
+                INGEN SOURCES TILGÆNGELIGE
+              </Text>
+            )}
+          </ScrollView>
+
+          <View style={st.footer}>
+            <TouchableOpacity style={st.resetBtn} onPress={() => setChSourcePickerFor(null)}>
+              <Text style={st.resetTxt}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    )
+  }
+
+  // ── Open settings + fetch peer clients ───────────────────────────────────
+  const openSettings = () => {
+    setEditedNames({ ...talkNames })
+    setIsSettingsOpen(true)
+    import('../webrtc/intercom').then(({ fetchPeerClients }) => {
+      fetchPeerClients().then(list => setPeerClients(list))
+    })
+  }
+
+  // ── Client picker modal (shown on top of settings) ────────────────────────
+  const renderClientPicker = () => {
+    if (clientPickerFor === null) return null
+    const k = clientPickerFor
+    const ch = parseInt(k.replace('talk', ''))
+    const selected = tbTargets[k] ?? []
+    const noneSelected = selected.length === 0
+    return (
+      <Modal visible animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={st.overlay}>
+          <View style={st.header}>
+            <View>
+              <Text style={st.title}>BUTTON {ch} · DIRECT ROUTE</Text>
+              <Text style={{ color: '#52525b', fontSize: 9, letterSpacing: 2, marginTop: 4 }}>
+                VÆLG EN ELLER FLERE CLIENTS
+              </Text>
+            </View>
+            <TouchableOpacity style={st.closeBtn} onPress={() => setClientPickerFor(null)}>
+              <Text style={st.closeTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 10 }} keyboardShouldPersistTaps="handled">
+            {/* None / clear all */}
+            <TouchableOpacity
+              style={[st.row, noneSelected && { borderColor: ACCENT }]}
+              onPress={() => {
+                import('../webrtc/intercom').then(({ removeTbTarget }) => {
+                  selected.forEach(t => removeTbTarget(ch, t.id))
+                })
+                setTbTargets(p => ({ ...p, [k]: [] }))
+              }}
+            >
+              <Text style={[st.rowLabel, noneSelected && { color: ACCENT }]}>None</Text>
+              {noneSelected && <Text style={{ color: ACCENT, fontSize: 18 }}>✓</Text>}
+            </TouchableOpacity>
+
+            {peerClients.length === 0 ? (
+              <Text style={{ color: '#52525b', fontSize: 12, textAlign: 'center', marginTop: 24, fontWeight: '700', letterSpacing: 1 }}>
+                INGEN ANDRE CLIENTS REGISTRERET
+              </Text>
+            ) : (
+              peerClients.map(client => {
+                const isSelected = selected.some(t => t.id === client.id)
+                return (
+                  <TouchableOpacity
+                    key={client.id}
+                    style={[st.row, isSelected && { borderColor: ACCENT }]}
+                    onPress={() => {
+                      if (isSelected) {
+                        import('../webrtc/intercom').then(({ removeTbTarget }) => removeTbTarget(ch, client.id))
+                        setTbTargets(p => ({ ...p, [k]: (p[k] ?? []).filter(t => t.id !== client.id) }))
+                      } else {
+                        import('../webrtc/intercom').then(({ assignTbTarget }) => assignTbTarget(ch, client.id))
+                        setTbTargets(p => ({ ...p, [k]: [...(p[k] ?? []), client] }))
+                      }
+                    }}
+                  >
+                    <Text style={[st.rowLabel, isSelected && { color: ACCENT }]}>{client.name}</Text>
+                    {isSelected && <Text style={{ color: ACCENT, fontSize: 18 }}>✓</Text>}
+                  </TouchableOpacity>
+                )
+              })
+            )}
+          </ScrollView>
+
+          <View style={st.footer}>
+            <TouchableOpacity style={st.saveBtn} onPress={() => setClientPickerFor(null)}>
+              <Text style={st.saveTxt}>DONE</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -527,7 +767,31 @@ export default function IntercomScreen({
                 </View>
               ))}
             </View>
+            <View style={st.section}>
+              <Text style={st.sectionLabel}>DIRECT ROUTING</Text>
+              <Text style={{ color: '#52525b', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
+                ASSIGN A CLIENT TO EACH BUTTON — AUDIO GOES DIRECTLY TO THAT PERSON WHEN YOU HOLD THE BUTTON
+              </Text>
+              {(['talk1','talk2','talk3','talk4'] as const).map((k, i) => {
+                const targets = tbTargets[k] ?? []
+                const label = targets.length === 0
+                  ? 'Not assigned'
+                  : targets.map(t => t.name).join(', ')
+                return (
+                  <TouchableOpacity key={k} style={st.row} onPress={() => setClientPickerFor(k)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.rowLabel}>Button {i + 1}</Text>
+                      <Text style={{ color: targets.length > 0 ? ACCENT : '#52525b', fontSize: 10, marginTop: 2, letterSpacing: 0.5 }}>
+                        {targets.length > 0 ? `→ ${label}` : 'Not assigned'}
+                      </Text>
+                    </View>
+                    <Text style={{ color: '#52525b', fontSize: 20, fontWeight: '300' }}>›</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </ScrollView>
+          {renderClientPicker()}
           <View style={st.footer}>
             <TouchableOpacity style={st.resetBtn} onPress={() =>
               Alert.alert('Reset','Reset all settings to default?',[
@@ -537,6 +801,13 @@ export default function IntercomScreen({
                   setTalkNames(d); setEditedNames(d); setShuffleOffset(0); setIsRotated(false)
                   setGains(new Array(8).fill(80))
                   setPans(new Array(8).fill(0))
+                  const snapshot = { ...tbTargets }
+                  import('../webrtc/intercom').then(({ removeTbTarget }) => {
+                    ;(['talk1','talk2','talk3','talk4'] as const).forEach((k, i) => {
+                      (snapshot[k] ?? []).forEach(t => removeTbTarget(i + 1, t.id))
+                    })
+                  })
+                  setTbTargets({ talk1: [], talk2: [], talk3: [], talk4: [] })
                 }}])}>
               <Text style={st.resetTxt}>DEFAULT</Text>
             </TouchableOpacity>
@@ -663,7 +934,7 @@ export default function IntercomScreen({
           <TouchableOpacity style={[s.topBtnWide, showV2 && s.topBtnV2]} onPress={() => setShowV2(p=>!p)}>
             <Text style={[s.topBtnWideTxt, showV2 && { color:'#fff' }]}>V2</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.topBtn} onPress={() => { setEditedNames({...talkNames}); setIsSettingsOpen(true) }}>
+          <TouchableOpacity style={s.topBtn} onPress={openSettings}>
             <Text style={s.topBtnTxt}>⚙</Text>
           </TouchableOpacity>
         </View>

@@ -382,12 +382,8 @@ async function _createTransport(direction: 'send' | 'recv'): Promise<any> {
 
 // ─── Microphone ────────────────────────────────────────────────────────────
 export async function getLocalAudioStream(): Promise<MediaStream> {
-  // echoCancellation: false → react-native-webrtc uses standard RemoteIO instead of
-  // VoiceProcessingIO. VoiceProcessingIO forces mono on all output (including stereo
-  // consumers). RemoteIO supports stereo and lets iOS use A2DP (stereo) for AirPods.
-  // AEC is not needed when using headphones — no speaker→mic feedback path.
   const stream = await mediaDevices.getUserMedia({
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } as any,
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } as any,
     video: false,
   })
   return stream as unknown as MediaStream
@@ -903,6 +899,71 @@ export function createPhoneRoute(targetId: string, channel = 2) {
 export function removePhoneRoute(targetId: string, channel = 2) {
   if (!_socket || !_clientId) return
   _socket.emit('connection:remove', { from: _clientId, to: targetId, channel })
+}
+
+export async function fetchAudioSources(): Promise<{ id: string; name: string }[]> {
+  return new Promise(resolve => {
+    const s = _socket
+    if (!s) return resolve([])
+    s.emit('audio:sources:list', (list: any[]) => resolve(list || []))
+    setTimeout(() => resolve([]), 3000)
+  })
+}
+
+export async function fetchPeerClients(): Promise<{ id: string; name: string }[]> {
+  return new Promise(resolve => {
+    const s = _socket
+    if (!s) return resolve([])
+    s.emit('clients:list', (list: any[]) => {
+      resolve((list || [])
+        .filter((c: any) => c.id !== _clientId && (c.type === 'mobile' || c.type === 'remote'))
+        .map((c: any) => ({ id: c.id, name: c.name })))
+    })
+    setTimeout(() => resolve([]), 3000)
+  })
+}
+
+// Create a TB-gated direct route: audio flows to targetId only when talkChannel is active
+export function assignTbTarget(talkChannel: number, targetId: string) {
+  if (!_socket || !_clientId) return
+  _socket.emit('connection:create', {
+    from: _clientId, to: targetId, channel: talkChannel, toChannel: talkChannel, bidirectional: false,
+  })
+}
+
+export function removeTbTarget(talkChannel: number, targetId: string) {
+  if (!_socket || !_clientId) return
+  _socket.emit('connection:remove', { from: _clientId, to: targetId, channel: talkChannel })
+}
+
+// Replace the incoming source on a specific channel (removes current sources, adds new).
+// Also evicts the source from any other channel it was already assigned to.
+export function assignChannelSource(
+  channel: number,
+  sourceId: string,
+  currentSources: string[],
+  allRouting?: Record<number, string[]>,
+) {
+  if (!_socket || !_clientId) return
+  currentSources.forEach(src =>
+    _socket!.emit('connection:remove', { from: src, to: _clientId!, channel, bidirectional: false })
+  )
+  if (allRouting) {
+    Object.entries(allRouting).forEach(([ch, sources]) => {
+      const chNum = Number(ch)
+      if (chNum !== channel && sources.includes(sourceId)) {
+        _socket!.emit('connection:remove', { from: sourceId, to: _clientId!, channel: chNum, bidirectional: false })
+      }
+    })
+  }
+  _socket.emit('connection:create', { from: sourceId, to: _clientId, channel, bidirectional: false })
+}
+
+export function clearChannelSource(channel: number, currentSources: string[]) {
+  if (!_socket || !_clientId) return
+  currentSources.forEach(src =>
+    _socket!.emit('connection:remove', { from: src, to: _clientId!, channel, bidirectional: false })
+  )
 }
 
 export function playLocalTone(play: boolean) {
