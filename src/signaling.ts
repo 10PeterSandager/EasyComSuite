@@ -61,6 +61,12 @@ const clientVisibility = new Map<string, string[]>()
 let bridgeChannelInfo: any[] = []
 const producerOutputs = new Map<string, any>()
 
+// ── Tally & GPO state ────────────────────────────────────────────────────────
+const tallyStates = new Map<string, 'program' | 'preview' | 'off'>()
+const gpoStates   = new Map<string, boolean>()
+// GPO UDP routes: clientId → { ip, port, onMsg, offMsg }
+const gpoRoutes   = new Map<string, { ip: string; port: number; onMsg: string; offMsg: string }>()
+
 // Set of bridge channel numbers that are OUTPUTS (hardware outputs on the interface).
 // Populated when the host sends audio:bridge:channelInfo:set.
 const outputBridgeChannels = new Set<number>()
@@ -1642,6 +1648,70 @@ export function setupSignaling(io: Server) {
       save()
       broadcastTerminals(io)
       cb?.({ ok: true })
+    })
+
+    // ── Tally ──────────────────────────────────────────────────────────────────
+    socket.on("tally:set", ({ clientId, state }: { clientId: string; state: 'program' | 'preview' | 'off' }) => {
+      if (state === 'off') tallyStates.delete(clientId)
+      else tallyStates.set(clientId, state)
+      const map: Record<string, string> = {}
+      tallyStates.forEach((v, k) => { map[k] = v })
+      io.emit("tally:all", map)
+      // Forward tally to the client's socket if connected
+      const target = clients.get(clientId)
+      if (target?.socketId) io.to(target.socketId).emit("tally:state", state)
+    })
+
+    socket.on("tally:all", (cb: (map: Record<string, string>) => void) => {
+      const map: Record<string, string> = {}
+      tallyStates.forEach((v, k) => { map[k] = v })
+      if (typeof cb === "function") cb(map)
+    })
+
+    socket.on("tally:gpi:map", ({ pin, clientId, state }: { pin: number; clientId: string; state: 'program' | 'preview' | 'remove' }) => {
+      // Just acknowledge — actual GPI comes via UDP (handled externally)
+    })
+
+    // ── GPO ────────────────────────────────────────────────────────────────────
+    socket.on("client:gpo:all", (cb: (map: Record<string, boolean>) => void) => {
+      const map: Record<string, boolean> = {}
+      gpoStates.forEach((v, k) => { map[k] = v })
+      if (typeof cb === "function") cb(map)
+    })
+
+    socket.on("client:gpo:route", ({ clientId, route }: { clientId: string; route: { ip: string; port: number; onMsg: string; offMsg: string } | null }) => {
+      if (route) gpoRoutes.set(clientId, route)
+      else gpoRoutes.delete(clientId)
+    })
+
+    socket.on("client:gpo:trigger", () => {
+      // Identify which client this socket belongs to
+      const entry = [...clients.entries()].find(([, v]) => v.socketId === socket.id)
+      if (!entry) return
+      const clientId = entry[0]
+      gpoStates.set(clientId, true)
+      io.emit("client:gpo:state", { clientId, active: true })
+      // Send UDP to configured route
+      const route = gpoRoutes.get(clientId)
+      if (route) {
+        const dgram = require("dgram")
+        const udpSock = dgram.createSocket("udp4")
+        udpSock.send(Buffer.from(route.onMsg), route.port, route.ip, () => udpSock.close())
+      }
+    })
+
+    socket.on("client:gpo:release", () => {
+      const entry = [...clients.entries()].find(([, v]) => v.socketId === socket.id)
+      if (!entry) return
+      const clientId = entry[0]
+      gpoStates.set(clientId, false)
+      io.emit("client:gpo:state", { clientId, active: false })
+      const route = gpoRoutes.get(clientId)
+      if (route) {
+        const dgram = require("dgram")
+        const udpSock = dgram.createSocket("udp4")
+        udpSock.send(Buffer.from(route.offMsg), route.port, route.ip, () => udpSock.close())
+      }
     })
 
     socket.on("disconnect", () => {
