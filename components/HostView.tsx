@@ -876,6 +876,7 @@ const HostView = (props: any) => {
                     })
                     setGpoRouteItems(r)
                   }}
+                  gpoStates={gpoStates}
                   themeColor={themeColor}
                 />
               ) : setupTab === "documents" ? (
@@ -2108,13 +2109,14 @@ function EasyComLicense() {
 
 // ─── TALLY / GPI TAB ─────────────────────────────────────────────────────────
 function TallyGPITab({
-  clients, mappings, onMappingsChange, gpoRoutes, onGpoRoutesChange, themeColor,
+  clients, mappings, onMappingsChange, gpoRoutes, onGpoRoutesChange, gpoStates, themeColor,
 }: {
   clients: { id: string; name: string }[]
   mappings: GpiMappingRow[]
   onMappingsChange: (m: GpiMappingRow[]) => void
   gpoRoutes: GpoRouteRow[]
   onGpoRoutesChange: (r: GpoRouteRow[]) => void
+  gpoStates: Record<string, boolean>
   themeColor: string
 }) {
   const [newPin, setNewPin]       = React.useState<number>(1)
@@ -2259,6 +2261,7 @@ function TallyGPITab({
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-white/30 text-[10px] uppercase tracking-wider border-b border-white/5">
+                <th className="py-1.5 px-2" />
                 <th className="text-left py-1.5 px-2">Client</th>
                 <th className="text-left py-1.5 px-2">IP:Port</th>
                 <th className="text-left py-1.5 px-2">ON / OFF</th>
@@ -2266,8 +2269,18 @@ function TallyGPITab({
               </tr>
             </thead>
             <tbody>
-              {gpoRoutes.map(r => (
+              {gpoRoutes.map(r => {
+                const active = !!gpoStates[r.clientId]
+                return (
                 <tr key={r.clientId} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="py-1.5 px-2">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full transition-all duration-150"
+                      style={active
+                        ? { background: "#22c55e", boxShadow: "0 0 6px #22c55e, 0 0 12px #22c55e60" }
+                        : { background: "#374151", boxShadow: "none" }}
+                    />
+                  </td>
                   <td className="py-1.5 px-2 text-white/70">{clients.find(c => c.id === r.clientId)?.name ?? r.clientId}</td>
                   <td className="py-1.5 px-2 font-mono text-white/60 text-[10px]">{r.ip}:{r.port}</td>
                   <td className="py-1.5 px-2 font-mono text-[10px]">
@@ -2280,7 +2293,8 @@ function TallyGPITab({
                       className="text-white/20 hover:text-red-400 transition-colors">✕</button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}
