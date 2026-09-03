@@ -22,6 +22,7 @@ type Props = {
   tallyState?: 'program' | 'preview' | 'off'
   onTallySet?: (state: 'program' | 'preview' | 'off') => void
   onBaseGainChange?: (gain: number) => void
+  gpoActive?: boolean
 }
 
 const defaultIFB = (): IFBSettings => ({ active: false, channels: {} })
@@ -50,7 +51,7 @@ const ClientStrip: React.FC<Props> = ({
   onHijack = () => {}, onMapKey = () => {},
   isMixerOpen = false, onToggleMixer = () => {},
   feedSources = [], allClients = [], roles = [],
-  tallyState = 'off', onTallySet, onBaseGainChange
+  tallyState = 'off', onTallySet, onBaseGainChange, gpoActive = false
 }) => {
 
   const [snd, setSnd] = useState(0)
@@ -413,10 +414,10 @@ const ClientStrip: React.FC<Props> = ({
           )}
 
           {/* TALLY */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 justify-center">
             <button
               onClick={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
-              className="flex-1 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
+              className="w-1/4 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
               style={tallyState === 'program'
                 ? { background: "#ef4444", color: "white", boxShadow: "0 0 8px #ef444460" }
                 : { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "rgba(239,68,68,0.5)" }}>
@@ -424,7 +425,7 @@ const ClientStrip: React.FC<Props> = ({
             </button>
             <button
               onClick={e => { e.stopPropagation(); onTallySet?.(tallyState === 'preview' ? 'off' : 'preview') }}
-              className="flex-1 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
+              className="w-1/4 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
               style={tallyState === 'preview'
                 ? { background: "#22c55e", color: "white", boxShadow: "0 0 8px #22c55e60" }
                 : { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "rgba(34,197,94,0.5)" }}>

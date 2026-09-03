@@ -31,7 +31,9 @@ import {
 } from "lucide-react"
 
 type ContextMenu = { clientId: string; x: number; y: number }
-type SetupTab = "global" | "audio" | "network" | "documents" | "reset"
+type SetupTab = "global" | "audio" | "network" | "tally" | "documents" | "backup" | "reset"
+type GpiMappingRow = { pin: number; clientId: string; state: 'program' | 'preview' }
+type GpoRouteRow = { clientId: string; ip: string; port: number; onMsg: string; offMsg: string }
 
 const CLIENT_TYPES = ["mobile", "desktop", "remote"] as const
 const CLIENT_COLORS = [
@@ -224,18 +226,71 @@ const HostView = (props: any) => {
   // ── Groups ──────────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState<GroupType[]>([])
   const [activeGroupIds, setActiveGroupIds] = useState<Set<string>>(new Set())
-  const [tallyStates, setTallyStates] = useState<Record<string, 'program' | 'preview' | 'off'>>({})
 
+  // ── Tally ──────────────────────────────────────────────────────────────────
+  const [tallyStates, setTallyStates] = useState<Record<string, 'program' | 'preview' | 'off'>>({})
   useEffect(() => {
-    const handler = (data: Record<string, 'program' | 'preview' | 'off'>) => setTallyStates(data)
-    socket.on("tally:all", handler)
-    return () => { socket.off("tally:all", handler) }
+    socket.emit("tally:all", (res: any) => setTallyStates(res ?? {}))
+    const upd = (map: any) => setTallyStates(map ?? {})
+    socket.on("tally:all", upd)
+    return () => { socket.off("tally:all", upd) }
   }, [])
 
   const handleTallySet = (clientId: string, state: 'program' | 'preview' | 'off') => {
     setTallyStates(prev => ({ ...prev, [clientId]: state }))
     socket.emit("tally:set", { clientId, state })
   }
+
+  // ── GPO states (phone → host) ────────────────────────────────────────────────
+  const [gpoStates, setGpoStates] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    socket.emit("client:gpo:all", (res: any) => setGpoStates(res ?? {}))
+    const upd = ({ clientId, active }: { clientId: string; active: boolean }) =>
+      setGpoStates(prev => ({ ...prev, [clientId]: active }))
+    socket.on("client:gpo:state", upd)
+    return () => { socket.off("client:gpo:state", upd) }
+  }, [])
+
+  // ── GPI tally mappings ───────────────────────────────────────────────────────
+  const [gpiMappings, setGpiMappings] = useState<GpiMappingRow[]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom:gpiMappings') ?? '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('easycom:gpiMappings', JSON.stringify(gpiMappings)) } catch {}
+    gpiMappings.forEach(m => socket.emit('tally:gpi:map', { pin: m.pin, clientId: m.clientId, state: m.state }))
+  }, [gpiMappings])
+
+  const [gpoRouteItems, setGpoRouteItems] = useState<GpoRouteRow[]>(() => {
+    try { return JSON.parse(localStorage.getItem('easycom:gpoRoutes') ?? '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('easycom:gpoRoutes', JSON.stringify(gpoRouteItems)) } catch {}
+    gpoRouteItems.forEach(r => socket.emit('client:gpo:route', {
+      clientId: r.clientId, route: { ip: r.ip, port: r.port, onMsg: r.onMsg, offMsg: r.offMsg }
+    }))
+  }, [gpoRouteItems])
+
+  // ── Backup / failover state ──────────────────────────────────────────────
+  const [backupStatus, setBackupStatus] = useState<{
+    role: "main" | "backup"; backupUrl: string | null
+    lastSendAt: number | null; lastSyncAt: number | null
+    syncOk: boolean; hasState: boolean
+  } | null>(null)
+  const [backupUrlInput, setBackupUrlInput] = useState("")
+  const [backupTakingOver, setBackupTakingOver] = useState(false)
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/backup/status")
+        const d = await r.json()
+        setBackupStatus(d)
+        setBackupUrlInput(d.backupUrl ?? "")
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 5000)
+    return () => clearInterval(t)
+  }, [])
   const [showGroupCreate, setShowGroupCreate] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupColor, setNewGroupColor] = useState("#3b82f6")
@@ -621,6 +676,7 @@ const HostView = (props: any) => {
                     tallyState={tallyStates[c.id] ?? 'off'}
                     onTallySet={(state) => handleTallySet(c.id, state)}
                     onBaseGainChange={(gain) => socket.emit('audio:gain', { clientId: c.id, gain: gain / 100 })}
+                    gpoActive={!!gpoStates[c.id]}
                   />
                 </div>
                 )
@@ -711,8 +767,10 @@ const HostView = (props: any) => {
                 {([
                   { id: "audio",     label: "Audio I/O" },
                   { id: "network",   label: "Network" },
+                  { id: "tally",     label: "Tally / GPI" },
                   { id: "documents", label: "Documents" },
                   { id: "global",    label: "Global Setup" },
+                  { id: "backup",    label: "Backup" },
                   { id: "reset",     label: "Reset" },
                 ] as const).map(t => (
                   <button key={t.id} onClick={() => setSetupTab(t.id)}
@@ -799,8 +857,54 @@ const HostView = (props: any) => {
                     />
                   </div>
                 </div>
+              ) : setupTab === "tally" ? (
+                <TallyGPITab
+                  clients={regularClients}
+                  mappings={gpiMappings}
+                  onMappingsChange={(m) => {
+                    const newPins = new Set(m.map(x => x.pin))
+                    gpiMappings.forEach(old => {
+                      if (!newPins.has(old.pin)) socket.emit('tally:gpi:map', { pin: old.pin, clientId: old.clientId, state: 'remove' })
+                    })
+                    setGpiMappings(m)
+                  }}
+                  gpoRoutes={gpoRouteItems}
+                  onGpoRoutesChange={(r) => {
+                    const newIds = new Set(r.map(x => x.clientId))
+                    gpoRouteItems.forEach(old => {
+                      if (!newIds.has(old.clientId)) socket.emit('client:gpo:route', { clientId: old.clientId, route: null })
+                    })
+                    setGpoRouteItems(r)
+                  }}
+                  themeColor={themeColor}
+                />
               ) : setupTab === "documents" ? (
                 <DocumentsTab />
+              ) : setupTab === "backup" ? (
+                <BackupTab
+                  status={backupStatus}
+                  urlInput={backupUrlInput}
+                  onUrlChange={setBackupUrlInput}
+                  takingOver={backupTakingOver}
+                  onSave={async (url, role) => {
+                    await fetch("/api/backup/config", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ backupUrl: url, role }),
+                    })
+                    const r = await fetch("/api/backup/status")
+                    setBackupStatus(await r.json())
+                  }}
+                  onTakeover={async () => {
+                    if (!confirm("Are you sure? Backup takes over as main — all clients will be redirected.")) return
+                    setBackupTakingOver(true)
+                    try {
+                      await fetch("/api/backup/takeover", { method: "POST" })
+                    } finally {
+                      setBackupTakingOver(false)
+                    }
+                  }}
+                />
               ) : setupTab === "reset" ? (
                 <FactoryResetTab
                   onReset={() => {
@@ -1997,6 +2101,282 @@ function EasyComLicense() {
 
       <div className="mt-6 pt-4 border-t border-white/5">
         <p className="text-[9px] text-white/20">© 2025 EasyCom Systems. Alle rettigheder forbeholdes. Version 1.0</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── TALLY / GPI TAB ─────────────────────────────────────────────────────────
+function TallyGPITab({
+  clients, mappings, onMappingsChange, gpoRoutes, onGpoRoutesChange, themeColor,
+}: {
+  clients: { id: string; name: string }[]
+  mappings: GpiMappingRow[]
+  onMappingsChange: (m: GpiMappingRow[]) => void
+  gpoRoutes: GpoRouteRow[]
+  onGpoRoutesChange: (r: GpoRouteRow[]) => void
+  themeColor: string
+}) {
+  const [newPin, setNewPin]       = React.useState<number>(1)
+  const [newClient, setNewClient] = React.useState(clients[0]?.id ?? '')
+  const [newState, setNewState]   = React.useState<'program' | 'preview'>('program')
+  const [gpoClient, setGpoClient] = React.useState(clients[0]?.id ?? '')
+  const [gpoIp, setGpoIp]         = React.useState('192.168.1.100')
+  const [gpoPort, setGpoPort]     = React.useState(9001)
+  const [gpoOnMsg, setGpoOnMsg]   = React.useState('GPO_ON')
+  const [gpoOffMsg, setGpoOffMsg] = React.useState('GPO_OFF')
+  const accent = themeColor === 'orange' ? '#f97316' : '#3b82f6'
+
+  const addMapping = () => {
+    if (!newClient) return
+    const without = mappings.filter(m => m.pin !== newPin)
+    onMappingsChange([...without, { pin: newPin, clientId: newClient, state: newState }])
+  }
+  const remove = (pin: number) => onMappingsChange(mappings.filter(m => m.pin !== pin))
+
+  return (
+    <div className="h-full overflow-y-auto p-4 space-y-6 text-xs">
+      {/* GPI pin → client mapping */}
+      <div>
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-3">GPI pin mapping</h3>
+        <p className="text-white/35 mb-3 leading-relaxed">
+          Incoming UDP messages on port 9000 with format <span className="font-mono text-white/60">GPI:&lt;pin&gt;</span> trigger the configured tally state for the selected client.
+        </p>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-1">
+            <span className="text-white/40">Pin</span>
+            <input type="number" min={1} max={64} value={newPin}
+              onChange={e => setNewPin(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-12 px-1.5 py-1 rounded bg-white/5 border border-white/10 text-white text-center outline-none" />
+          </div>
+          <select value={newClient} onChange={e => setNewClient(e.target.value)}
+            className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none">
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={newState} onChange={e => setNewState(e.target.value as 'program' | 'preview')}
+            className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none">
+            <option value="program">Program (R)</option>
+            <option value="preview">Preview (P)</option>
+          </select>
+          <button onClick={addMapping} className="px-3 py-1 rounded font-bold text-white" style={{ background: accent }}>+</button>
+        </div>
+        {mappings.length === 0 ? (
+          <div className="text-white/25 py-4 text-center">No mappings yet</div>
+        ) : (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-white/30 text-[10px] uppercase tracking-wider border-b border-white/5">
+                <th className="text-left py-1.5 px-2">GPI Pin</th>
+                <th className="text-left py-1.5 px-2">Client</th>
+                <th className="text-left py-1.5 px-2">State</th>
+                <th className="py-1.5 px-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {[...mappings].sort((a,b) => a.pin - b.pin).map(m => (
+                <tr key={m.pin} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="py-1.5 px-2 font-mono font-bold text-white/80">{m.pin}</td>
+                  <td className="py-1.5 px-2 text-white/70">{clients.find(c => c.id === m.clientId)?.name ?? m.clientId}</td>
+                  <td className="py-1.5 px-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                      style={m.state === 'program' ? { background: '#dc262633', color: '#ef4444' } : { background: '#d9770633', color: '#f59e0b' }}>
+                      {m.state === 'program' ? 'PROGRAM' : 'PREVIEW'}
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-2 text-right">
+                    <button onClick={() => remove(m.pin)} className="text-white/20 hover:text-red-400 transition-colors">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* UDP reference */}
+      <div className="border-t border-white/5 pt-4">
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">UDP protocol (port 9000)</h3>
+        <div className="space-y-1 font-mono text-[10px] text-white/50">
+          <div><span className="text-white/70">PROGRAM:&lt;clientId&gt;</span>  — set program tally directly on client id</div>
+          <div><span className="text-white/70">PREVIEW:&lt;clientId&gt;</span>  — set preview tally directly</div>
+          <div><span className="text-white/70">OFF:&lt;clientId&gt;</span>      — clear tally</div>
+          <div><span className="text-white/70">GPI:&lt;pin&gt;</span>           — trigger via pin mapping above</div>
+        </div>
+        <p className="text-white/25 mt-2 leading-relaxed">
+          Example: <span className="font-mono text-white/45">echo -n "GPI:1" | nc -u 127.0.0.1 9000</span>
+        </p>
+      </div>
+
+      {/* Manual tally note */}
+      <div className="border-t border-white/5 pt-4">
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-1">Manual tally</h3>
+        <p className="text-white/35 leading-relaxed">
+          Click <span className="font-bold text-red-400">R</span> or <span className="font-bold text-amber-400">P</span> directly on a client card in the grid view to set tally manually.
+        </p>
+      </div>
+
+      {/* GPO routing */}
+      <div className="border-t border-white/5 pt-4">
+        <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-wider mb-2">GPO routing (phone → UDP out)</h3>
+        <p className="text-white/35 mb-3 leading-relaxed">
+          When a journalist presses both top TB buttons simultaneously (GPO enabled in phone settings), the server sends a UDP message to the configured IP:port.
+        </p>
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">Client</span>
+            <select value={gpoClient} onChange={e => setGpoClient(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs">
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">IP</span>
+            <input value={gpoIp} onChange={e => setGpoIp(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono"
+              placeholder="192.168.1.100" />
+            <span className="text-white/40 shrink-0">Port</span>
+            <input type="number" value={gpoPort} onChange={e => setGpoPort(parseInt(e.target.value) || 9001)}
+              className="w-16 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono text-center" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 w-14 shrink-0">ON msg</span>
+            <input value={gpoOnMsg} onChange={e => setGpoOnMsg(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono" />
+            <span className="text-white/40 shrink-0">OFF</span>
+            <input value={gpoOffMsg} onChange={e => setGpoOffMsg(e.target.value)}
+              className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-white outline-none text-xs font-mono" />
+          </div>
+          <button
+            onClick={() => {
+              const without = gpoRoutes.filter(r => r.clientId !== gpoClient)
+              onGpoRoutesChange([...without, { clientId: gpoClient, ip: gpoIp, port: gpoPort, onMsg: gpoOnMsg, offMsg: gpoOffMsg }])
+            }}
+            className="px-3 py-1 rounded font-bold text-white text-xs"
+            style={{ background: accent }}
+          >Save GPO route</button>
+        </div>
+        {gpoRoutes.length > 0 && (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-white/30 text-[10px] uppercase tracking-wider border-b border-white/5">
+                <th className="text-left py-1.5 px-2">Client</th>
+                <th className="text-left py-1.5 px-2">IP:Port</th>
+                <th className="text-left py-1.5 px-2">ON / OFF</th>
+                <th className="py-1.5 px-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {gpoRoutes.map(r => (
+                <tr key={r.clientId} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="py-1.5 px-2 text-white/70">{clients.find(c => c.id === r.clientId)?.name ?? r.clientId}</td>
+                  <td className="py-1.5 px-2 font-mono text-white/60 text-[10px]">{r.ip}:{r.port}</td>
+                  <td className="py-1.5 px-2 font-mono text-[10px]">
+                    <span className="text-green-400">{r.onMsg}</span>
+                    <span className="text-white/30"> / </span>
+                    <span className="text-red-400">{r.offMsg}</span>
+                  </td>
+                  <td className="py-1.5 px-2 text-right">
+                    <button onClick={() => onGpoRoutesChange(gpoRoutes.filter(x => x.clientId !== r.clientId))}
+                      className="text-white/20 hover:text-red-400 transition-colors">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── BACKUP TAB ──────────────────────────────────────────────────────────────
+function BackupTab({
+  status, urlInput, onUrlChange, takingOver, onSave, onTakeover
+}: {
+  status: { role: "main" | "backup"; backupUrl: string | null; lastSendAt: number | null; lastSyncAt: number | null; syncOk: boolean; hasState: boolean } | null
+  urlInput: string
+  onUrlChange: (v: string) => void
+  takingOver: boolean
+  onSave: (url: string, role: "main" | "backup") => void
+  onTakeover: () => void
+}) {
+  const role = status?.role ?? "main"
+  const isBackup = role === "backup"
+  const fmtAge = (ts: number | null) => {
+    if (!ts) return "—"
+    const s = Math.round((Date.now() - ts) / 1000)
+    if (s < 60) return `${s}s ago`
+    return `${Math.round(s / 60)}min ago`
+  }
+  return (
+    <div className="h-full overflow-y-auto px-4 py-4 space-y-5">
+      <div className="flex items-center gap-3 p-3 rounded-xl"
+        style={{ background: isBackup ? "rgba(168,85,247,0.08)" : "rgba(34,197,94,0.08)", border: `1px solid ${isBackup ? "#a855f730" : "#22c55e30"}` }}>
+        <div className="w-2.5 h-2.5 rounded-full" style={{ background: isBackup ? "#a855f7" : "#22c55e", boxShadow: `0 0 6px ${isBackup ? "#a855f7" : "#22c55e"}` }} />
+        <div>
+          <p className="text-xs font-bold" style={{ color: isBackup ? "#a855f7" : "#22c55e" }}>{isBackup ? "BACKUP SERVER" : "MAIN SERVER"}</p>
+          <p className="text-[9px] text-white/30">{isBackup ? "Receiving sync from main · ready for takeover" : "Sending sync to backup"}</p>
+        </div>
+        <div className="ml-auto">
+          <button onClick={() => onSave(urlInput, isBackup ? "main" : "backup")}
+            className="px-3 py-1 rounded text-[10px] font-bold"
+            style={{ background: isBackup ? "rgba(34,197,94,0.15)" : "rgba(168,85,247,0.15)", border: `1px solid ${isBackup ? "#22c55e40" : "#a855f740"}`, color: isBackup ? "#22c55e" : "#a855f7" }}>
+            {isBackup ? "Switch to MAIN" : "Switch to BACKUP"}
+          </button>
+        </div>
+      </div>
+      {!isBackup && (
+        <div className="space-y-2">
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Backup server URL</p>
+          <div className="flex gap-2">
+            <input value={urlInput} onChange={e => onUrlChange(e.target.value)}
+              placeholder="https://192.168.1.200:3000"
+              className="flex-1 bg-black border border-white/10 rounded px-2 py-1.5 text-xs text-white font-mono" />
+            <button onClick={() => onSave(urlInput, "main")}
+              className="px-3 py-1.5 rounded text-xs font-bold bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30">Save</button>
+          </div>
+          <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+            <div className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: status?.syncOk ? "#22c55e" : "#ef4444", boxShadow: status?.syncOk ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
+            <div>
+              <p className="text-[9px] text-white/50">{status?.syncOk ? "Sync OK" : "Sync failed / no backup configured"}</p>
+              <p className="text-[9px] text-white/20">Last sent: {fmtAge(status?.lastSendAt ?? null)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {isBackup && (
+        <div className="space-y-2">
+          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Received state</p>
+          <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+            <div className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: status?.hasState ? "#22c55e" : "#ef4444", boxShadow: status?.hasState ? "0 0 4px #22c55e" : "0 0 4px #ef4444" }} />
+            <div>
+              <p className="text-[9px] text-white/50">{status?.hasState ? "State received from main" : "No state yet — waiting for sync"}</p>
+              <p className="text-[9px] text-white/20">Last received: {fmtAge(status?.lastSyncAt ?? null)}</p>
+            </div>
+          </div>
+          <button onClick={onTakeover} disabled={!status?.hasState || takingOver}
+            className="w-full py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all"
+            style={{
+              background: status?.hasState ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${status?.hasState ? "#ef444450" : "rgba(255,255,255,0.08)"}`,
+              color: status?.hasState ? "#ef4444" : "rgba(255,255,255,0.2)",
+              cursor: status?.hasState ? "pointer" : "not-allowed",
+            }}>
+            {takingOver ? "Taking over…" : "⚡ TAKE OVER AS MAIN"}
+          </button>
+        </div>
+      )}
+      <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+        <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">How it works</p>
+        <div className="space-y-1 text-[9px] text-white/25 leading-relaxed">
+          <p>1. Main sends state to backup every 5 seconds (routing, groups, clients)</p>
+          <p>2. Clients receive backup URL automatically on connect</p>
+          <p>3. If main disappears: clients automatically try backup after 10 sec</p>
+          <p>4. Backup operator presses TAKE OVER → takes over as main</p>
+          <p>5. WebRTC re-establishes automatically (2–5 sec audio pause)</p>
+        </div>
       </div>
     </div>
   )
