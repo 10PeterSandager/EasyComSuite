@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react"
-import { socket } from "../client/webrtc/intercom"
+import React, { useState, useRef } from "react"
+import { socket, acquireConnection, releaseConnection } from "../client/webrtc/intercom"
 import { Client } from "../types"
-import { Trash2, Check, X, UserPlus, UserMinus, Power } from "lucide-react"
+import { Trash2, Check, X, UserPlus, Power, Mic, Lock } from "lucide-react"
 
 export type Group = {
   id: string
   name: string
   members: string[]
   channel: number
-  tbChannel?: number
   color: string
+  mode?: 'mesh' | 'base'
 }
 
 const GROUP_COLORS = [
@@ -25,12 +25,56 @@ type Props = {
   onDeactivate: () => void
   onDelete: () => void
   onUpdate: (g: Group) => void
+  onTalkMembers?: (memberIds: string[], active: boolean) => void
 }
 
-export default function GroupStrip({ group, clients, isActive, onActivate, onDeactivate, onDelete, onUpdate }: Props) {
+export default function GroupStrip({ group, clients, isActive, onActivate, onDeactivate, onDelete, onUpdate, onTalkMembers }: Props) {
   const [editingName, setEditingName] = useState(false)
   const [tempName, setTempName] = useState(group.name)
   const [editingMembers, setEditingMembers] = useState(false)
+  const [talkPTT, setTalkPTT] = useState(false)
+  const [talkLatched, setTalkLatched] = useState(false)
+  const talkPressedRef = useRef(false)
+
+  const memberIds = group.members
+
+  const handleTalkDown = async (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setTalkPTT(true)
+    talkPressedRef.current = true
+    const startFn = (window as any).__easycomStartMic
+    try { if (startFn) await startFn() } catch {}
+    if (!talkPressedRef.current) return
+    memberIds.forEach(id => acquireConnection("producer-65", id, 1))
+    onTalkMembers?.(memberIds, true)
+  }
+
+  const handleTalkUp = (e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    setTalkPTT(false)
+    talkPressedRef.current = false
+    if (!talkLatched) {
+      memberIds.forEach(id => releaseConnection("producer-65", id, 1))
+      onTalkMembers?.(memberIds, false)
+    }
+  }
+
+  const handleLatch = () => {
+    if (talkLatched) {
+      setTalkLatched(false)
+      setTalkPTT(false)
+      memberIds.forEach(id => releaseConnection("producer-65", id, 1))
+      onTalkMembers?.(memberIds, false)
+    } else {
+      ;(window as any).__easycomStartMic?.()
+      setTalkLatched(true)
+      setTalkPTT(true)
+      memberIds.forEach(id => acquireConnection("producer-65", id, 1))
+      onTalkMembers?.(memberIds, true)
+    }
+  }
+
+  const isTalkActive = talkPTT || talkLatched
 
   const memberClients = group.members
     .map(id => clients.find(c => c.id === id))
@@ -127,6 +171,26 @@ export default function GroupStrip({ group, clients, isActive, onActivate, onDea
           </div>
         </div>
 
+        {/* MODE TOGGLE */}
+        <div className="flex gap-1">
+          <button
+            onClick={() => onUpdate({ ...group, mode: 'mesh' })}
+            className="flex-1 py-1.5 rounded text-[9px] font-black text-center leading-tight"
+            style={(group.mode ?? 'mesh') === 'mesh'
+              ? { background: group.color + "60", color: "white", border: `1px solid ${group.color}` }
+              : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            Alle↔Alle
+          </button>
+          <button
+            onClick={() => onUpdate({ ...group, mode: 'base' })}
+            className="flex-1 py-1.5 rounded text-[9px] font-black text-center leading-tight"
+            style={(group.mode ?? 'mesh') === 'base'
+              ? { background: group.color + "60", color: "white", border: `1px solid ${group.color}` }
+              : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            Alle↔BASE
+          </button>
+        </div>
+
         {/* ACTIVE TOGGLE */}
         <button
           onClick={handleToggleActive}
@@ -139,11 +203,37 @@ export default function GroupStrip({ group, clients, isActive, onActivate, onDea
           <Power size={10} /> {isActive ? "ACTIVE" : "ENABLE"}
         </button>
 
+        {/* TALK PTT + LATCH */}
+        <div className="flex gap-1">
+          <button
+            onPointerDown={handleTalkDown}
+            onPointerUp={handleTalkUp}
+            onPointerCancel={handleTalkUp}
+            className="flex-[3] flex items-center justify-center gap-1 py-2 rounded font-black text-[9px] uppercase tracking-widest transition-all touch-none select-none"
+            style={isTalkActive
+              ? { background: group.color + "30", border: `1px solid ${group.color}`, color: group.color, boxShadow: `0 0 8px ${group.color}40` }
+              : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }
+            }
+          >
+            <Mic size={10} /> TALK
+          </button>
+          <button
+            onClick={handleLatch}
+            className="px-2 py-2 rounded transition-all"
+            style={talkLatched
+              ? { background: group.color, color: "white" }
+              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }
+            }
+          >
+            <Lock size={10} />
+          </button>
+        </div>
+
         {/* EDIT + DELETE */}
         <div className="flex gap-1">
           <button
             onClick={e => { e.stopPropagation(); setEditingMembers(p => !p) }}
-            className="flex-1 flex items-center justify-center gap-0.5 py-0.5 rounded text-[8px] font-bold"
+            className="flex-1 flex items-center justify-center gap-0.5 py-1.5 rounded text-[8px] font-bold"
             style={editingMembers
               ? { background: group.color + "20", border: `1px solid ${group.color}`, color: group.color }
               : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }
@@ -153,7 +243,7 @@ export default function GroupStrip({ group, clients, isActive, onActivate, onDea
           </button>
           <button
             onClick={onDelete}
-            className="px-2 py-0.5 rounded text-[8px] hover:bg-red-600/20 hover:text-red-400"
+            className="px-2 py-1.5 rounded text-[8px] hover:bg-red-600/20 hover:text-red-400"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.2)" }}
           >
             <Trash2 size={9} />

@@ -3,7 +3,7 @@ import { Client } from '../types'
 import { subscribeToLevels, socket, startFeedMonitor, stopFeedMonitor, setFeedMonitorVolume, getClientMonitorStream, acquireConnection, releaseConnection } from '../client/webrtc/intercom'
 import { getChannelStream } from '../client/audio/AudioBridge'
 import IFBPanel, { IFBSettings } from './IFBPanel'
-import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Zap, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio, Link2 } from 'lucide-react'
+import { Mic, Volume2, VolumeX, Smartphone, Monitor, Tablet, UserX, Keyboard, Video, SlidersHorizontal, Headphones, Lock, Radio, Gauge } from 'lucide-react'
 
 export type FeedSource = { id: string; label: string }
 
@@ -19,10 +19,9 @@ type Props = {
   feedSources?: FeedSource[]
   allClients?: Client[]
   roles?: { id: string; label: string; color: string }[]
-  connectedSources?: Client[]
   tallyState?: 'program' | 'preview' | 'off'
   onTallySet?: (state: 'program' | 'preview' | 'off') => void
-  gpoActive?: boolean
+  onBaseGainChange?: (gain: number) => void
 }
 
 const defaultIFB = (): IFBSettings => ({ active: false, channels: {} })
@@ -50,13 +49,14 @@ const ClientStrip: React.FC<Props> = ({
   client, isSelected, onUpdate, theme,
   onHijack = () => {}, onMapKey = () => {},
   isMixerOpen = false, onToggleMixer = () => {},
-  feedSources = [], allClients = [], roles = [], connectedSources = [],
-  tallyState = 'off', onTallySet, gpoActive = false
+  feedSources = [], allClients = [], roles = [],
+  tallyState = 'off', onTallySet, onBaseGainChange
 }) => {
 
   const [snd, setSnd] = useState(0)
   const [rcv, setRcv] = useState(0)
-  const [wasPatched, setWasPatched] = useState(false)
+  const [showGain, setShowGain] = useState(false)
+  const [baseGain, setBaseGain] = useState(100)
   const [phoneRoutes, setPhoneRoutes] = useState<Array<{ from: string; name: string }>>([])
   const [disabledPhoneIds, setDisabledPhoneIds] = useState<Set<string>>(new Set())
   const [isTalkPressed, setIsTalkPressed] = useState(false)
@@ -151,13 +151,7 @@ const ClientStrip: React.FC<Props> = ({
   }
 
   const isTalking = client.isTalking || client.isLatched || isTalkPressed || snd > 20
-  const micActive = isTalkPressed || client.isTalking || client.isLatched
   const isOnline = client.status === "online"
-
-  useEffect(() => {
-    if (isOnline && connectedSources.length > 0) setWasPatched(true)
-    if (isOnline && connectedSources.length === 0) setWasPatched(false)
-  }, [connectedSources.length, isOnline])
   const themeColor = theme === "orange" ? "orange" : "blue"
   const ifb: IFBSettings = (client as any).ifbSettings ?? defaultIFB()
   const auxLevel = client.auxLevel ?? 80
@@ -229,14 +223,11 @@ const ClientStrip: React.FC<Props> = ({
       <div
         id={`client-${client.id}`}
         data-client-id={client.id}
-        className={`relative flex flex-col aspect-[1/1.1] bg-zinc-900 border rounded-lg overflow-hidden
+        className={`relative flex flex-col aspect-[1/1.25] bg-zinc-900 border rounded-lg overflow-hidden
           ${isTalking ? `ring-2 ring-${themeColor}-500` : ""}
           ${isSelected ? `border-${themeColor}-500 bg-${themeColor}-600/5` : "border-white/5"}
           ${(client as any).ifbActive ? "ring-2 ring-blue-500" : ""}
           ${isMixerOpen ? "border-blue-400/40" : ""}`}
-        style={tallyState === 'program' ? { boxShadow: '0 0 0 2.5px #dc2626, 0 0 12px 2px #dc262650' }
-             : tallyState === 'preview' ? { boxShadow: '0 0 0 2.5px #d97706, 0 0 10px 2px #d9770640' }
-             : undefined}
       >
         {/* HEADER */}
         <div style={{ background: client.color || "#444" }} className="flex items-center justify-between px-2 py-1">
@@ -256,63 +247,9 @@ const ClientStrip: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-1">
             {(client.videoSources?.length ?? 0) > 0 && <Video size={10} />}
-            {/* Tally R / P buttons */}
-            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-              <button
-                onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
-                className="text-[10px] font-black px-1 py-0.5 rounded leading-none"
-                style={tallyState === 'program'
-                  ? { background: '#dc2626', color: '#fff' }
-                  : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}
-                title="Program tally"
-              >R</button>
-              <button
-                onMouseDown={e => { e.stopPropagation(); onTallySet?.(tallyState === 'preview' ? 'off' : 'preview') }}
-                className="text-[10px] font-black px-1 py-0.5 rounded leading-none"
-                style={tallyState === 'preview'
-                  ? { background: '#d97706', color: '#fff' }
-                  : { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.45)' }}
-                title="Preview tally"
-              >P</button>
-            </div>
-            {gpoActive && (
-              <span
-                className="text-[7px] font-black px-0.5 rounded leading-none animate-pulse"
-                style={{ background: '#f59e0b', color: '#000' }}
-                title="GPO aktiv"
-              >GPO</span>
-            )}
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-zinc-700"}`} />
           </div>
         </div>
-
-        {/* CONNECTED-SOURCES INDICATOR — pulse when someone talking, dim when offline */}
-        {(connectedSources.length > 0 || (!isOnline && wasPatched)) && (() => {
-          const live = connectedSources.length > 0
-          const anyTalking = connectedSources.some(s => (s as any).isTalking || (s as any).isLatched)
-          return (
-            <div
-              className={`flex items-center gap-1 px-2 py-1 flex-wrap${anyTalking ? " animate-pulse" : ""}`}
-              style={{ background: "rgba(0,0,0,0.3)" }}
-            >
-              {live
-                ? connectedSources.map((src) => (
-                    <span
-                      key={src.id}
-                      title={src.name}
-                      className="flex items-center"
-                      style={{ color: src.color || "#aaa" }}
-                    >
-                      {src.type === "mobile"  && <Smartphone size={16} />}
-                      {src.type === "desktop" && <Monitor    size={16} />}
-                      {src.type === "remote"  && <Tablet     size={16} />}
-                    </span>
-                  ))
-                : <Link2 size={16} style={{ opacity: 0.25, color: "white" }} />
-              }
-            </div>
-          )
-        })()}
 
         {/* ROLE SELECTOR */}
         {roles.length > 0 && (
@@ -366,12 +303,12 @@ const ClientStrip: React.FC<Props> = ({
               onPointerUp={handleTalkUp}
               onPointerCancel={handleTalkUp}
               className="flex-[3] py-2 rounded flex items-center justify-center transition-colors touch-none"
-              style={micActive
+              style={isTalkPressed
                 ? { background: "#22c55e", boxShadow: "0 0 12px #22c55e60" }
                 : { background: "rgb(39,39,42)" }
               }
             >
-              <Mic size={20} style={{ color: micActive ? "white" : "rgba(255,255,255,0.7)" }} />
+              <Mic size={20} style={{ color: isTalkPressed ? "white" : "rgba(255,255,255,0.7)" }} />
             </button>
             <button
               onClick={() => onUpdate({ isMuted: !client.isMuted })}
@@ -458,8 +395,41 @@ const ClientStrip: React.FC<Props> = ({
               <button onClick={() => { onUpdate({ status:"offline", isTalking:false, isLatched:false }); socket.emit("client:kick", { clientId: client.id }) }} className="hover:text-red-500 hover:opacity-100 p-0.5"><UserX size={14} /></button>
               <button onClick={onMapKey} className="hover:text-yellow-400 hover:opacity-100 p-0.5"><Keyboard size={14} /></button>
               <button onClick={e => { e.stopPropagation(); onToggleMixer() }} className={(isMixerOpen ? "text-blue-400" : "") + " hover:text-blue-400 hover:opacity-100 p-0.5"}><SlidersHorizontal size={14} /></button>
-              <button onClick={onHijack} className="hover:text-orange-400 hover:opacity-100 p-0.5"><Zap size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); setShowGain(p => !p) }} className={(showGain ? "text-yellow-400 opacity-100" : "") + " hover:text-yellow-400 hover:opacity-100 p-0.5"}><Gauge size={14} /></button>
             </div>
+          </div>
+
+          {showGain && (
+            <div className="flex items-center gap-1 px-0.5">
+              <span className="text-[7px] text-white/30 shrink-0">GAIN</span>
+              <button onClick={e => { e.stopPropagation(); const v = Math.max(0, baseGain - 10); setBaseGain(v); onBaseGainChange?.(v); socket.emit('audio:gain', { clientId: client.id, gain: v / 100 }) }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black text-white"
+                style={{ background: "rgba(239,68,68,0.7)" }}>−</button>
+              <span className="flex-1 text-center text-[10px] font-mono font-bold text-white/70">{baseGain}%</span>
+              <button onClick={e => { e.stopPropagation(); const v = Math.min(100, baseGain + 10); setBaseGain(v); onBaseGainChange?.(v); socket.emit('audio:gain', { clientId: client.id, gain: v / 100 }) }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black text-white"
+                style={{ background: "rgba(34,197,94,0.7)" }}>+</button>
+            </div>
+          )}
+
+          {/* TALLY */}
+          <div className="flex gap-1">
+            <button
+              onClick={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
+              className="flex-1 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
+              style={tallyState === 'program'
+                ? { background: "#ef4444", color: "white", boxShadow: "0 0 8px #ef444460" }
+                : { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "rgba(239,68,68,0.5)" }}>
+              R
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); onTallySet?.(tallyState === 'preview' ? 'off' : 'preview') }}
+              className="flex-1 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
+              style={tallyState === 'preview'
+                ? { background: "#22c55e", color: "white", boxShadow: "0 0 8px #22c55e60" }
+                : { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "rgba(34,197,94,0.5)" }}>
+              P
+            </button>
           </div>
 
         </div>

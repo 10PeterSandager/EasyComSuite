@@ -4,21 +4,14 @@ import { socket, initRouting, audioCtx, acquireConnection, releaseConnection } f
 import { produceStream, stopProducing, initMediasoup, isMediasoupReady, setClientId } from "../client/webrtc/mediasoupClient"
 import { getBridgeStream, subscribeBridge, getBridgeChannelCount } from "../client/audio/audioBridgeStore"
 import {
-  Radio, Users, Mic, Lock, Plus, X, Check,
-  ChevronDown, ChevronUp, Keyboard, Zap, Music
+  Radio, Mic, Lock, ChevronDown, ChevronUp, Music
 } from "lucide-react"
-
-type TalkGroup = {
-  id: string; name: string; members: string[]; color: string; keyTrigger?: string; tbChannel?: number
-}
 
 type Props = {
   client: Client; clients: Client[]
   onUpdate: (updates: Partial<Client>) => void
   theme?: "orange" | "blue"
 }
-
-const GROUP_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899"]
 
 /* ============================================================
    LEVEL BAR COMPONENT
@@ -48,10 +41,8 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [expanded, setExpanded] = useState(true)
   const [allTalkLatched, setAllTalkLatched] = useState(false)
   const [allTalkPTT, setAllTalkPTT] = useState(false)
-  const [talkGroups, setTalkGroups] = useState<TalkGroup[]>([])
-  const [latchedGroups, setLatchedGroups] = useState<Set<string>>(new Set())
-  const [pttGroups, setPttGroups] = useState<Set<string>>(new Set())
   const [micSource, setMicSource] = useState<"bridge" | "mic" | "tone" | null>(null)
+  const [micLevel, setMicLevel] = useState(0)
   const [transportReady, setTransportReady] = useState(false)
   const [bridgeLevel, setBridgeLevel] = useState(0)
   const [bridgeActive, setBridgeActive] = useState(false)
@@ -59,8 +50,6 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [selectedBridgeChannel, setSelectedBridgeChannel] = useState(1)
   const [allChannelLevels, setAllChannelLevels] = useState<number[]>([])
   const [showChannelPicker, setShowChannelPicker] = useState(false)
-  const [micDevices, setMicDevices] = useState<{ deviceId: string; label: string }[]>([])
-  const [selectedMicDeviceId, setSelectedMicDeviceId] = useState<string>("")
 
   /* ---- Tone generator state ---- */
   const [toneActive, setToneActive] = useState(false)
@@ -69,17 +58,6 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const [toneOutputLevel, setToneOutputLevel] = useState(0)
   const [showTone, setShowTone] = useState(false)
 
-  /* ---- Group creation ---- */
-  const [showCreate, setShowCreate] = useState(false)
-  const [newName, setNewName] = useState("")
-  const [newColor, setNewColor] = useState(GROUP_COLORS[0])
-  const [newMembers, setNewMembers] = useState<string[]>([])
-  const [newTbChannel, setNewTbChannel] = useState<number | undefined>(undefined)
-  const [mappingGroupId, setMappingGroupId] = useState<string | null>(null)
-  const [channelEditGroupId, setChannelEditGroupId] = useState<string | null>(null)
-  const [baseTbChannel, setBaseTbChannel] = useState<number>(() => {
-    try { return parseInt(localStorage.getItem("easycom:baseTbChannel") ?? "1") || 1 } catch { return 1 }
-  })
   const [editingName, setEditingName] = useState(false)
   const [tempName, setTempName] = useState(client.name)
 
@@ -88,6 +66,7 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const isProducingRef = useRef(false)
   const startMicRef = useRef<() => Promise<void>>()
   const micStreamRef = useRef<MediaStream | null>(null)
+  const micRafRef = useRef<number | null>(null)
   const toneCtxRef = useRef<AudioContext | null>(null)
   const toneOscRef = useRef<OscillatorNode | null>(null)
   const toneGainRef = useRef<GainNode | null>(null)
@@ -99,21 +78,7 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
   const accentColor = theme === "orange" ? "#f97316" : "#3b82f6"
   const otherClients = clients.filter(c => c.id !== client.id && !c.hidden && c.status === 'online')
   const isAllActive = allTalkPTT || allTalkLatched
-  const isTalking = isAllActive || latchedGroups.size > 0 || pttGroups.size > 0
-
-  useEffect(() => {
-    const activeChannels: number[] = []
-    if (isAllActive) activeChannels.push(baseTbChannel)
-    for (const gId of [...pttGroups, ...latchedGroups]) {
-      const g = talkGroups.find(x => x.id === gId)
-      if (g?.tbChannel && !activeChannels.includes(g.tbChannel)) activeChannels.push(g.tbChannel)
-    }
-    socket.emit("host:producer:channels", { producerId: PRODUCER_ID, channels: activeChannels })
-  }, [isAllActive, baseTbChannel, pttGroups, latchedGroups, talkGroups])
-
-  useEffect(() => {
-    try { localStorage.setItem("easycom:baseTbChannel", String(baseTbChannel)) } catch {}
-  }, [baseTbChannel])
+  const isTalking = isAllActive
 
   /* ---- Init ---- */
   useEffect(() => {
@@ -143,23 +108,6 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
     }
     if (!isMediasoupReady()) init()
     else { initRouting(PRODUCER_ID); setTransportReady(true) }
-  }, [])
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null)
-        s?.getTracks().forEach(t => t.stop())
-        const all = await navigator.mediaDevices.enumerateDevices()
-        const ins = all
-          .filter(d => d.kind === "audioinput" && d.deviceId !== "default" && d.deviceId !== "communications")
-          .map(d => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }))
-        setMicDevices(ins)
-      } catch {}
-    }
-    load()
-    navigator.mediaDevices.addEventListener("devicechange", load)
-    return () => navigator.mediaDevices.removeEventListener("devicechange", load)
   }, [])
 
   // Expose startMic globally so ClientStrip Talk buttons can trigger it
@@ -308,14 +256,30 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
         toneRafRef.current = requestAnimationFrame(bridgeTick)
         return
       }
-      const audioConstraints: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-      if (selectedMicDeviceId) audioConstraints.deviceId = { exact: selectedMicDeviceId }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      })
       micStreamRef.current = stream
       await produceStream(stream)
       hasProducedRef.current = true
       isProducingRef.current = true
       setMicSource("mic")
+      // Mic level meter
+      const micCtx = new AudioContext()
+      await micCtx.resume()
+      const micSrc = micCtx.createMediaStreamSource(stream)
+      const micAnalyser = micCtx.createAnalyser()
+      micAnalyser.fftSize = 1024
+      micSrc.connect(micAnalyser)
+      const micBuf = new Float32Array(micAnalyser.fftSize)
+      const micTick = () => {
+        if (!isProducingRef.current) { setMicLevel(0); micCtx.close(); return }
+        micAnalyser.getFloatTimeDomainData(micBuf)
+        let s = 0; for (let i = 0; i < micBuf.length; i++) s += micBuf[i] * micBuf[i]
+        setMicLevel(Math.min(100, Math.sqrt(s / micBuf.length) * 400))
+        micRafRef.current = requestAnimationFrame(micTick)
+      }
+      micRafRef.current = requestAnimationFrame(micTick)
     } catch (e: any) {
       console.error("startMic:", e)
       hasProducedRef.current = false; isProducingRef.current = false; setMicSource(null)
@@ -324,6 +288,8 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
 
   const stopMicFully = async () => {
     if (!isProducingRef.current) return
+    if (micRafRef.current) { cancelAnimationFrame(micRafRef.current); micRafRef.current = null }
+    setMicLevel(0)
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     micStreamRef.current = null
     await stopProducing().catch(() => {})
@@ -354,91 +320,20 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
     setAllTalkPTT(false)
     if (!allTalkLatched) {
       otherClients.forEach(c => removeConn(c.id))
-      if (latchedGroups.size === 0) stopMicSoon()
+      stopMicSoon()
     }
   }
   const toggleAllLatch = async () => {
     if (allTalkLatched) {
       setAllTalkLatched(false); setAllTalkPTT(false)
       otherClients.forEach(c => removeConn(c.id))
-      if (latchedGroups.size === 0) stopMicSoon()
+      stopMicSoon()
     } else {
       await startMic()
       setAllTalkLatched(true); setAllTalkPTT(true)
       otherClients.forEach(c => createConn(c.id))
     }
   }
-
-  /* ---- Groups ---- */
-  const startGroupPTT = async (g: TalkGroup) => {
-    await startMic()
-    setPttGroups(prev => new Set([...prev, g.id]))
-    g.members.forEach(id => createConn(id))
-  }
-  const stopGroupPTT = async (g: TalkGroup) => {
-    setPttGroups(prev => { const s = new Set(prev); s.delete(g.id); return s })
-    if (!latchedGroups.has(g.id)) {
-      g.members.forEach(id => {
-        if (!isAllActive && !talkGroups.filter(x => x.id !== g.id).some(x => latchedGroups.has(x.id) && x.members.includes(id)))
-          removeConn(id)
-      })
-      if (!isAllActive && latchedGroups.size === 0 && pttGroups.size <= 1) stopMicSoon()
-    }
-  }
-  const toggleGroupLatch = async (g: TalkGroup) => {
-    const isLatched = latchedGroups.has(g.id)
-    if (isLatched) {
-      setLatchedGroups(prev => { const s = new Set(prev); s.delete(g.id); return s })
-      setPttGroups(prev => { const s = new Set(prev); s.delete(g.id); return s })
-      g.members.forEach(id => {
-        if (!isAllActive && !talkGroups.filter(x => x.id !== g.id).some(x => latchedGroups.has(x.id) && x.members.includes(id)))
-          removeConn(id)
-      })
-      if (!isAllActive && latchedGroups.size <= 1) stopMicSoon()
-    } else {
-      await startMic()
-      setLatchedGroups(prev => new Set([...prev, g.id]))
-      setPttGroups(prev => new Set([...prev, g.id]))
-      g.members.forEach(id => createConn(id))
-    }
-  }
-  const deleteGroup = (id: string) => {
-    const g = talkGroups.find(x => x.id === id)
-    if (g && latchedGroups.has(id)) g.members.forEach(mid => removeConn(mid))
-    setTalkGroups(prev => prev.filter(x => x.id !== id))
-    setLatchedGroups(prev => { const s = new Set(prev); s.delete(id); return s })
-    setPttGroups(prev => { const s = new Set(prev); s.delete(id); return s })
-  }
-  const createGroup = () => {
-    if (!newName.trim() || newMembers.length === 0) return
-    setTalkGroups(prev => [...prev, { id: crypto.randomUUID(), name: newName.trim(), members: newMembers, color: newColor, tbChannel: newTbChannel }])
-    setNewName(""); setNewMembers([]); setNewColor(GROUP_COLORS[0]); setNewTbChannel(undefined); setShowCreate(false)
-  }
-
-  /* ---- Keyboard ---- */
-  useEffect(() => {
-    if (!mappingGroupId) return
-    const h = (e: KeyboardEvent) => {
-      e.preventDefault()
-      setTalkGroups(prev => prev.map(g => g.id === mappingGroupId ? { ...g, keyTrigger: e.code } : g))
-      setMappingGroupId(null)
-    }
-    window.addEventListener("keydown", h, true)
-    return () => window.removeEventListener("keydown", h, true)
-  }, [mappingGroupId])
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      const g = talkGroups.find(x => x.keyTrigger === e.code)
-      if (g && !pttGroups.has(g.id)) startGroupPTT(g)
-    }
-    const up = (e: KeyboardEvent) => {
-      const g = talkGroups.find(x => x.keyTrigger === e.code)
-      if (g) stopGroupPTT(g)
-    }
-    window.addEventListener("keydown", down); window.addEventListener("keyup", up)
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up) }
-  }, [talkGroups, pttGroups, latchedGroups, isAllActive])
 
   /* ============================================================
      RENDER
@@ -454,7 +349,6 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
           <div className="w-3 h-3 rounded-full shrink-0"
             style={{ background: transportReady ? accentColor : "#555", boxShadow: transportReady ? `0 0 8px ${accentColor}` : "none" }} />
           <div className="flex-1 min-w-0">
-            <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">CL 65</span>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {editingName ? (
                 <input autoFocus value={tempName} onChange={e => setTempName(e.target.value)}
@@ -488,16 +382,7 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
 
             {/* TALK ALL + METERS */}
             <div className="flex flex-col gap-2 shrink-0 w-48">
-              <div className="flex items-center justify-between">
-                <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold">Talk All</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-[7px] text-white/20">CH 65 TB:</span>
-                  <input type="number" min={1} max={16}
-                    value={baseTbChannel}
-                    onChange={e => setBaseTbChannel(parseInt(e.target.value) || 1)}
-                    className="w-9 px-1 py-0.5 bg-black border border-white/10 rounded text-[9px] text-white text-center font-mono" />
-                </div>
-              </div>
+              <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold">Talk All</span>
               <div className="flex gap-1.5">
                 <button
                   onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); startAllTalk() }}
@@ -565,160 +450,12 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
                 {toneActive && (
                   <LevelBar level={toneOutputLevel} label="🎵 Tone out" color="#a855f7" />
                 )}
-                {!bridgeActive && !toneActive && (
+                {micSource === "mic" && (
+                  <LevelBar level={micLevel} label="🎤 Mic in" color="#3b82f6" />
+                )}
+                {!bridgeActive && !toneActive && micSource !== "mic" && (
                   <p className="text-[8px] text-white/20">No active source</p>
                 )}
-                {micDevices.length > 1 && (
-                  <div className="mt-1">
-                    <p className="text-[7px] text-white/20 uppercase tracking-widest mb-0.5">Mic input</p>
-                    <select
-                      value={selectedMicDeviceId}
-                      onChange={e => setSelectedMicDeviceId(e.target.value)}
-                      className="w-full text-[9px] rounded px-1.5 py-1 text-white"
-                      style={{ background: "#111", border: "1px solid rgba(255,255,255,0.15)" }}
-                    >
-                      <option value="">Default</option>
-                      {micDevices.map(d => (
-                        <option key={d.deviceId} value={d.deviceId} style={{ background: "#111" }}>{d.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="w-px self-stretch bg-white/5 shrink-0" />
-
-            {/* GROUPS */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold flex items-center gap-1.5">
-                  <Users size={10} /> GROUPS
-                </span>
-                <button onClick={() => setShowCreate(p => !p)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold"
-                  style={{ background: accentColor + "20", color: accentColor, border: `1px solid ${accentColor}40` }}>
-                  <Plus size={10} /> New group
-                </button>
-              </div>
-
-              {showCreate && (
-                <div className="rounded-xl p-3 mb-3 space-y-2.5"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && createGroup()}
-                    placeholder="Group name..."
-                    className="w-full px-2.5 py-1.5 bg-black border border-white/10 rounded-lg text-xs text-white" />
-                  <div className="flex gap-1.5 flex-wrap">
-                    {GROUP_COLORS.map(c => (
-                      <button key={c} onClick={() => setNewColor(c)}
-                        className="w-5 h-5 rounded-full border-2 hover:scale-110 transition-transform"
-                        style={{ background: c, borderColor: newColor === c ? "white" : "transparent" }} />
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-white/40 shrink-0">CH 65 TB:</span>
-                    <input type="number" min={1} max={16} placeholder="—"
-                      value={newTbChannel ?? ""}
-                      onChange={e => setNewTbChannel(e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-12 px-1.5 py-1 bg-black border border-white/10 rounded text-xs text-white text-center" />
-                    <span className="text-[9px] text-white/20">activates on talk</span>
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap max-h-24 overflow-auto">
-                    {otherClients.map(c => (
-                      <button key={c.id}
-                        onClick={() => setNewMembers(prev => prev.includes(c.id) ? prev.filter(x => x !== c.id) : [...prev, c.id])}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold"
-                        style={newMembers.includes(c.id)
-                          ? { background: newColor + "30", border: `1px solid ${newColor}`, color: "white" }
-                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
-                        {c.color && <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.color }} />}
-                        {c.name}
-                        {newMembers.includes(c.id) && <Check size={8} style={{ color: newColor }} />}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setShowCreate(false); setNewName(""); setNewMembers([]) }}
-                      className="flex-1 py-1.5 rounded-lg text-[9px] bg-white/5 text-white/40">Cancel</button>
-                    <button onClick={createGroup} disabled={!newName.trim() || newMembers.length === 0}
-                      className="flex-1 py-1.5 rounded-lg text-[9px] font-bold"
-                      style={{ background: newName.trim() && newMembers.length > 0 ? accentColor : "rgba(255,255,255,0.08)", color: "white" }}>
-                      Save ({newMembers.length})
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {talkGroups.length === 0 && !showCreate && (
-                <p className="text-[9px] text-white/20 italic">No groups created yet</p>
-              )}
-
-              <div className="flex gap-2 flex-wrap">
-                {talkGroups.map(group => {
-                  const isLatched = latchedGroups.has(group.id)
-                  const isActive = isLatched || pttGroups.has(group.id)
-                  const isMappingThis = mappingGroupId === group.id
-                  const isEditingChannel = channelEditGroupId === group.id
-                  return (
-                    <div key={group.id} className="flex flex-col gap-1">
-                      {group.keyTrigger && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded"
-                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                          <span className="text-[7px] text-white/30 font-mono flex-1">{group.keyTrigger}</span>
-                          <button onClick={() => setTalkGroups(prev => prev.map(g => g.id === group.id ? { ...g, keyTrigger: undefined } : g))}
-                            className="text-white/20 hover:text-red-400"><X size={7} /></button>
-                        </div>
-                      )}
-                      {isEditingChannel && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded"
-                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                          <span className="text-[7px] text-white/30 shrink-0">CH 65 TB:</span>
-                          <input autoFocus type="number" min={1} max={16}
-                            defaultValue={group.tbChannel ?? ""}
-                            onBlur={e => { setTalkGroups(prev => prev.map(g => g.id === group.id ? { ...g, tbChannel: e.target.value ? parseInt(e.target.value) : undefined } : g)); setChannelEditGroupId(null) }}
-                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
-                            className="w-10 bg-black border border-white/10 rounded px-1 text-[9px] text-white text-center" />
-                        </div>
-                      )}
-                      <div className="flex gap-1">
-                        <button
-                          onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); startGroupPTT(group) }}
-                          onPointerUp={e => { e.currentTarget.releasePointerCapture(e.pointerId); stopGroupPTT(group) }}
-                          onPointerCancel={e => { e.currentTarget.releasePointerCapture(e.pointerId); stopGroupPTT(group) }}
-                          disabled={!transportReady || toneActive}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold select-none touch-none disabled:opacity-40"
-                          style={isActive
-                            ? { background: group.color + "30", border: `1px solid ${group.color}`, color: group.color }
-                            : { background: group.color + "15", border: `1px solid ${group.color}40`, borderLeft: `3px solid ${group.color}`, color: group.color }}>
-                          <Mic size={11} /> {group.name} <span className="opacity-50 text-[8px]">{group.members.length}</span>
-                          {group.tbChannel && <span className="text-[7px] opacity-60 font-mono">ch{group.tbChannel}</span>}
-                        </button>
-                        <button onClick={() => toggleGroupLatch(group)} className="px-2 py-2 rounded-xl"
-                          style={isLatched ? { background: group.color, color: "white" } : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
-                          <Lock size={11} />
-                        </button>
-                        <button onClick={() => setMappingGroupId(isMappingThis ? null : group.id)} className="px-2 py-2 rounded-xl"
-                          style={isMappingThis ? { background: accentColor, color: "white" }
-                            : group.keyTrigger ? { background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }
-                              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
-                          <Keyboard size={11} />
-                        </button>
-                        <button onClick={() => setChannelEditGroupId(isEditingChannel ? null : group.id)}
-                          className="px-2 py-2 rounded-xl text-[8px] font-mono font-bold"
-                          style={isEditingChannel ? { background: accentColor, color: "white" }
-                            : group.tbChannel ? { background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }
-                              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}>
-                          {group.tbChannel ?? "—"}
-                        </button>
-                        <button onClick={() => deleteGroup(group.id)}
-                          className="px-1.5 py-2 rounded-xl hover:bg-red-600/20 text-white/15 hover:text-red-400">
-                          <X size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
               </div>
             </div>
           </div>
@@ -805,13 +542,6 @@ export default function ProducerStrip({ client, clients, onUpdate, theme = "oran
         </div>
       )}
 
-      {mappingGroupId && (
-        <div className="px-5 py-2 text-[10px] text-center animate-pulse"
-          style={{ background: accentColor + "20", color: accentColor }}>
-          🎹 Press a key for "{talkGroups.find(g => g.id === mappingGroupId)?.name}"
-          <button onClick={() => setMappingGroupId(null)} className="ml-2 text-white/40 hover:text-white">✕</button>
-        </div>
-      )}
     </div>
   )
 }
