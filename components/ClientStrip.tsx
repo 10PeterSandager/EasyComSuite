@@ -413,8 +413,8 @@ const ClientStrip: React.FC<Props> = ({
             </div>
           )}
 
-          {/* TALLY */}
-          <div className="flex gap-1 justify-center">
+          {/* TALLY + GPO */}
+          <div className="flex gap-1 items-center justify-center">
             <button
               onClick={e => { e.stopPropagation(); onTallySet?.(tallyState === 'program' ? 'off' : 'program') }}
               className="w-1/4 flex items-center justify-center py-0.5 rounded text-[8px] font-black uppercase"
@@ -431,6 +431,13 @@ const ClientStrip: React.FC<Props> = ({
                 : { background: "rgba(217,119,6,0.1)", border: "1px solid rgba(217,119,6,0.3)", color: "rgba(217,119,6,0.5)" }}>
               P
             </button>
+            <div
+              title="GPO"
+              className="w-2 h-2 rounded-full transition-all duration-150 shrink-0"
+              style={gpoActive
+                ? { background: "#22c55e", boxShadow: "0 0 5px #22c55e, 0 0 10px #22c55e60" }
+                : { background: "#1f2937" }}
+            />
           </div>
 
         </div>
