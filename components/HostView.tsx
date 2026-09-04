@@ -60,18 +60,27 @@ const createProducerClient = (): Client => ({
   receiveChannels: [1,2,3,4,5,6,7,8]
 })
 
-function DraggableMixer({ children }: { children: React.ReactNode }) {
+function DraggableMixer({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
   const { pos, onMouseDown } = useDraggable({ x: window.innerWidth - 420, y: 80 })
   return (
     <div className="fixed z-50 pointer-events-none" style={{ inset: 0 }}>
       <div className="pointer-events-auto absolute drop-shadow-2xl" style={{ left: pos.x, top: pos.y }}>
         <div
-          className="cursor-grab active:cursor-grabbing select-none rounded-t-xl px-4 py-2 flex items-center gap-2"
+          className="cursor-grab active:cursor-grabbing select-none rounded-t-xl px-3 py-2 flex items-center gap-2"
           style={{ background: "linear-gradient(90deg,#1a1a1a,#222)", border: "1px solid rgba(255,255,255,0.1)", borderBottom: "none" }}
           onMouseDown={onMouseDown}>
           <span className="text-white/40 text-base leading-none">⠿</span>
-          <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Audio Mixer</span>
-          <span className="text-[8px] text-white/20 ml-1">drag to move</span>
+          <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex-1">Audio Mixer</span>
+          <span className="text-[8px] text-white/20">drag to move</span>
+          {onClose && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={onClose}
+              className="ml-1 p-1 rounded hover:bg-white/10 text-white/30 hover:text-white transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
         {children}
       </div>
@@ -701,7 +710,7 @@ const HostView = (props: any) => {
 
             {/* FLOATING MIXER */}
             {mixerClient && (
-              <DraggableMixer>
+              <DraggableMixer onClose={() => setMixerClientId(null)}>
                 <ChannelMixer
                   channel={1}
                   clientId={mixerClient.id}

@@ -378,7 +378,6 @@ const updateIfb = (i: number, patch: Partial<ChSettings>) => {
             <span className="text-[8px] text-white/30 w-8 text-center">{Math.round(scale*100)}%</span>
             <button onClick={() => setScale(s => Math.min(1.5, +(s + 0.1).toFixed(1)))} className="w-5 h-5 rounded bg-white/5 hover:bg-white/10 text-white/40 text-xs flex items-center justify-center">+</button>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-white/10 text-white/30 hover:text-white"><X size={13} /></button>
         </div>
       </div>
 
